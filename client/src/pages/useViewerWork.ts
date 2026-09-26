@@ -16,6 +16,11 @@ export function useViewerWork(id: string, seurat: SeuratState) {
   const idx = Math.max(0, list.findIndex((w) => w.id === id));
   const work = seurat.works.find((w) => w.id === id) ?? list[idx] ?? seurat.works[0];
   const n = list.length;
+  const iw = work ? work.width : DEFAULT_WORK_WIDTH;
+  const ih = work ? work.height : DEFAULT_WORK_HEIGHT;
+  const title = work ? workTitle(work, idx) : 'Plate 01';
+  const dims = work ? workDims(work) : '';
+  const mp = work ? workMp(work) : '';
 
   useEffect(() => {
     gazeInit.current = false;
@@ -41,11 +46,21 @@ export function useViewerWork(id: string, seurat: SeuratState) {
     return () => document.removeEventListener('visibilitychange', onVis);
   }, [seurat.opened, seurat.gazeService]);
 
-  const iw = work ? work.width : DEFAULT_WORK_WIDTH;
-  const ih = work ? work.height : DEFAULT_WORK_HEIGHT;
-  const title = work ? workTitle(work, idx) : 'Plate 01';
-  const dims = work ? workDims(work) : '';
-  const mp = work ? workMp(work) : '';
+  useEffect(() => {
+    if (seurat.opened && seurat.gazeService && !gazeInit.current) {
+      gazeInit.current = true;
+      seurat.gazeService.motion({
+        handle: seurat.opened.handle,
+        x0: 0,
+        y0: 0,
+        x1: iw,
+        y1: ih,
+        vw: typeof window !== 'undefined' ? Math.round(window.innerWidth) : 1920,
+        vh: typeof window !== 'undefined' ? Math.round(window.innerHeight) : 1080,
+        flags: 0,
+      });
+    }
+  }, [seurat.opened, seurat.gazeService, iw, ih]);
 
   const err = seurat.lastError?.fatal === 1 || seurat.status.startsWith('offline');
   const loading = !err && (seurat.paintTick === 0 || !seurat.opened);

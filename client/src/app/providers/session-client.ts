@@ -97,7 +97,7 @@ export class SessionClient {
   }
 
   private async connect(url: string, fallbackUrl: string): Promise<SeuratTransport> {
-    if (WtTransport.supported()) {
+    if (url.startsWith('https://') && WtTransport.supported()) {
       const wt = new WtTransport(url);
       try {
         await wt.connect();

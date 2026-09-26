@@ -39,6 +39,14 @@ export class GazeSender {
     this.idleTimer = setTimeout(() => this.flush(true), GAZE_QUIET_IDLE_MS) as unknown as number;
   }
 
+  still(m: Omit<Gaze, 'seq'>): void {
+    clearTimeout(this.idleTimer);
+    this.seq += 1;
+    this.pending = { ...m, seq: this.seq };
+    this.last = this.pending;
+    this.flush(true);
+  }
+
   hidden(handle: number): void {
     this.seq += 1;
     const t = this.transport();

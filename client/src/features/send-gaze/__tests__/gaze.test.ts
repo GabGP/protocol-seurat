@@ -58,4 +58,17 @@ describe('send-gaze', () => {
     expect(t.datagrams.length).toBe(0);
     s.dispose();
   });
+
+  it('dispatches initial gaze without prior motion on first flush', () => {
+    const t = fakeTransport(false);
+    const s = new GazeSender(() => t as unknown as SeuratTransport);
+    s.motion({ handle: 42, x0: 0, y0: 0, x1: 4096, y1: 3072, vw: 1920, vh: 1080, flags: 0 });
+    expect(t.datagrams.length).toBe(0);
+    vi.advanceTimersByTime(16);
+    expect(t.datagrams.length).toBe(1);
+    // After idle interval, still/quiet gaze is promoted to reliable control channel
+    vi.advanceTimersByTime(300);
+    expect(t.control.length).toBe(1);
+    s.dispose();
+  });
 });
