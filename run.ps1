@@ -1,4 +1,4 @@
-# Seurat/1 LAN run for Windows PowerShell
+# Seurat/1 LAN run for Windows PowerShell: static viewer + Java server on one port. Offline-safe.
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
@@ -6,36 +6,57 @@ Set-Location $ScriptDir
 # Ensure runtime and build directories exist
 New-Item -ItemType Directory -Force -Path ".seurat/runtime/inbox", ".seurat/runtime/obras", ".seurat/runtime/cobertura", ".seurat/build/classes" | Out-Null
 
-# Check Java version for preview features (JDK 20 needs --enable-preview; JDK 21+ has virtual threads finalized)
+# Resolve Java if JAVA_HOME is configured but not yet in PATH
+if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
+    if ($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin")) {
+        $env:PATH = "$env:JAVA_HOME\bin;" + $env:PATH
+    } elseif ($jh = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Machine")) {
+        $env:PATH = "$jh\bin;" + $env:PATH
+    } elseif ($jh = [Environment]::GetEnvironmentVariable("JAVA_HOME", "User")) {
+        $env:PATH = "$jh\bin;" + $env:PATH
+    }
+}
+
+# Rebuild the viewer when a JS toolchain is available; otherwise serve the
+# committed client/dist. Never fails the boot.
+$hasPnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+$hasNpm = Get-Command npm -ErrorAction SilentlyContinue
+if ((Test-Path "client/package.json") -and ($hasPnpm -or $hasNpm)) {
+    $built = $false
+    Push-Location client
+    try {
+        if ($hasPnpm) {
+            & pnpm build 2>$null
+            if ($LASTEXITCODE -eq 0) { $built = $true }
+        }
+        if (-not $built -and $hasNpm) {
+            & npm run build 2>$null
+            if ($LASTEXITCODE -eq 0) { $built = $true }
+        }
+    } catch {
+        # Never fails the boot.
+    } finally {
+        Pop-Location
+    }
+    if (-not $built) {
+        Write-Host "client build skipped"
+    }
+}
+
 $compileFlags = @()
 $runFlags = @()
 $v = (& { $ErrorActionPreference = 'Continue'; java -version } 2>&1) -join ' '
-if ($v -match '20\.') {
+if ($v -match 'version "20\.') {
     $compileFlags = @("--enable-preview", "--release", "20")
     $runFlags = @("--enable-preview")
 }
 
-# Frontend build
-if ((Test-Path "client/package.json") -and (Get-Command npm -ErrorAction SilentlyContinue)) {
-    try {
-        Push-Location client
-        if (-not (Test-Path "node_modules")) {
-            Write-Host "Installing client dependencies..."
-            npm install --legacy-peer-deps 2>$null | Out-Null
-        }
-        Write-Host "Building client..."
-        npm run build 2>$null | Out-Null
-        Pop-Location
-    } catch {
-        Pop-Location
-        Write-Host "Client build failed."
-    }
-}
-
-Write-Host "Compiling Java backend..."
 $sources = Get-ChildItem -Path "server/src" -Recurse -Filter *.java | ForEach-Object { $_.FullName }
 javac @compileFlags -d .seurat/build/classes $sources
+jar -cf .seurat/build/seurat.jar -C .seurat/build/classes .
 
-Write-Host "Starting Seurat/1 Server..."
 # Ingest heap grows with image width (~2.5 GB live at 196,608 px); 6G leaves GC headroom.
-java @runFlags -Xmx6G -cp .seurat/build/classes seurat.SeuratServer @args
+$heap = if ($env:SEURAT_HEAP) { $env:SEURAT_HEAP } else { "-Xmx6G" }
+$javaOpts = if ($env:JAVA_OPTS) { $env:JAVA_OPTS -split '\s+' | Where-Object { $_ } } else { @() }
+& java @runFlags $heap @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
+exit $LASTEXITCODE
