@@ -111,12 +111,15 @@ export function ViewerChrome(props: Props): JSX.Element {
     iw: props.iw,
     ih: props.ih,
     mouse: null as { mx: number; my: number } | null,
+    isTouch: false,
+    loupeDrag: false,
     uiKey: '',
     scratchCanvas: document.createElement('canvas'),
     loupeCanvas: document.createElement('canvas'),
     scratch1x1: document.createElement('canvas'),
     cachedTick: -1,
     cachedBrushes: [] as BrushGeom[],
+    cachedRevision: -1,
   });
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -133,6 +136,8 @@ export function ViewerChrome(props: Props): JSX.Element {
     let dpr = 1;
     let raf = 0;
     let dirty = true;
+    let reportedGazeHandle = 0;
+    st.uiKey = '';
     wakeRef.current = () => {
       dirty = true;
     };
@@ -157,6 +162,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       cv.height = Math.round(r.height * dpr);
       if (!userMoved) doFit(true);
       dirty = true;
+      st.uiKey = '';
     }
 
     function doFit(imm: boolean): void {
@@ -201,14 +207,14 @@ export function ViewerChrome(props: Props): JSX.Element {
       const p = P();
       const sink = p.sink;
       if (!sink) return [];
-      if (st.cachedTick === p.paintTick) {
+      if (st.cachedTick === p.paintTick && st.cachedRevision === sink.revision) {
         return st.cachedBrushes;
       }
       const out: BrushGeom[] = [];
       const iw = p.iw;
       const ih = p.ih;
       for (const rec of sink.book.byDelivery.values()) {
-        if (!rec.rgba) continue;
+        if (!rec.rgba || (rec.rgba as { closed?: boolean }).closed === true) continue;
         const { stratum, bx, by } = splitBrushId(rec.brushId);
         if (stratum === 10) {
           out.push({ delivery: rec.delivery, stratum, x: 0, y: 0, w: iw, h: ih, bmp: rec.rgba });
@@ -219,6 +225,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       }
       out.sort((a, b) => b.stratum - a.stratum);
       st.cachedTick = p.paintTick;
+      st.cachedRevision = sink.revision;
       st.cachedBrushes = out;
       return out;
     }
@@ -299,56 +306,54 @@ export function ViewerChrome(props: Props): JSX.Element {
       ctx.clip();
       layer(v.tx, v.ty, v.s, 0, 0, W, H);
       ctx.restore();
-      if (p.loupe && st.mouse && !dragging) {
+      if (p.loupe && st.mouse && (!dragging || st.loupeDrag)) {
         const { mx, my } = st.mouse;
         const R = LOUPE_RADIUS;
         const L = Math.min(v.s * LOUPE_MAGNIFICATION, maxS() * LOUPE_MAGNIFICATION);
-        const ix = (mx - v.tx) / v.s;
-        const iy = (my - v.ty) / v.s;
-        if (ix >= 0 && iy >= 0 && ix <= p.iw && iy <= p.ih) {
-          const ltx = mx - ix * L;
-          const lty = my - iy * L;
-          ctx.save();
-          ctx.shadowColor = 'rgba(0,0,0,0.6)';
-          ctx.shadowBlur = 28;
-          ctx.beginPath();
-          ctx.arc(mx, my, R, 0, TAU);
-          ctx.fillStyle = '#0D0E13';
-          ctx.fill();
-          ctx.shadowColor = 'transparent';
-          ctx.clip();
-          ctx.beginPath();
-          ctx.rect(ltx, lty, p.iw * L, p.ih * L);
-          ctx.clip();
-          layer(ltx, lty, L, mx - R, my - R, mx + R, my + R, st.loupeCanvas);
-          if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
-            const px = Math.floor(ix);
-            const py = Math.floor(iy);
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = LOUPE_PIXEL_OUTLINE_WIDTH;
-            ctx.strokeRect(ltx + px * L, lty + py * L, L, L);
-          }
-          ctx.restore();
-          ctx.lineWidth = LOUPE_RIM_WIDTH;
-          ctx.strokeStyle = '#B8C4FF';
-          ctx.beginPath();
-          ctx.arc(mx, my, R, 0, TAU);
-          ctx.stroke();
-
-          const label = `×${LOUPE_MAGNIFICATION} · ` + (L * 100 < 1000 ? Math.round(L * 100) : Math.round(L * 100).toLocaleString('en-US')) + '%';
-          ctx.font = '600 12px "Roboto Flex", system-ui, sans-serif';
-          const tw = ctx.measureText(label).width + 20;
-          const by = my + R + LOUPE_BADGE_OFFSET_Y;
-          ctx.fillStyle = '#B8C4FF';
-          ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_RADIUS);
-          else ctx.rect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT);
-          ctx.fill();
-          ctx.fillStyle = '#1F2D6F';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, mx, by + LOUPE_BADGE_HEIGHT / 2);
+        const ix = clamp((mx - v.tx) / v.s, 0, p.iw);
+        const iy = clamp((my - v.ty) / v.s, 0, p.ih);
+        const ltx = mx - ix * L;
+        const lty = my - iy * L;
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 28;
+        ctx.beginPath();
+        ctx.arc(mx, my, R, 0, TAU);
+        ctx.fillStyle = '#0D0E13';
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.clip();
+        ctx.beginPath();
+        ctx.rect(ltx, lty, p.iw * L, p.ih * L);
+        ctx.clip();
+        layer(ltx, lty, L, mx - R, my - R, mx + R, my + R, st.loupeCanvas);
+        if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
+          const px = Math.floor(ix);
+          const py = Math.floor(iy);
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = LOUPE_PIXEL_OUTLINE_WIDTH;
+          ctx.strokeRect(ltx + px * L, lty + py * L, L, L);
         }
+        ctx.restore();
+        ctx.lineWidth = LOUPE_RIM_WIDTH;
+        ctx.strokeStyle = '#B8C4FF';
+        ctx.beginPath();
+        ctx.arc(mx, my, R, 0, TAU);
+        ctx.stroke();
+
+        const label = `×${LOUPE_MAGNIFICATION} · ` + (L * 100 < 1000 ? Math.round(L * 100) : Math.round(L * 100).toLocaleString('en-US')) + '%';
+        ctx.font = '600 12px "Roboto Flex", system-ui, sans-serif';
+        const tw = ctx.measureText(label).width + 20;
+        const by = (my + R + 40 > H) ? (my - R - LOUPE_BADGE_HEIGHT - LOUPE_BADGE_OFFSET_Y) : (my + R + LOUPE_BADGE_OFFSET_Y);
+        ctx.fillStyle = '#B8C4FF';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_RADIUS);
+        else ctx.rect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT);
+        ctx.fill();
+        ctx.fillStyle = '#1F2D6F';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, mx, by + LOUPE_BADGE_HEIGHT / 2);
       }
     }
 
@@ -403,20 +408,30 @@ export function ViewerChrome(props: Props): JSX.Element {
     function loop(): void {
       raf = requestAnimationFrame(loop);
       if (!ctx) return;
+      const p = P();
       const v = st.v;
+      if (p.loupe && !st.mouse && W > 0 && H > 0) {
+        st.mouse = { mx: W / 2, my: H / 2 };
+        dirty = true;
+      }
       const { next, moving } = tickView(v);
       st.v = next;
+      const initialGaze = p.handle > 0 && p.handle !== reportedGazeHandle && W > 0 && H > 0;
+      if (initialGaze) {
+        reportedGazeHandle = p.handle;
+        reportGaze();
+      }
       const hasPaint = brushes().length > 0;
       if (!hasPaint) {
         drawLoader();
-        if (moving || dirty) {
+        if (moving || dirty || initialGaze) {
           dirty = false;
           syncUI();
           if (moving) reportGaze();
         }
         return;
       }
-      if (moving || dirty) {
+      if (moving || dirty || initialGaze) {
         dirty = false;
         draw();
         syncUI();
@@ -438,20 +453,37 @@ export function ViewerChrome(props: Props): JSX.Element {
     function onDown(e: PointerEvent): void {
       cv.setPointerCapture(e.pointerId);
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const r = cv.getBoundingClientRect();
+      const mx = e.clientX - r.left;
+      const my = e.clientY - r.top;
       if (ptrs.size === 1) {
-        dragging = true;
-        last = { x: e.clientX, y: e.clientY, t: performance.now() };
-        vel = { x: 0, y: 0 };
+        if (P().loupe && e.pointerType === 'touch') {
+          st.mouse = { mx, my };
+          st.isTouch = true;
+          st.loupeDrag = true;
+          dragging = false;
+        } else {
+          dragging = true;
+          last = { x: e.clientX, y: e.clientY, t: performance.now() };
+          vel = { x: 0, y: 0 };
+        }
       } else if (ptrs.size === 2) {
+        st.loupeDrag = false;
         pinch = pinchInfo();
       }
       P().actions.onCloseMenu();
+      dirty = true;
     }
 
     function onMove(e: PointerEvent): void {
       const r = cv.getBoundingClientRect();
       const v = st.v;
-      st.mouse = { mx: e.clientX - r.left, my: e.clientY - r.top };
+      const mx = e.clientX - r.left;
+      const my = e.clientY - r.top;
+      if (e.pointerType !== 'touch') {
+        st.mouse = { mx, my };
+        st.isTouch = false;
+      }
       if (ptrs.has(e.pointerId)) {
         ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (ptrs.size >= 2 && pinch) {
@@ -459,6 +491,9 @@ export function ViewerChrome(props: Props): JSX.Element {
           zoomTo(v.ts * (q.d / pinch.d), q.x - r.left, q.y - r.top);
           st.v = { ...st.v, s: st.v.ts, tx: st.v.ttx + (q.x - pinch.x), ty: st.v.tty + (q.y - pinch.y), ttx: st.v.ttx + (q.x - pinch.x), tty: st.v.tty + (q.y - pinch.y) };
           pinch = q;
+        } else if (st.loupeDrag && P().loupe) {
+          st.mouse = { mx, my };
+          st.isTouch = true;
         } else if (dragging) {
           const now = performance.now();
           const dt = Math.max(1, now - last.t);
@@ -478,9 +513,16 @@ export function ViewerChrome(props: Props): JSX.Element {
 
     function onUp(e: PointerEvent): void {
       ptrs.delete(e.pointerId);
-      if (ptrs.size === 0 && dragging) {
-        dragging = false;
-        if (performance.now() - last.t < FLING_WINDOW_MS) st.v = flingTarget(st.v, vel.x, vel.y);
+      if (e.pointerType === 'touch' && P().loupe) {
+        const r = cv.getBoundingClientRect();
+        st.mouse = { mx: e.clientX - r.left, my: e.clientY - r.top };
+      }
+      if (ptrs.size === 0) {
+        st.loupeDrag = false;
+        if (dragging) {
+          dragging = false;
+          if (performance.now() - last.t < FLING_WINDOW_MS) st.v = flingTarget(st.v, vel.x, vel.y);
+        }
       } else if (ptrs.size === 1) {
         const [q] = [...ptrs.values()];
         if (q) last = { x: q.x, y: q.y, t: performance.now() };
@@ -491,7 +533,7 @@ export function ViewerChrome(props: Props): JSX.Element {
     }
 
     function onLeave(): void {
-      if (!dragging) {
+      if (!dragging && !st.isTouch) {
         st.mouse = null;
         dirty = true;
       }
