@@ -38,7 +38,7 @@ export function ViewerTopBar({
         >
           <Icon name="arrow_back" size={24} />
         </button>
-        <div className={styles.titleBox}>
+        <div className={styles.titleBox} title={`${title} · ${dims} px · ${mp}`}>
           <span className={styles.titleText}>{title}</span>
           <span className={styles.subText}>{dims} px · {mp}</span>
         </div>

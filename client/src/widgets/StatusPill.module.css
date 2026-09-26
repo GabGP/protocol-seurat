@@ -50,3 +50,9 @@
   font-family: ui-monospace, Menlo, monospace;
   font-size: 12px;
 }
+
+@media (max-width: 640px) {
+  .pill {
+    display: none;
+  }
+}

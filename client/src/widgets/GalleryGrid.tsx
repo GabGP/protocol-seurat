@@ -97,7 +97,7 @@ export function GalleryGrid({ items, tags, filter, onFilter, onOpen }: Props): J
               <Thumb work={w} />
             </div>
             <div className={styles.cardMeta}>
-              <span className={styles.cardTitle}>{workTitle(w, i)}</span>
+              <span className={styles.cardTitle} title={workTitle(w, i)}>{workTitle(w, i)}</span>
               <span className={styles.cardDims}>{workDims(w)}</span>
             </div>
             {w.tag && (

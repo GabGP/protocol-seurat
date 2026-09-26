@@ -56,18 +56,77 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 0 10px;
+  min-width: 0;
 }
 
 .cardTitle {
   font-size: 17px;
   font-weight: 650;
   font-variation-settings: 'wdth' 112;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cardDims {
   font-size: 13px;
   color: var(--border-line);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
+
+@media (max-width: 640px) {
+  .filterBar {
+    gap: 12px;
+  }
+
+  .chipGroup {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .chipGroup::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chipOn {
+    flex-shrink: 0;
+    height: 36px;
+    padding: 0 14px 0 10px;
+    font-size: 13px;
+  }
+
+  .counter {
+    font-size: 12px;
+  }
+
+  .grid,
+  .masonry {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    column-gap: 16px;
+    row-gap: 24px;
+  }
+
+  .cardMeta {
+    padding: 0 6px;
+    gap: 8px;
+  }
+
+  .cardTitle {
+    font-size: 15px;
+  }
+
+  .cardDims {
+    font-size: 12px;
+  }
+}
+

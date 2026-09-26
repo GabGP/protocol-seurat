@@ -1,32 +1,14 @@
 :root {
-  --bg: #FBF8FF;
-  --ink: #1A1B21;
-  --primary: #4355B9;
-  --primary-deep: #00105C;
-  --primary-hover: #3748A8;
-  --hero: #DDE1FF;
-  --accent: #FF8A5B;
-  --visor: #0D0E13;
-  --visor-ink: #E3E1E9;
-  --visor-dim: #C5C6D0;
-  --pill: #B8C4FF;
-  --pill-ink: #1F2D6F;
-  --card: #E9E7EF;
-  --radius-hero: 48px;
-  --radius-card: 28px;
-  --radius-card-hover: 64px;
-  --surface-panel: #1A1B21;
-  --surface-card: #1E1F25;
-  --surface-subtle: #292A2F;
-  --surface-container: #414659;
-  --border-dim: #34343A;
-  --border-line: #45464F;
-  --text-muted: #8F909A;
-  --text-on-container: #DDE1F9;
-  --text-accent-on: #380D00;
-  --text-hero-body: #2A2F52;
-  --badge-bg: #FBF8FF;
-  --badge-text: #00105C;
+  --bg: #FBF8FF; --ink: #1A1B21; --card: #E9E7EF;
+  --primary: #4355B9; --primary-deep: #00105C; --primary-hover: #3748A8;
+  --hero: #DDE1FF; --accent: #FF8A5B;
+  --visor: #0D0E13; --visor-ink: #E3E1E9; --visor-dim: #C5C6D0;
+  --pill: #B8C4FF; --pill-ink: #1F2D6F;
+  --radius-hero: 48px; --radius-card: 28px; --radius-card-hover: 64px;
+  --surface-panel: #1A1B21; --surface-card: #1E1F25; --surface-subtle: #292A2F; --surface-container: #414659;
+  --border-dim: #34343A; --border-line: #45464F;
+  --text-muted: #8F909A; --text-on-container: #DDE1F9; --text-accent-on: #380D00; --text-hero-body: #2A2F52;
+  --badge-bg: #FBF8FF; --badge-text: #00105C;
 }
 
 * { box-sizing: border-box; }
@@ -57,6 +39,8 @@ button { font-family: inherit; }
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: border-radius 250ms cubic-bezier(.34,1.56,.64,1), background 200ms;
 }
 .hero-btn:hover {
@@ -72,6 +56,7 @@ button { font-family: inherit; }
   gap: 12px;
   margin: 0;
   cursor: zoom-in;
+  min-width: 0;
 }
 
 .gallery-card-thumb {

@@ -14,3 +14,9 @@
   cursor: crosshair;
   touch-action: none;
 }
+
+@media (max-width: 640px) {
+  .panel {
+    display: none;
+  }
+}

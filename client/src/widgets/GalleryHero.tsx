@@ -92,11 +92,14 @@ export function GalleryHero({
         </span>
         <h1 className={styles.title}>Look closer.</h1>
         <p className={styles.description}>Built for massive images. Scroll to zoom, drag to pan — keep zooming in and every pixel becomes a dot.</p>
-        <button className="hero-btn">
-          Open {featuredTitle}<Icon name="arrow_forward" size={22} />
+        <button className={`hero-btn ${styles.heroBtn}`} title={`Open ${featuredTitle}`}>
+          <span className={styles.heroBtnText}>Open {featuredTitle}</span>
+          <Icon name="arrow_forward" size={22} />
         </button>
       </div>
-      <span className={styles.captionChip}>{featuredTitle} · one dot per sampled pixel</span>
+      <span className={styles.captionChip} title={`${featuredTitle} · one dot per sampled pixel`}>
+        {featuredTitle} · one dot per sampled pixel
+      </span>
     </section>
   );
 }

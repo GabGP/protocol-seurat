@@ -11,6 +11,13 @@
   border-radius: 28px;
   background: var(--surface-card);
   text-align: center;
+  max-width: calc(100% - 32px);
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 24px 20px;
+  }
 }
 
 .message {

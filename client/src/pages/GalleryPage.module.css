@@ -29,6 +29,22 @@
   gap: 40px;
 }
 
+@media (max-width: 640px) {
+  .header {
+    padding: 16px 16px;
+    gap: 10px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
+  .main {
+    padding: 0 16px 64px;
+    gap: 24px;
+  }
+}
+
 .dotMark {
   position: relative;
   width: 36px;

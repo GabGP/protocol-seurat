@@ -28,11 +28,13 @@ export function ViewerToolbar(p: Props): JSX.Element {
 
   return (
     <div className={styles.toolbar}>
-      <button onClick={p.onZoomOut} title="Zoom out (−)" className={`visor-btn ${styles.toolButton}`}>
+      <button onClick={p.onZoomOut} title="Zoom out (−)" className={`visor-btn ${styles.toolButton} ${styles.zoomOutBtn}`}>
         <Icon name="remove" size={24} />
       </button>
-      <Slider frac={p.frac} onSeek={p.onSlide} />
-      <button onClick={p.onZoomIn} title="Zoom in (+)" className={`visor-btn ${styles.toolButton}`}>
+      <div className={styles.sliderContainer}>
+        <Slider frac={p.frac} onSeek={p.onSlide} />
+      </div>
+      <button onClick={p.onZoomIn} title="Zoom in (+)" className={`visor-btn ${styles.toolButton} ${styles.zoomInBtn}`}>
         <Icon name="add" size={24} />
       </button>
       <div className={styles.menuAnchor}>

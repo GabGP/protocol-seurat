@@ -35,4 +35,20 @@
   font-size: 14px;
   color: var(--text-muted, #C5C6D0);
   white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .pointillistBanner {
+    top: max(60px, calc(env(safe-area-inset-top) + 52px));
+    height: 30px;
+    font-size: 12px;
+    padding: 0 12px 0 10px;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

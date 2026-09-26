@@ -89,3 +89,18 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+@media (max-width: 640px) {
+  .panel {
+    top: max(56px, calc(env(safe-area-inset-top) + 52px));
+    bottom: max(68px, calc(env(safe-area-inset-bottom) + 64px));
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    padding: 18px;
+    border-radius: 24px;
+    z-index: 50;
+  }
+}
+
