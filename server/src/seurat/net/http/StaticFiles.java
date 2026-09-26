@@ -19,6 +19,12 @@ final class StaticFiles {
         if (!file.startsWith(root) || !Files.isRegularFile(file)) {
             file = fallback(rel);
             if (file == null) {
+                if (rel.equals("favicon.ico")) {
+                    return DefaultFavicon.ICO;
+                }
+                if (rel.equals("favicon.svg")) {
+                    return DefaultFavicon.SVG;
+                }
                 return null;
             }
         }
@@ -26,6 +32,12 @@ final class StaticFiles {
     }
 
     private Path fallback(String rel) {
+        if (rel.equals("favicon.ico") || rel.equals("favicon.svg")) {
+            Path pub = root.resolveSibling("public").resolve(rel);
+            if (Files.isRegularFile(pub)) {
+                return pub;
+            }
+        }
         if (!rel.startsWith("assets/synthesis.worker-") || !rel.endsWith(".js")) {
             return null;
         }
@@ -62,6 +74,9 @@ final class StaticFiles {
         }
         if (path.endsWith(".svg")) {
             return "image/svg+xml";
+        }
+        if (path.endsWith(".ico")) {
+            return "image/x-icon";
         }
         if (path.endsWith(".woff2")) {
             return "font/woff2";

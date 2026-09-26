@@ -36,6 +36,24 @@ public final class HttpSurfaceTest {
                 new byte[0], "localhost"));
         TestKit.check(missing.code() == 404, "GET 404");
 
+        var favIco = http.route(new HttpSurface.Request("GET", "/favicon.ico", Map.of(),
+                new byte[0], "localhost"));
+        TestKit.check(favIco.code() == 200
+                && favIco.type().equals("image/x-icon")
+                && favIco.body().length > 0, "GET /favicon.ico serves fallback");
+
+        var favSvg = http.route(new HttpSurface.Request("GET", "/favicon.svg", Map.of(),
+                new byte[0], "localhost"));
+        TestKit.check(favSvg.code() == 200
+                && favSvg.type().equals("image/svg+xml")
+                && new String(favSvg.body()).contains("<svg"), "GET /favicon.svg serves fallback");
+
+        Files.writeString(web.resolve("favicon.svg"), "<svg>custom</svg>");
+        var customSvg = http.route(new HttpSurface.Request("GET", "/favicon.svg", Map.of(),
+                new byte[0], "localhost"));
+        TestKit.check(customSvg.code() == 200
+                && new String(customSvg.body()).contains("custom"), "GET /favicon.svg serves custom");
+
         Path assets = web.resolve("assets");
         Files.createDirectories(assets);
         Files.writeString(assets.resolve("synthesis.worker-12345.js"), "worker-body");
