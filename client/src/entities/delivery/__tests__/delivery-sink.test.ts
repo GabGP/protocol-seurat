@@ -392,4 +392,39 @@ describe('DeliverySink', () => {
     sink.dispose();
     vi.unstubAllGlobals();
   });
+
+  it('assigns a distinct book revision per sink and bumps it on every mutation', () => {
+    const a = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const b = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    expect(a.revision).not.toBe(b.revision);
+    a.book.byDelivery.set(10, {
+      delivery: 10, brushId: makeBrushId(10, 0, 0), stratum: 10,
+      from: 0, through: 1, bytes: 5, epoch: 1, edition: 1, expires: 121000, rgba: null,
+    });
+    const r0 = a.revision;
+    a.applyPlanCanceladas([10]);
+    expect(a.book.byDelivery.has(10)).toBe(false);
+    expect(a.revision).not.toBe(r0);
+    const r1 = a.revision;
+    a.dispose();
+    b.dispose();
+    expect(a.revision).not.toBe(r1);
+  });
+
+  it('bumps book revision on ingest', () => {
+    vi.stubGlobal('Worker', class {
+      postMessage = vi.fn();
+      terminate = vi.fn();
+      set onmessage(_value: unknown) { /* dispatched only */ }
+    });
+    const sink = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const r0 = sink.revision;
+    sink.ingest(makeDeliveryBytes({
+      handle: 1, delivery: 10, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
+    }), () => 1000, () => {}, 120);
+    expect(sink.book.byDelivery.has(10)).toBe(true);
+    expect(sink.revision).not.toBe(r0);
+    sink.dispose();
+    vi.unstubAllGlobals();
+  });
 });

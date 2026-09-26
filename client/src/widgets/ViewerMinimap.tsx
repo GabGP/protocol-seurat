@@ -43,7 +43,7 @@ export function ViewerMinimap({ api, view, iw, ih, ready, sink, paintTick }: Pro
     let hasThumb = false;
     if (sink) {
       const brushes = [...sink.book.byDelivery.values()]
-        .filter((r) => r.rgba !== null)
+        .filter((r) => r.rgba !== null && (r.rgba as { closed?: boolean }).closed !== true)
         .sort((a, b) => b.stratum - a.stratum);
       if (brushes.length > 0) {
         hasThumb = true;

@@ -22,6 +22,9 @@ interface PendingScrape {
 export class DeliverySink {
   book: DeliveryLedger = emptyLedger();
   renewThrough = 0;
+  private static nextRevision = 1;
+  /** Bumped on every book mutation; paint caches key on it, not just paintTick. */
+  revision = DeliverySink.nextRevision++;
   private worker: Worker | null = null;
   private receiptTimer = 0;
   private releaseTimer = 0;
@@ -80,6 +83,7 @@ export class DeliverySink {
             rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
             rec.rgba = bmp;
             rec.planes = out.planes;
+            this.revision++;
             rec.pending = false;
             if (!rec.receiptQueued && !rec.receiptSent) {
               rec.receiptQueued = true;
@@ -163,6 +167,7 @@ export class DeliverySink {
     };
     this.book.byDelivery.set(h.delivery, rec);
     this.book.inFlight.add(h.delivery);
+    this.revision++;
     const req: SynthRequest = {
       delivery: h.delivery,
       synthesisId: this.nextSynthesisId++,
@@ -308,6 +313,7 @@ export class DeliverySink {
       this.unlink(n);
     }
     if (reason !== 0) this.release(all, reason);
+    this.revision++;
     return all;
   }
 
@@ -580,5 +586,6 @@ export class DeliverySink {
     this.failed.clear();
     for (const rec of this.book.byDelivery.values()) rec.rgba?.close();
     this.book = emptyLedger();
+    this.revision++;
   }
 }
