@@ -19,8 +19,8 @@ export function zoomTarget(
   return {
     ...v,
     ts: c,
-    ttx: px - (px - v.ttx) * (c / v.ts),
-    tty: py - (py - v.tty) * (c / v.ts),
+    ttx: px - (px - v.tx) * (c / v.s),
+    tty: py - (py - v.ty) * (c / v.s),
     px,
     py,
   };

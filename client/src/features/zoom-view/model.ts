@@ -24,7 +24,9 @@ export function tickView(v: ViewState): { next: ViewState; moving: boolean } {
   const next = { ...v };
   let moving = false;
   const lr = Math.log(v.ts / v.s);
-  if (Math.abs(lr) > ZOOM_EPSILON) {
+  const zooming = Math.abs(lr) > ZOOM_EPSILON;
+
+  if (zooming) {
     const ns = v.s * Math.exp(lr * ZOOM_LERP_FACTOR);
     next.tx = v.px - (v.px - v.tx) * (ns / v.s);
     next.ty = v.py - (v.py - v.ty) * (ns / v.s);
@@ -36,15 +38,24 @@ export function tickView(v: ViewState): { next: ViewState; moving: boolean } {
     next.s = v.ts;
     moving = true;
   }
-  const dx = v.ttx - next.tx;
-  const dy = v.tty - next.ty;
-  if (Math.abs(dx) > PAN_EPSILON || Math.abs(dy) > PAN_EPSILON) {
-    next.tx += dx * PAN_LERP_FACTOR;
-    next.ty += dy * PAN_LERP_FACTOR;
+
+  // Pure zoom moves tx/ty to match target scale ts. Any independent pan delta
+  // (e.g. from fling, panTo, or fit) is the difference beyond the zoom target:
+  const zoomTtx = v.px - (v.px - next.tx) * (v.ts / next.s);
+  const zoomTty = v.py - (v.py - next.ty) * (v.ts / next.s);
+  const panDx = v.ttx - zoomTtx;
+  const panDy = v.tty - zoomTty;
+
+  if (Math.abs(panDx) > PAN_EPSILON || Math.abs(panDy) > PAN_EPSILON) {
+    next.tx += panDx * PAN_LERP_FACTOR;
+    next.ty += panDy * PAN_LERP_FACTOR;
+    next.ttx = v.ttx;
+    next.tty = v.tty;
     moving = true;
   } else {
-    next.tx = v.ttx;
-    next.ty = v.tty;
+    next.ttx = zoomTtx;
+    next.tty = zoomTty;
   }
+
   return { next, moving };
 }
