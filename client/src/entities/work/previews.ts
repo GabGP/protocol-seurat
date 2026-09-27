@@ -28,6 +28,11 @@ export function setWorkPreview(id: string, preview: WorkPreview): void {
   notify();
 }
 
+/** The seed behind a thumbnail is a loan: when it is released, the thumbnail goes too. */
+export function dropWorkPreview(id: string): void {
+  if (previewCache.delete(id)) notify();
+}
+
 export function clearWorkPreviews(): void {
   previewCache.clear();
   notify();

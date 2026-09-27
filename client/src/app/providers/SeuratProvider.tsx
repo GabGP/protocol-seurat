@@ -118,6 +118,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         }
       },
       onScrape: (r) => {
+        if (previewRef.current?.onScrape(r)) return;
         if (sinkRef.current?.handle === r.handle) {
           sinkRef.current.applyScrape(r, () => performance.now());
           if (alive) bumpPaint();
@@ -127,10 +128,12 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         }
       },
       onRenew: (r) => {
+        if (previewRef.current?.onRenew(r)) return;
         if (sinkRef.current?.handle !== r.handle) return;
         sinkRef.current?.applyRenew(r.ranges, r.order, r.leaseS, () => performance.now());
       },
       onAudit: (a) => {
+        if (previewRef.current?.onAudit(a)) return;
         const inv = sinkRef.current?.handle === a.handle
           ? sinkRef.current?.inventory(a.through)
           : ledgersRef.current.inventory(a.handle, a.through);
@@ -156,7 +159,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
           if (telemetryRef.current?.handle === h.handle) {
             telemetryRef.current.onDelivery(bytes.length, h.delivery, performance.now());
           }
-          if (sinkRef.current?.handle !== h.handle) {
+          if (sinkRef.current?.handle !== h.handle && !previewRef.current?.owns(h.handle)) {
             const split = splitBrushId(h.brushId);
             let bandBytes = 0;
             for (const n of h.lengths) bandBytes += n;

@@ -86,12 +86,13 @@ async function makeSeedDelivery(handle: number, w: number, h: number): Promise<U
 }
 
 describe('PreviewManager', () => {
-  it('queues, loads seed delivery, stores preview, closes handle, and advances', async () => {
+  it('queues, loads the seed, keeps its canvas open with libre 0, and closes it on pause', async () => {
     clearWorkPreviews();
 
     const openedPreviews: string[] = [];
     const closedHandles: number[] = [];
 
+    const receipts: Array<{ handle: number; completed: number[]; free: number }> = [];
     const mockClient = {
       openPreview: (id: string) => {
         openedPreviews.push(id);
@@ -99,6 +100,10 @@ describe('PreviewManager', () => {
       closeHandle: (handle: number) => {
         closedHandles.push(handle);
       },
+      sendReceipt: (handle: number, completed: number[], _q: number, free: number) => {
+        receipts.push({ handle, completed, free });
+      },
+      sendRelease: () => {},
     } as unknown as SessionClient;
 
     const manager = new PreviewManager(() => mockClient);
@@ -135,13 +140,17 @@ describe('PreviewManager', () => {
     expect(previewA?.height).toBe(4);
     expect(previewA?.rgba.length).toBe(4 * 4 * 4);
 
-    // Verify handle 101 was closed
-    expect(closedHandles).toContain(101);
+    // The seed is a loan: acknowledged with libre 0, canvas kept open while the thumbnail is shown
+    expect(receipts).toEqual([{ handle: 101, completed: [1], free: 0 }]);
+    expect(closedHandles).not.toContain(101);
 
     // Verify next queued work (work-b) was opened
     expect(openedPreviews).toEqual(['work-a', 'work-b']);
 
+    // Leaving the gallery: CERRAR releases it all, so the thumbnail goes too
     manager.dispose();
+    expect(closedHandles).toContain(101);
+    expect(getWorkPreview('work-a')).toBeUndefined();
   });
 
   it('orders pending queue according to the latest sorted ids list', () => {
