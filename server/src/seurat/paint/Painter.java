@@ -59,6 +59,11 @@ public final class Painter implements Runnable {
         queue.addAll(parked.take(canvas));
     }
 
+    /** True when no entry is queued, parked, or mid-write. */
+    public boolean isIdle() {
+        return queue.isEmpty() && parked.isEmpty() && inFlight.isEmpty();
+    }
+
     /** Budget finalize before PLAN START (see BudgetApplier). */
     public BudgetedPlan applyBudget(Canvas canvas, List<PlanEntry> entries) {
         return applier.apply(canvas, entries);

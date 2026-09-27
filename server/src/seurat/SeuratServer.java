@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,7 @@ import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.regulate.Regulator;
 import seurat.server.MasterIntake;
+import seurat.server.Shutdown;
 import seurat.session.Canvas;
 import seurat.session.Easel;
 import seurat.session.Session;
@@ -59,8 +61,9 @@ public final class SeuratServer {
         GrantController grants = new GrantController(catalog, painter, sessions);
         Liveness liveness = new Liveness(grants, sessions);
         PolicySync policies = new PolicySync(grants);
-        Thread.ofPlatform().name("painter").daemon(true).start(painter);
-        var ingest = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
+        Thread painterThread = Thread.ofPlatform().name("painter").daemon(true).unstarted(painter);
+        painterThread.start();
+        ExecutorService ingest = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
         MasterIntake intake = new MasterIntake(catalog, sessions, grants, config, ingest);
         Path root = staticRoot(base);
         HttpSurface http = new HttpSurface(root, sessions, catalog, config,
@@ -73,12 +76,15 @@ public final class SeuratServer {
         clock.scheduleAtFixedRate(liveness::tick, 1, 1, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(() -> heartbeat(sessions), 15, 15, TimeUnit.SECONDS);
         Log.info("server", "Listening on http://localhost:" + config.httpPort + " (root=" + root + ")");
-        new SocketServer(config.httpPort, http, (WsMapping mapping,
+        Log.info("server", "Press Ctrl+C for graceful shutdown");
+        SocketServer listener = new SocketServer(config.httpPort, http, (WsMapping mapping,
                 BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);
             Thread.ofVirtual().start(new Easel(mapping, control, sessions, catalog,
                     grants, painter, config.sessionMaxBrushes));
-        }).start();
+        });
+        new Shutdown(listener, intake, sessions, clock, ingest, painter, painterThread).arm();
+        listener.start();
     }
 
     private static Path staticRoot(Path base) {

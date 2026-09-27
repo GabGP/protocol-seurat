@@ -31,6 +31,13 @@ final class ParkedEntries {
         return out;
     }
 
+    synchronized boolean isEmpty() {
+        for (List<Pending> list : byCanvas.values()) {
+            if (!list.isEmpty()) return false;
+        }
+        return true;
+    }
+
     synchronized void removeIf(Canvas canvas, Predicate<Pending> drop) {
         List<Pending> list = byCanvas.get(canvas);
         if (list != null) {

@@ -103,6 +103,12 @@ public final class WsMapping implements Mapping {
     @Override
     public void close() throws IOException {
         closed = true;
+        try {
+            synchronized (out) {
+                WsFraming.write(out, WsFraming.CLOSE, new byte[0]);
+            }
+        } catch (Exception ignored) {
+        }
         socket.close();
     }
 }

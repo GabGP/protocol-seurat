@@ -9,6 +9,9 @@ import java.io.OutputStream;
 public final class WsFraming {
     private WsFraming() {}
 
+    /** Close frame opcode, sent before the TCP close on shutdown. */
+    public static final int CLOSE = 0x8;
+
     public record Msg(int opcode, byte[] data, boolean done) {}
 
     public static Msg read(InputStream in) throws IOException {

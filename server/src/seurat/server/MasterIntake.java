@@ -1,8 +1,10 @@
 package seurat.server;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.concession.GrantController;
@@ -17,13 +19,14 @@ import seurat.session.Session;
 import seurat.session.Sessions;
 
 /** Master intake: inbox watch, zip unpack, single ingest, ed1->ed2 swap. */
-public final class MasterIntake {
+public final class MasterIntake implements Closeable {
     private final Catalog catalog;
     private final Sessions sessions;
     private final GrantController grants;
     private final SeuratConfig config;
     private final Executor ingest;
     private final InboxWatcher watcher;
+    private volatile boolean closed;
 
     public MasterIntake(Catalog catalog, Sessions sessions, GrantController grants,
             SeuratConfig config, Executor ingest) {
@@ -36,6 +39,10 @@ public final class MasterIntake {
     }
 
     public void offer(String id, Path file) {
+        if (closed) {
+            Log.info("ingest", "Shutdown in progress, ignoring offer for '" + id + "'");
+            return;
+        }
         Thread.ofVirtual().start(() -> {
             if (!file.toString().endsWith(".zip") && isLista(id)) {
                 Log.info("ingest", "Work already completed, skipping: " + id);
@@ -47,13 +54,18 @@ public final class MasterIntake {
                 return;
             }
             Log.info("ingest", "Queueing ingest for '" + id + "' (" + file.getFileName() + ")");
-            ingest.execute(() -> {
-                try {
-                    launch(id, file);
-                } finally {
-                    watcher.done(file);
-                }
-            });
+            try {
+                ingest.execute(() -> {
+                    try {
+                        launch(id, file);
+                    } finally {
+                        watcher.done(file);
+                    }
+                });
+            } catch (RejectedExecutionException ex) {
+                Log.info("ingest", "Shutdown in progress, dropping ingest for '" + id + "'");
+                watcher.done(file);
+            }
         });
     }
 
@@ -121,5 +133,12 @@ public final class MasterIntake {
 
     public void watch() {
         watcher.start();
+    }
+
+    /** Stops the watcher and rejects new offers; running ingest drains. */
+    @Override
+    public void close() {
+        closed = true;
+        watcher.close();
     }
 }

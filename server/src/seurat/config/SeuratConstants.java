@@ -39,5 +39,9 @@ public final class SeuratConstants {
     public static final long INGEST_CHUNK_BYTES = 256L * 1024 * 1024;
     /** Bands the read-ahead producer may hold while workers encode. */
     public static final int INGEST_READAHEAD_BANDS = 2;
+    /** Graceful shutdown: per-executor await before forcing stop. */
+    public static final long SHUTDOWN_TIMEOUT_S = 5;
+    /** Graceful shutdown: poll interval while draining in-flight paint. */
+    public static final long SHUTDOWN_POLL_MS = 50;
 }
 

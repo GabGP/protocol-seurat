@@ -1,8 +1,11 @@
 package seurat.server;
 
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -14,6 +17,8 @@ final class InboxWatcher {
     private final Path inbox;
     private final BiConsumer<String, Path> onMaster;
     private final Set<Path> seen = ConcurrentHashMap.newKeySet();
+    private volatile WatchService watch;
+    private volatile boolean closed;
 
     InboxWatcher(Path inbox, BiConsumer<String, Path> onMaster) {
         this.inbox = inbox;
@@ -22,14 +27,17 @@ final class InboxWatcher {
 
     void start() {
         Thread.ofVirtual().start(() -> {
+            if (closed) return;
             try {
                 scan(inbox);
                 var watcher = inbox.getFileSystem().newWatchService();
+                watch = watcher;
                 inbox.register(watcher, StandardWatchEventKinds.ENTRY_CREATE,
                         StandardWatchEventKinds.ENTRY_MODIFY);
                 Log.info("ingest", "Inbox file watcher active on " + inbox.toAbsolutePath());
                 for (;;) {
-                    var key = watcher.take();
+                    var key = takeQuietly(watcher);
+                    if (key == null) return;
                     for (var event : key.pollEvents()) {
                         offerIfMaster(event.context().toString());
                     }
@@ -43,6 +51,28 @@ final class InboxWatcher {
                 }
             }
         });
+    }
+
+    /** Null on shutdown: take() throws when the service is closed. */
+    private WatchKey takeQuietly(WatchService watcher) throws Exception {
+        try {
+            return watcher.take();
+        } catch (ClosedWatchServiceException ex) {
+            if (closed) {
+                Log.info("ingest", "Inbox file watcher stopped");
+                return null;
+            }
+            throw ex;
+        }
+    }
+
+    /** Stops the watcher thread; in-flight ingest drains on its pool. */
+    void close() {
+        closed = true;
+        try {
+            if (watch != null) watch.close();
+        } catch (Exception ignored) {
+        }
     }
 
     void scan(Path root) {

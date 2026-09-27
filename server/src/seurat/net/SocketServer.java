@@ -1,17 +1,18 @@
 package seurat.net;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import seurat.net.http.HttpSurface;
+import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
 
@@ -19,10 +20,12 @@ import seurat.observe.Log;
  * One TCP port: plain HTTP routes plus the seurat.1 WebSocket mapping.
  * No state is created before a valid SALUDO.
  */
-public final class SocketServer {
+public final class SocketServer implements Closeable {
     private final int port;
     private final HttpSurface http;
     private final WsAcceptor acceptor;
+    private volatile ServerSocket bound;
+    private volatile boolean closed;
 
     public interface WsAcceptor {
         void accept(WsMapping mapping, BlockingQueue<byte[]> control);
@@ -36,9 +39,16 @@ public final class SocketServer {
 
     public void start() throws Exception {
         try (ServerSocket server = new ServerSocket(port)) {
+            bound = server;
             Log.info("net", "SocketServer listening on TCP port " + port);
-            for (;;) {
-                Socket socket = server.accept();
+            while (!closed) {
+                Socket socket;
+                try {
+                    socket = server.accept();
+                } catch (java.net.SocketException ex) {
+                    if (closed) break;
+                    throw ex;
+                }
                 Thread.ofVirtual().start(() -> {
                     String remote = String.valueOf(socket.getRemoteSocketAddress());
                     try {
@@ -52,7 +62,15 @@ public final class SocketServer {
                     }
                 });
             }
+        } finally {
+            bound = null;
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        closed = true;
+        if (bound != null) bound.close();
     }
 
     private void handle(Socket socket, String remote) throws Exception {
@@ -73,7 +91,7 @@ public final class SocketServer {
                         line.substring(colon + 1).trim());
             }
         }
-        if (isWebSocket(parts, headers)) {
+        if (WsHandshake.isUpgrade(parts, headers)) {
             Log.info("ws", "Upgrading WebSocket connection for " + remote + " [" + parts[1] + "]");
             upgrade(socket, headers.get("sec-websocket-key"));
             Log.info("ws", "WebSocket connection upgraded (seurat.1) for " + remote);
@@ -114,17 +132,8 @@ public final class SocketServer {
         };
     }
 
-    private static boolean isWebSocket(String[] parts, Map<String, String> headers) {
-        return parts.length == 3 && parts[0].equals("GET")
-                && parts[1].equals("/seurat/v1/lienzo-ws")
-                && headers.getOrDefault("upgrade", "").equalsIgnoreCase("websocket");
-    }
-
     private void upgrade(Socket socket, String key) throws Exception {
-        String accept = Base64.getEncoder().encodeToString(MessageDigest
-                .getInstance("SHA-1").digest(
-                        (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
-                                .getBytes(StandardCharsets.UTF_8)));
+        String accept = WsHandshake.acceptKey(key);
         String response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
                 + "Connection: Upgrade\r\nSec-WebSocket-Accept: " + accept
                 + "\r\nSec-WebSocket-Protocol: seurat.1\r\n\r\n";

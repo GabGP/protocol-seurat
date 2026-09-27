@@ -22,6 +22,13 @@ final class InFlightDeliveries {
         }
     }
 
+    boolean isEmpty() {
+        for (Set<Delivery> set : active.values()) {
+            if (!set.isEmpty()) return false;
+        }
+        return true;
+    }
+
     Ranges purge(Canvas canvas, Concession next) {
         Set<Delivery> set = active.get(canvas);
         if (set == null || set.isEmpty()) {
