@@ -13,7 +13,7 @@ import { makeBrushId, brushKey, parseBrushHead, splitBrushId, sliceBands, verify
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape as scrapeMatches } from '@/entities/delivery/scrape';
 import { effectiveExpiry, emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from '@/entities/delivery/store';
-import { STALE_PARENT, type SynthRequest } from '@/workers/protocol';
+import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 import type { SessionClient } from './session-client';
 
 /** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
@@ -166,16 +166,19 @@ export class DeliverySink {
   }
 
   private onResult(index: number, ev: MessageEvent): void {
-    const out = ev.data as { delivery: number; synthesisId: number; ok: boolean; error?: string; rgba: ArrayBuffer | null; planes: ArrayBuffer[] | null; width: number; height: number; elapsedMs: number };
+    const out = ev.data as SynthResult;
     this.decode.answered(out.elapsedMs);
     this.pool?.complete(index);
     // The server plans nothing while the last cola_ms said we were busy (spec §6.1): tell it we caught up.
     if (this.lastQueue >= COLA_BUSY_MS && this.decode.ms < COLA_BUSY_MS) this.flushReceipt();
     this.pump();
-    if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) return;
+    if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) {
+      out.bitmap?.close();
+      return;
+    }
     const ctx = this.inflight.get(out.delivery);
     this.inflight.delete(out.delivery);
-    if (!out.ok || !out.rgba) {
+    if (!out.ok || (!out.rgba && !out.bitmap)) {
       if (out.error === STALE_PARENT && ctx) {
         this.retryWithBytes(ctx.req, ctx.brushId, ctx.epoch);
         return;
@@ -185,7 +188,10 @@ export class DeliverySink {
     }
     const rec0 = this.book.byDelivery.get(out.delivery);
     if (rec0) this.origin.set(brushKey(rec0.brushId, rec0.edition), index);
-    createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba), out.width, out.height))
+    const ready = out.bitmap
+      ? Promise.resolve(out.bitmap)
+      : createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba ?? new ArrayBuffer(0)), out.width, out.height));
+    ready
       .then((bmp) => {
         if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) {
           bmp.close();

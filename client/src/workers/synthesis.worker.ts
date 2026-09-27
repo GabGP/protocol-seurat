@@ -10,19 +10,22 @@ function ownKey(req: SynthRequest): string {
   return `${req.brush}/${req.edition}`;
 }
 
-function uleb(bytes: Uint8Array, pos: number): { v: number; n: number } {
+/**
+ * Read cursor for `uleb`: a module-level index keeps the hot decode loops allocation-free.
+ * Every decode loop resets it after its last `await`, so interleaved messages never share it.
+ */
+let cur = 0;
+
+function uleb(bytes: Uint8Array): number {
   let v = 0;
   let sh = 0;
-  let i = pos;
   for (;;) {
-    const b = bytes[i];
+    const b = bytes[cur++];
     if (b === undefined) throw new Error('uleb truncated');
     v += (b & 0x7f) * 2 ** sh;
-    i++;
-    if ((b & 0x80) === 0) break;
+    if ((b & 0x80) === 0) return v;
     sh += 7;
   }
-  return { v, n: i };
 }
 
 function zz(n: number): number {
@@ -124,6 +127,15 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   return p;
 }
 
+async function toBitmap(rgba: Uint8ClampedArray, w: number, h: number): Promise<ImageBitmap | null> {
+  if (typeof createImageBitmap !== 'function' || typeof ImageData === 'undefined') return null;
+  try {
+    return await createImageBitmap(new ImageData(rgba as Uint8ClampedArray<ArrayBuffer>, w, h));
+  } catch {
+    return null;
+  }
+}
+
 function miss(req: SynthRequest, t0: number): void {
   const out: SynthResult = {
     delivery: req.delivery,
@@ -154,15 +166,13 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
 
     if (req.seed) {
       const raw = await inflateRaw(new Uint8Array(req.bands[0] ?? new ArrayBuffer(0)));
-      let p = 0;
+      cur = 0;
       for (const ch of ['Y', 'Co', 'Cg'] as const) {
         const pl = planes[ch];
         for (let y = 0; y < h; y++) {
           let left = 0;
           for (let x = 0; x < w; x++) {
-            const r = uleb(raw, p);
-            p = r.n;
-            left += zz(r.v);
+            left += zz(uleb(raw));
             pl[y * w + x] = left;
           }
         }
@@ -201,20 +211,17 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
         const bandBytes = req.bands[b];
         if (!bandBytes || bandBytes.byteLength === 0) continue;
         const raw = await inflateRaw(new Uint8Array(bandBytes));
-        let p = 0;
-        const maskOffset = p;
-        p += (n >> 3);
+        const maskOffset = 0;
+        cur = n >> 3;
         for (let c = 0; c < nch; c++) {
           const qq = c === 0 ? req.qY : req.qC;
           for (let det = 0; det < 3; det++) {
-            const cur = details[c]?.[det];
-            if (!cur) continue;
+            const out = details[c]?.[det];
+            if (!out) continue;
             for (let i = 0; i < n; i++) {
               const maskByte = raw[maskOffset + (i >> 3)] ?? 0;
               if (((maskByte >> (i & 7)) & 1) === 1) {
-                const r = uleb(raw, p);
-                p = r.n;
-                cur[i] = deq(zz(r.v), qq);
+                out[i] = deq(zz(uleb(raw)), qq);
               }
             }
           }
@@ -279,11 +286,14 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
       rgba[off + 3] = 255;
     }
 
+    // Build the bitmap here, not on the main thread (it copies + decodes there); bytes are the fallback.
+    const bitmap = await toBitmap(rgba, w, h);
     const out: SynthResult = {
       delivery: req.delivery,
       synthesisId: req.synthesisId,
       ok: true,
-      rgba: rgba.buffer as ArrayBuffer,
+      rgba: bitmap ? null : (rgba.buffer as ArrayBuffer),
+      bitmap,
       planes: [
         planes.Y.buffer as ArrayBuffer,
         planes.Co.buffer as ArrayBuffer,
@@ -293,7 +303,10 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
       height: h,
       elapsedMs: performance.now() - t0,
     };
-    self.postMessage(out, { transfer: [out.rgba as ArrayBuffer, ...(out.planes ?? [])] });
+    const moved: Transferable[] = [...(out.planes ?? [])];
+    if (out.rgba) moved.push(out.rgba);
+    if (bitmap) moved.push(bitmap);
+    self.postMessage(out, { transfer: moved });
   } catch (e) {
     const out: SynthResult = {
       delivery: req.delivery,

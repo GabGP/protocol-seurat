@@ -30,7 +30,9 @@ export interface SynthResult {
   synthesisId: number;
   ok: boolean;
   error?: string;
+  /** Raw RGBA, only when the worker could not build `bitmap` itself. */
   rgba: ArrayBuffer | null;
+  bitmap?: ImageBitmap | null;
   planes: ArrayBuffer[] | null;
   width: number;
   height: number;
