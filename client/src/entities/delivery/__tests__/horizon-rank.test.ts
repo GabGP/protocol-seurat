@@ -72,4 +72,20 @@ describe('collectCandidates (fixed §5.2.3 filter)', () => {
     const got = collectCandidates(book(), view, 7);
     expect(got.map((c) => c.recs.map((r) => r.delivery))).toEqual([[3], [5, 6]]);
   });
+
+  it('keeps the periphery rings the server may still be refining: stratum focus + j within F_j', () => {
+    const b = emptyLedger();
+    const add = (d: number, s: number, bx: number): void => {
+      b.byDelivery.set(d, {
+        delivery: d, brushId: makeBrushId(s, bx, 0), stratum: s, from: 0, through: 4, bytes: 1,
+        epoch: 1, edition: 1, expires: 1e12, rgba: null,
+      });
+    };
+    add(1, 1, 0); // [0, 512): off screen but inside F_1 = [500, 900)
+    add(2, 0, 1); // [256, 512): off screen and outside F_0: evictable
+    add(3, 1, 2); // [1024, 1536): outside F_1: evictable
+    const offCentre: EvictView = { x0: 600, y0: 0, x1: 800, y1: 200, focus: 0 };
+    const got = collectCandidates(b, offCentre, 7);
+    expect(got.map((c) => c.recs[0]!.delivery).sort()).toEqual([2, 3]);
+  });
 });
