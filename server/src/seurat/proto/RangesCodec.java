@@ -3,6 +3,7 @@ package seurat.proto;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import seurat.config.SeuratConstants;
 
 /** RFC 9000 §19.3.1 SACK ranges wire codec. largest=0 is empty set. */
 public final class RangesCodec {
@@ -31,25 +32,36 @@ public final class RangesCodec {
         return out;
     }
 
+    /** Malformed (numbers below 1, ranges past the set, more than RANGES_MAX_NUMBERS) throws. */
     public static Ranges decode(ByteBuffer b) {
         long largest = VarInt.get(b);
-        Ranges.Builder out = new Ranges.Builder();
-        if (largest == 0) {
-            VarInt.get(b); // n_huecos (0)
-            VarInt.get(b); // primer_rango (0)
-            return out.build();
-        }
         long gaps = VarInt.get(b);
         long first = VarInt.get(b);
-        out.addRange(largest - first, largest);
+        Ranges.Builder out = new Ranges.Builder();
+        if (largest == 0) {
+            if (gaps != 0 || first != 0) {
+                throw new IllegalArgumentException("Rangos: empty set with ranges");
+            }
+            return out.build();
+        }
+        long count = add(out, largest - first, largest, 0);
         long lowest = largest - first;
         for (long i = 0; i < gaps; i++) {
             long gap = VarInt.get(b);
             long length = VarInt.get(b);
             long hi = lowest - gap - 2;
-            out.addRange(hi - length, hi);
+            count = add(out, hi - length, hi, count);
             lowest = hi - length;
         }
         return out.build();
+    }
+
+    private static long add(Ranges.Builder out, long lo, long hi, long count) {
+        long total = count + (hi - lo + 1);
+        if (lo < 1 || hi < lo || total > SeuratConstants.RANGES_MAX_NUMBERS) {
+            throw new IllegalArgumentException("Rangos: [" + lo + ", " + hi + "] out of range");
+        }
+        out.addRange(lo, hi);
+        return total;
     }
 }

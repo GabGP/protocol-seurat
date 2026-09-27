@@ -17,6 +17,8 @@ public final class SeuratConstants {
     public static final int FRAME_MAX = 64 * 1024;
     public static final int DATAGRAM_MAX = 1200;
     public static final int TOKEN_BYTES = 32;
+    /** mem_mib when the client declares none (spec 5.1: no deviceMemory API). */
+    public static final long DEFAULT_MEM_MIB = 128;
     public static final long TOKEN_TTL_S = 120;
     public static final int BRUSH_SIDE = 256;
     public static final long SCRAPE_TIMEOUT_S = 10;
@@ -27,9 +29,28 @@ public final class SeuratConstants {
     public static final long STALL_S = 30;
     public static final int GAZE_PER_S = 20;
     public static final int GAZE_BURST = 40;
+    /** ERROR 9 only for sustained abuse: more than this many MIRADA/s for GAZE_ABUSE_S (spec 6.2). */
+    public static final int GAZE_ABUSE_PER_S = 200;
+    public static final int GAZE_ABUSE_S = 5;
+    /** Coalesced MIRADA are released by this tick as the bucket refills. */
+    public static final long GAZE_TICK_MS = 50;
     public static final int RECEIPT_EVERY_MS = 100;
     public static final int RECEIPT_EVERY_N = 8;
-    public static final int QUEUE_MAX = 256;
+    /** Input queue per session, in frames (spec 9.2): a full queue stops reading the socket. */
+    public static final int INPUT_QUEUE_FRAMES = 256;
+    /** Cap on one plan's entries (the cone is proportional to the focus, never near this). */
+    public static final int PLAN_MAX_ENTRIES = 16_384;
+    /** Numbers one Rangos may name: more than any book can hold, far below a DoS. */
+    public static final int RANGES_MAX_NUMBERS = 1 << 20;
+    /** cola_ms thresholds (spec 6.1): amber halves max_en_vuelo, red stops new flows until < amber. */
+    public static final long QUEUE_AMBER_MS = 150;
+    public static final long QUEUE_RED_MS = 400;
+    /** Painter re-check period while entries wait on a gate that frees by time (rate, aging). */
+    public static final long PAINTER_WAIT_MS = 20;
+    /** LATIDO without ECO before the session is declared dead (3 x 15 s = 45 s, spec 8). */
+    public static final int HEARTBEAT_MISSES = 3;
+    /** Stride weight per role (spec 6.2): 1 by default. */
+    public static final double ROLE_WEIGHT = 1.0;
     public static final int SEED_STRATUM = 10;
     public static final int SKETCH_MIN = 7;
     public static final int DEFLATE_LEVEL = 6;

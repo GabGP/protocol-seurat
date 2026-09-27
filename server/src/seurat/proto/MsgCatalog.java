@@ -44,7 +44,10 @@ public final class MsgCatalog {
         }
 
         public static OpenWork parse(byte[] p) {
-            return new OpenWork(Buf.viStr(ByteBuffer.wrap(p)));
+            ByteBuffer b = ByteBuffer.wrap(p);
+            OpenWork w = new OpenWork(Buf.viStr(b));
+            Buf.tail(b);
+            return w;
         }
     }
 

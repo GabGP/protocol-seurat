@@ -36,20 +36,25 @@ public final class Buf {
     }
 
     public static String viStr(ByteBuffer b) {
-        int n = (int) VarInt.get(b);
-        byte[] raw = new byte[n];
-        b.get(raw);
-        return new String(raw, StandardCharsets.UTF_8);
+        return new String(bytes(b, VarInt.get(b)), StandardCharsets.UTF_8);
     }
 
+    /** n bytes, checked against what is left before allocating (a length is peer data). */
+    public static byte[] bytes(ByteBuffer b, long n) {
+        if (n < 0 || n > b.remaining()) {
+            throw new IllegalArgumentException("length " + n + " past the payload");
+        }
+        byte[] raw = new byte[(int) n];
+        b.get(raw);
+        return raw;
+    }
+
+    /** TLV extension tail: every entry must be whole; the caller skips tags it does not know. */
     public static List<Tlv> tail(ByteBuffer b) {
         List<Tlv> out = new ArrayList<>();
         while (b.hasRemaining()) {
             long tag = VarInt.get(b);
-            int len = (int) VarInt.get(b);
-            byte[] val = new byte[len];
-            b.get(val);
-            out.add(new Tlv(tag, val));
+            out.add(new Tlv(tag, bytes(b, VarInt.get(b))));
         }
         return List.copyOf(out);
     }

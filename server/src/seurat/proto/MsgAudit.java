@@ -50,7 +50,9 @@ public final class MsgAudit {
             long ha = VarInt.get(b);
             long pi = VarInt.get(b);
             long k = VarInt.get(b);
-            return new Inventory(h, o, ha, pi, k, Ranges.decode(b));
+            Ranges r = Ranges.decode(b);
+            Buf.tail(b);
+            return new Inventory(h, o, ha, pi, k, r);
         }
     }
 }

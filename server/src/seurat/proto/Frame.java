@@ -19,11 +19,19 @@ public record Frame(long type, byte[] payload) {
         long type = VarInt.get(b);
         long length = VarInt.get(b);
         if (length > SeuratConstants.FRAME_MAX) {
-            throw new FatalProtocol(1, type, "trama >64KiB");
+            throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, type, "trama >64KiB");
         }
-        byte[] payload = new byte[(int) length];
-        b.get(payload);
-        return new Frame(type, payload);
+        return new Frame(type, Buf.bytes(b, length));
+    }
+
+    /** One message = exactly one frame (WS channel 0): bytes past `largo` are malformed. */
+    public static Frame decodeExact(byte[] raw) {
+        ByteBuffer b = ByteBuffer.wrap(raw);
+        Frame f = decode(b);
+        if (b.hasRemaining()) {
+            throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, f.type(), "bytes past largo");
+        }
+        return f;
     }
 
     public static boolean mandatory(long type) {

@@ -9,6 +9,7 @@ public final class RangesTest {
         empty();
         emptyReceipt();
         malformedReceipt();
+        malformedRanges();
         receipt();
         scraped();
         renew();
@@ -43,11 +44,23 @@ public final class RangesTest {
 
     private static void malformedReceipt() {
         try {
-            MsgLoans.Receipt.parse(new byte[]{1, 0});
+            Wire.parse(FrameType.RECIBO, () -> MsgLoans.Receipt.parse(new byte[]{1, 0}));
             throw new AssertionError("truncated RECIBO accepted");
         } catch (FatalProtocol ex) {
             TestKit.check(ex.code == 1 && ex.refType == FrameType.RECIBO,
                     "truncated RECIBO is fatal ERROR 1");
+        }
+    }
+
+    /** Numbers start at 1 and a Rangos cannot name more than RANGES_MAX_NUMBERS: both are malformed. */
+    private static void malformedRanges() {
+        for (String hex : new String[]{"050005", "8020000000801fffff"}) {
+            try {
+                Ranges.decode(ByteBuffer.wrap(TestKit.unhex(hex)));
+                throw new AssertionError("accepted " + hex);
+            } catch (IllegalArgumentException expected) {
+                // below 1, or a range far past any book
+            }
         }
     }
 

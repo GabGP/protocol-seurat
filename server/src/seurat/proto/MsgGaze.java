@@ -28,8 +28,13 @@ public final class MsgGaze {
 
         public static Gaze parse(byte[] p) {
             ByteBuffer b = ByteBuffer.wrap(p);
-            return new Gaze(VarInt.get(b), VarInt.get(b), VarInt.get(b), VarInt.get(b),
+            Gaze g = new Gaze(VarInt.get(b), VarInt.get(b), VarInt.get(b), VarInt.get(b),
                     VarInt.get(b), VarInt.get(b), VarInt.get(b), VarInt.get(b), Buf.u8(b));
+            Buf.tail(b);
+            if (g.x1() < g.x0() || g.y1() < g.y0()) {
+                throw new IllegalArgumentException("MIRADA: inverted rectangle");
+            }
+            return g;
         }
     }
 

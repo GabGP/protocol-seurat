@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.List;
 import seurat.config.SeuratConstants;
 
-/** SALUDO / BIENVENIDA / LATIDO / ECO / ERROR / ADIOS. Factory of records. */
+/** SALUDO / BIENVENIDA / LATIDO / ECO / ERROR. Factory of records (ADIOS: MsgGoodbye). */
 public final class MsgHandshake {
     private MsgHandshake() {}
 
@@ -55,9 +55,7 @@ public final class MsgHandshake {
             long v1 = VarInt.get(b);
             long caps = VarInt.get(b);
             long mem = VarInt.get(b);
-            int tl = (int) VarInt.get(b);
-            byte[] token = new byte[tl];
-            b.get(token);
+            byte[] token = Buf.bytes(b, VarInt.get(b));
             ResumeRequest resumeRequest = null;
             for (Tlv t : Buf.tail(b)) {
                 if (t.tag() == Tlv.REANUDAR) {
@@ -77,6 +75,9 @@ public final class MsgHandshake {
         List<Claim> rs = new ArrayList<>();
         for (long i = 0; i < n; i++) {
             rs.add(new Claim(VarInt.get(b), Ranges.decode(b)));
+        }
+        if (b.hasRemaining()) {
+            throw new IllegalArgumentException("REANUDAR: trailing bytes");
         }
         return new ResumeRequest(session, ticket, List.copyOf(rs));
     }
@@ -111,6 +112,13 @@ public final class MsgHandshake {
             b.putLong(nonce);
             return b.array();
         }
+
+        public static Heartbeat parse(byte[] p) {
+            ByteBuffer b = ByteBuffer.wrap(p);
+            Heartbeat h = new Heartbeat(b.getLong());
+            Buf.tail(b);
+            return h;
+        }
     }
 
     public record ProtocolError(long code, int fail, long refType, String msg) {
@@ -129,15 +137,6 @@ public final class MsgHandshake {
             int f = Buf.u8(b);
             long r = VarInt.get(b);
             return new ProtocolError(c, f, r, Buf.viStr(b));
-        }
-    }
-
-    public record Goodbye(long code, String msg) {
-        public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(32 + msg.length() * 3);
-            VarInt.put(b, code);
-            Buf.viStr(b, msg);
-            return Arrays.copyOf(b.array(), b.position());
         }
     }
 }

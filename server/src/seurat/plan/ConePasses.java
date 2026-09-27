@@ -63,8 +63,8 @@ final class ConePasses {
         all.addAll(pass1);
         all.addAll(pass2);
         all.addAll(pass3);
-        if (all.size() > SeuratConstants.QUEUE_MAX * 64) {
-            return new ConePlanner.ConePlan(all.subList(0, SeuratConstants.QUEUE_MAX * 64), flags);
+        if (all.size() > SeuratConstants.PLAN_MAX_ENTRIES) {
+            return new ConePlanner.ConePlan(all.subList(0, SeuratConstants.PLAN_MAX_ENTRIES), flags);
         }
         return new ConePlanner.ConePlan(List.copyOf(all), flags);
     }

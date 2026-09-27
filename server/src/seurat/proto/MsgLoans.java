@@ -1,7 +1,6 @@
 package seurat.proto;
 
 import java.nio.ByteBuffer;
-import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 
 /** RASPAR / RASPADO / RECIBO / SOLTAR / RENOVAR / AUDITAR / INVENTARIO. */
@@ -14,6 +13,10 @@ public final class MsgLoans {
             return new Scrape(h, o, e, through, ProtoCodes.PRED_ESTRATO_BAJO, stratum, 0, 0, 0, null);
         }
 
+        public static Scrape bands(long h, long o, long e, long through, int stratum, int maxBands) {
+            return new Scrape(h, o, e, through, ProtoCodes.PRED_BANDAS, stratum, maxBands, 0, 0, null);
+        }
+
         public static Scrape all(long h, long o, long e, long through) {
             return new Scrape(h, o, e, through, ProtoCodes.PRED_TODO, 0, 0, 0, 0, null);
         }
@@ -24,7 +27,7 @@ public final class MsgLoans {
         }
 
         public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(96);
+            ByteBuffer b = ByteBuffer.allocate(96 + (list == null ? 0 : list.encode().length));
             VarInt.put(b, handle);
             VarInt.put(b, order);
             VarInt.put(b, epoch);
@@ -70,7 +73,9 @@ public final class MsgLoans {
             long ha = VarInt.get(b);
             long ra = VarInt.get(b);
             long li = VarInt.get(b);
-            return new Scraped(h, o, e, ha, ra, li, Ranges.decode(b));
+            Ranges kept = Ranges.decode(b);
+            Buf.tail(b);
+            return new Scraped(h, o, e, ha, ra, li, kept);
         }
     }
 
@@ -88,20 +93,14 @@ public final class MsgLoans {
         }
 
         public static Receipt parse(byte[] p) {
-            try {
-                ByteBuffer b = ByteBuffer.wrap(p);
-                long h = VarInt.get(b);
-                Ranges r = Ranges.decode(b);
-                long queue = VarInt.get(b);
-                long free = VarInt.get(b);
-                long renew = VarInt.get(b);
-                if (b.hasRemaining()) {
-                    throw new IllegalArgumentException("RECIBO trailing bytes");
-                }
-                return new Receipt(h, r, queue, free, renew);
-            } catch (BufferUnderflowException | IllegalArgumentException ex) {
-                throw new FatalProtocol(1, FrameType.RECIBO, "RECIBO truncated or invalid");
-            }
+            ByteBuffer b = ByteBuffer.wrap(p);
+            long h = VarInt.get(b);
+            Ranges r = Ranges.decode(b);
+            long queue = VarInt.get(b);
+            long free = VarInt.get(b);
+            long renew = VarInt.get(b);
+            Buf.tail(b); // extensions: unknown tags are skipped, a torn tail is malformed
+            return new Receipt(h, r, queue, free, renew);
         }
     }
 
@@ -119,7 +118,9 @@ public final class MsgLoans {
             ByteBuffer b = ByteBuffer.wrap(p);
             long h = VarInt.get(b);
             int m = Buf.u8(b);
-            return new Release(h, m, Ranges.decode(b));
+            Ranges r = Ranges.decode(b);
+            Buf.tail(b);
+            return new Release(h, m, r);
         }
     }
 }
