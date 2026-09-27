@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { clamp } from '@/shared/lib/clamp';
-import { drawPointillism } from './pointillism';
 import { samplePixelHex } from './pixel-sample';
-import { BrushCuller, collectBrushes, SKETCH_STRATUM, type BrushGeom } from './brush-cull';
-import { ViewerSprites } from './render-sprites';
-import { snapSpan, tilesCover } from './tile-cover';
+import { collectBrushes, type BrushGeom } from './brush-cull';
+import { Canvas2DRenderer } from './canvas2d-renderer';
+import type { ViewRenderer } from './view-renderer';
 import { FrameMeter } from './frame-meter';
 import { renderFlags as flags, subscribeRenderFlags } from '@/shared/lib/render-flags';
 import type { Feed } from '@/shared/lib/feed';
@@ -16,29 +15,7 @@ import { initialView, tickView } from '@/features/zoom-view/model';
 import { viewToRoi } from '@/entities/viewport/math';
 import type { DeliverySink } from '@/app/providers/delivery-sink';
 import type { GazeSender } from '@/features/send-gaze';
-import {
-  TAU,
-  BG_COLOR,
-  IMAGE_SMOOTHING_THRESHOLD,
-  DOT_FADE_RAMP_FACTOR,
-  MAX_BACKGROUND_DIM,
-  FRAME_SHADOW_PADDING,
-  FRAME_SHADOW_OFFSET_Y,
-  FRAME_SHADOW_MARGIN,
-  LOUPE_RADIUS,
-  LOUPE_MAGNIFICATION,
-  LOUPE_PIXEL_OUTLINE_ZOOM,
-  LOUPE_PIXEL_OUTLINE_WIDTH,
-  LOUPE_RIM_WIDTH,
-  LOUPE_BADGE_OFFSET_Y,
-  LOUPE_BADGE_HEIGHT,
-  LOUPE_BADGE_RADIUS,
-  LOADER_DOT_COUNT,
-  LOADER_SPEED,
-  LOADER_ORBIT_RADIUS,
-  LOADER_ORBIT_PULSE,
-  LOADER_DOT_BASE_RADIUS,
-} from '@/shared/config/render';
+import { LOUPE_MAGNIFICATION } from '@/shared/config/render';
 import {
   MIN_ZOOM_FIT_RATIO,
   DBLCLICK_ZOOM_IN,
@@ -138,13 +115,9 @@ export function ViewerChrome(props: Props): JSX.Element {
     loupeDrag: false,
     uiKey: '',
     pixelKey: '',
-    sprites: new ViewerSprites(),
-    mainCuller: new BrushCuller(),
-    loupeCuller: new BrushCuller(),
     meter: null as FrameMeter | null,
     meterAt: -Infinity,
     drawn: 0,
-    visible: [] as BrushGeom[],
     cachedTick: -1,
     cachedBrushes: [] as BrushGeom[],
     cachedRevision: -1,
@@ -180,7 +153,7 @@ export function ViewerChrome(props: Props): JSX.Element {
     const ptrs = new Map<number, { x: number; y: number }>();
     let pinch: { x: number; y: number; d: number } | null = null;
     let userMoved = false;
-    let ctx: CanvasRenderingContext2D | null = null;
+    const renderer: ViewRenderer = new Canvas2DRenderer(cv);
 
     const th = (): number => (P().dotThreshold) / 100;
     const maxS = (): number => P().maxZoom;
@@ -193,7 +166,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       dpr = window.devicePixelRatio || 1;
       cv.width = Math.round(r.width * dpr);
       cv.height = Math.round(r.height * dpr);
-      if (ctx) st.sprites.ensure(ctx, dpr);
+      renderer.resize(W, H, dpr);
       if (!userMoved) doFit(true);
       dirty = true;
       st.uiKey = '';
@@ -252,146 +225,17 @@ export function ViewerChrome(props: Props): JSX.Element {
     }
 
 
-    /** `hole`: where the opaque sketch will cover the view anyway (null: paint everything). */
-    function bg(hole: { x0: number; y0: number; x1: number; y1: number } | null = null): void {
-      if (ctx) st.sprites.drawBackground(ctx, W, H, st.v.tx, st.v.ty, flags.grid, hole);
-    }
-
-    /** Brushes (culled, opaque), then the dot mask laid over them once dots are on. */
-    function layer(tx: number, ty: number, s: number, cx0: number, cy0: number, cx1: number, cy1: number,
-      culler: BrushCuller, under: string): void {
-      if (!ctx) return;
-      const p = P();
-      const list = culler.cull(brushes(), s * dpr, p.iw, p.ih, flags.cull, flags.lod);
-      if (list.length === 0) return;
-      const seen = st.visible;
-      seen.length = 0;
-      for (const b of list) {
-        const dx = tx + b.x * s;
-        const dy = ty + b.y * s;
-        if (dx + b.w * s < cx0 || dx > cx1 || dy + b.h * s < cy0 || dy > cy1) continue;
-        seen.push(b);
-      }
-      // Outside dots, tiles snap to whole device px and abut exactly, so once they cover the view
-      // the sketch under them (a full-view upscale) is pure overdraw. Dots keep exact placement:
-      // the dot grid is locked to the unsnapped pixel grid.
-      const snap = s < th();
-      const skipSketch = snap && flags.cull && seen[0]?.stratum === SKETCH_STRATUM
-        && tilesCover(seen, { x0: (cx0 - tx) / s, y0: (cy0 - ty) / s, x1: (cx1 - tx) / s, y1: (cy1 - ty) / s }, p.iw, p.ih);
-      ctx.globalAlpha = 1;
-      ctx.imageSmoothingEnabled = s < IMAGE_SMOOTHING_THRESHOLD;
-      for (const b of seen) {
-        if (skipSketch && b.stratum === SKETCH_STRATUM) continue;
-        if (snap) {
-          const [x, w] = snapSpan(tx + b.x * s, tx + (b.x + b.w) * s, dpr);
-          const [y, h] = snapSpan(ty + b.y * s, ty + (b.y + b.h) * s, dpr);
-          ctx.drawImage(b.bmp, x, y, w, h);
-        } else {
-          ctx.drawImage(b.bmp, tx + b.x * s, ty + b.y * s, b.w * s, b.h * s);
-        }
-        st.drawn++;
-      }
-      if (flags.dots && s >= th()) { // always dots once a pixel is big enough to hold several
-        const f = Math.min(1, (s - th()) / (th() * DOT_FADE_RAMP_FACTOR));
-        drawPointillism(ctx, { tx, ty, s, cx0, cy0, cx1, cy1, amount: f * MAX_BACKGROUND_DIM, under });
-      }
-    }
-
     function draw(): void {
-      if (!ctx) return;
       const p = P();
       const v = st.v;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const iw = p.iw * v.s;
-      const ih = p.ih * v.s;
-      // The sketch spans the whole image and is opaque: no background (or black) is needed under it.
-      const sketched = brushes()[0]?.stratum === SKETCH_STRATUM;
-      bg(sketched ? { x0: v.tx, y0: v.ty, x1: v.tx + iw, y1: v.ty + ih } : null);
-      if (
-        v.tx > -FRAME_SHADOW_PADDING ||
-        v.ty > -FRAME_SHADOW_PADDING ||
-        v.tx + iw < W + FRAME_SHADOW_PADDING ||
-        v.ty + ih < H + FRAME_SHADOW_PADDING
-      ) {
-        const m = FRAME_SHADOW_MARGIN;
-        const fx = Math.max(v.tx, -m);
-        const fy = Math.max(v.ty, -m);
-        const fw = Math.min(v.tx + iw, W + m) - fx;
-        const fh = Math.min(v.ty + ih, H + m) - fy;
-        if (flags.shadow) st.sprites.drawFrameShadow(ctx, fx, fy, fw, fh, FRAME_SHADOW_OFFSET_Y);
-        if (!sketched) {
-          ctx.fillStyle = '#000';
-          ctx.fillRect(fx, fy, fw, fh);
-        }
-      }
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(v.tx, v.ty, iw, ih);
-      ctx.clip();
-      layer(v.tx, v.ty, v.s, 0, 0, W, H, st.mainCuller, BG_COLOR);
-      ctx.restore();
-      if (p.loupe && st.mouse && (!dragging || st.loupeDrag)) {
-        const { mx, my } = st.mouse;
-        const R = LOUPE_RADIUS;
-        const L = Math.min(v.s * LOUPE_MAGNIFICATION, maxS() * LOUPE_MAGNIFICATION);
-        const ix = clamp((mx - v.tx) / v.s, 0, p.iw);
-        const iy = clamp((my - v.ty) / v.s, 0, p.ih);
-        const ltx = mx - ix * L;
-        const lty = my - iy * L;
-        st.sprites.drawLoupeDisc(ctx, mx, my);
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(mx, my, R, 0, TAU);
-        ctx.clip();
-        ctx.beginPath();
-        ctx.rect(ltx, lty, p.iw * L, p.ih * L);
-        ctx.clip();
-        layer(ltx, lty, L, mx - R, my - R, mx + R, my + R, st.loupeCuller, BG_COLOR);
-        if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
-          const px = Math.floor(ix);
-          const py = Math.floor(iy);
-          ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = LOUPE_PIXEL_OUTLINE_WIDTH;
-          ctx.strokeRect(ltx + px * L, lty + py * L, L, L);
-        }
-        ctx.restore();
-        ctx.lineWidth = LOUPE_RIM_WIDTH;
-        ctx.strokeStyle = '#B8C4FF';
-        ctx.beginPath();
-        ctx.arc(mx, my, R, 0, TAU);
-        ctx.stroke();
-
-        const label = `×${LOUPE_MAGNIFICATION} · ` + (L * 100 < 1000 ? Math.round(L * 100) : Math.round(L * 100).toLocaleString('en-US')) + '%';
-        ctx.font = '600 12px "Roboto Flex", system-ui, sans-serif';
-        const tw = ctx.measureText(label).width + 20;
-        const by = (my + R + 40 > H) ? (my - R - LOUPE_BADGE_HEIGHT - LOUPE_BADGE_OFFSET_Y) : (my + R + LOUPE_BADGE_OFFSET_Y);
-        ctx.fillStyle = '#B8C4FF';
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_RADIUS);
-        else ctx.rect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT);
-        ctx.fill();
-        ctx.fillStyle = '#1F2D6F';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, mx, by + LOUPE_BADGE_HEIGHT / 2);
-      }
-    }
-
-    function drawLoader(): void {
-      if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      bg();
-      const t = performance.now() / 1000;
-      const cols = ['#B8C4FF', '#FF8A5B', '#DDE1F9', '#FFB599'];
-      for (let i = 0; i < LOADER_DOT_COUNT; i++) {
-        const a = t * LOADER_SPEED + i * (TAU / LOADER_DOT_COUNT);
-        const R = LOADER_ORBIT_RADIUS + LOADER_ORBIT_PULSE * Math.sin(t * 3 + i);
-        ctx.fillStyle = cols[i % 4] ?? '#B8C4FF';
-        ctx.beginPath();
-        const rDot = LOADER_DOT_BASE_RADIUS + LOADER_DOT_BASE_RADIUS * (0.5 + 0.5 * Math.sin(t * 4 - i * 0.7));
-        ctx.arc(W / 2 + Math.cos(a) * R, H / 2 + Math.sin(a) * R, rDot, 0, TAU);
-        ctx.fill();
-      }
+      const showLoupe = p.loupe && st.mouse !== null && (!dragging || st.loupeDrag);
+      const loupe = showLoupe && st.mouse
+        ? { mx: st.mouse.mx, my: st.mouse.my, L: Math.min(v.s * LOUPE_MAGNIFICATION, maxS() * LOUPE_MAGNIFICATION) }
+        : null;
+      st.drawn = renderer.render({
+        W, H, dpr, tx: v.tx, ty: v.ty, s: v.s, iw: p.iw, ih: p.ih,
+        brushes: brushes(), dotThreshold: th(), loupe, flags,
+      });
     }
 
     /** Pixel under the pointer: re-sampled only when the pixel or the paint changes. */
@@ -452,7 +296,6 @@ export function ViewerChrome(props: Props): JSX.Element {
 
     function loop(): void {
       raf = requestAnimationFrame(loop);
-      if (!ctx) return;
       const p = P();
       const v = st.v;
       if (p.loupe && !st.mouse && W > 0 && H > 0) {
@@ -475,7 +318,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       }
       const hasPaint = brushes().length > 0;
       if (!hasPaint) {
-        drawLoader();
+        renderer.renderLoader({ W, H, dpr, tx: st.v.tx, ty: st.v.ty, t: performance.now() / 1000, flags });
         if (moving || dirty || initialGaze) {
           dirty = false;
           syncUI();
@@ -485,7 +328,6 @@ export function ViewerChrome(props: Props): JSX.Element {
       }
       if (moving || dirty || initialGaze) {
         dirty = false;
-        st.drawn = 0;
         draw();
         if (flags.fps) meterFrame(now);
         syncUI();
@@ -650,8 +492,6 @@ export function ViewerChrome(props: Props): JSX.Element {
       if (hit) e.preventDefault();
     }
 
-    // Opaque: every frame paints the background first, and the compositor can skip blending.
-    ctx = cv.getContext('2d', { alpha: false });
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
     cv.addEventListener('wheel', onWheel, { passive: false });
@@ -678,6 +518,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       cv.removeEventListener('dblclick', onDbl);
       window.removeEventListener('keydown', onKey);
       offFlags();
+      renderer.dispose();
       cv.parentElement?.removeAttribute('data-moving');
       cv.parentElement?.removeAttribute('data-meter');
       ptrs.clear();
