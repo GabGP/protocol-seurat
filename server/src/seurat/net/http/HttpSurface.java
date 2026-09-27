@@ -51,7 +51,9 @@ public final class HttpSurface {
         }
     }
 
-    private Response staticGet(String path) throws Exception {
+    private Response staticGet(String target) throws Exception {
+        int query = target.indexOf('?');
+        String path = query < 0 ? target : target.substring(0, query); // `?` names no file
         byte[] body = files.get(path);
         if (body == null) {
             return json(404, "{\"error\":\"no existe\"}");

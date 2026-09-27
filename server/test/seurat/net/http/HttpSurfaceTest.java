@@ -32,6 +32,10 @@ public final class HttpSurfaceTest {
                 "localhost"));
         TestKit.check(index.code() == 200
                 && new String(index.body()).contains("viewer"), "GET / serves viewer");
+        var withQuery = http.route(new HttpSurface.Request("GET", "/?render=fps,nocull", Map.of(),
+                new byte[0], "localhost"));
+        TestKit.check(withQuery.code() == 200 && withQuery.type().startsWith("text/html")
+                && new String(withQuery.body()).contains("viewer"), "GET /?query serves viewer");
         var missing = http.route(new HttpSurface.Request("GET", "/nope", Map.of(),
                 new byte[0], "localhost"));
         TestKit.check(missing.code() == 404, "GET 404");
