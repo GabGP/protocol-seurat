@@ -14,7 +14,7 @@ import { initialView, tickView } from '@/features/zoom-view/model';
 import { viewToRoi } from '@/entities/viewport/math';
 import type { DeliverySink } from '@/app/providers/delivery-sink';
 import type { GazeSender } from '@/features/send-gaze';
-import { LOUPE_MAGNIFICATION } from '@/shared/config/render';
+import { LOUPE_MAGNIFICATION, LOUPE_RADIUS, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_OFFSET_Y } from '@/shared/config/render';
 import {
   MIN_ZOOM_FIT_RATIO,
   DBLCLICK_ZOOM_IN,
@@ -125,6 +125,7 @@ export function ViewerChrome(props: Props): JSX.Element {
   propsRef.current = props;
   const wakeRef = useRef<() => void>(() => undefined);
   const meterRef = useRef<HTMLDivElement>(null);
+  const badgeRef = useRef<HTMLDivElement>(null);
   /** Bumped to remount the canvas: a canvas keeps its first context type (WebGL2 ↔ Canvas2D). */
   const [canvasGen, setCanvasGen] = useState(0);
   const gpuFailed = useRef(false);
@@ -246,6 +247,21 @@ export function ViewerChrome(props: Props): JSX.Element {
         W, H, dpr, tx: v.tx, ty: v.ty, s: v.s, iw: p.iw, ih: p.ih,
         brushes: brushes(), dotThreshold: th(), loupe, flags,
       });
+      placeBadge(loupe);
+    }
+
+    /** The loupe's `×4 · N%` pill: DOM over the canvas (both renderers), moved by transform only. */
+    function placeBadge(loupe: { mx: number; my: number; L: number } | null): void {
+      const el = badgeRef.current;
+      if (!el) return;
+      el.hidden = loupe === null;
+      if (!loupe) return;
+      const pct = Math.round(loupe.L * 100);
+      const text = `×${LOUPE_MAGNIFICATION} · ${pct < 1000 ? pct : pct.toLocaleString('en-US')}%`;
+      if (el.textContent !== text) el.textContent = text;
+      const R = LOUPE_RADIUS;
+      const by = loupe.my + R + 40 > H ? loupe.my - R - LOUPE_BADGE_HEIGHT - LOUPE_BADGE_OFFSET_Y : loupe.my + R + LOUPE_BADGE_OFFSET_Y;
+      el.style.transform = `translate(${loupe.mx}px, ${by}px) translateX(-50%)`;
     }
 
     /** Pixel under the pointer: re-sampled only when the pixel or the paint changes. */
@@ -556,6 +572,7 @@ export function ViewerChrome(props: Props): JSX.Element {
         className={`${styles.canvas} ${props.loupe ? styles.cursorCrosshair : styles.cursorGrab}`}
       />
       <div ref={meterRef} className={styles.meter} aria-live="off" hidden />
+      <div ref={badgeRef} className={styles.loupeBadge} aria-hidden="true" hidden />
     </>
   );
 }

@@ -2,8 +2,7 @@ import { clamp } from '@/shared/lib/clamp';
 import {
   TAU, BG_COLOR, IMAGE_SMOOTHING_THRESHOLD, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM,
   FRAME_SHADOW_PADDING, FRAME_SHADOW_OFFSET_Y, FRAME_SHADOW_MARGIN,
-  LOUPE_RADIUS, LOUPE_MAGNIFICATION, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
-  LOUPE_BADGE_OFFSET_Y, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_RADIUS,
+  LOUPE_RADIUS, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
   LOADER_DOT_COUNT, LOADER_SPEED, LOADER_ORBIT_RADIUS, LOADER_ORBIT_PULSE, LOADER_DOT_BASE_RADIUS,
 } from '@/shared/config/render';
 import { drawPointillism } from './pointillism';
@@ -164,19 +163,5 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.beginPath();
     ctx.arc(mx, my, R, 0, TAU);
     ctx.stroke();
-
-    const label = `×${LOUPE_MAGNIFICATION} · ` + (L * 100 < 1000 ? Math.round(L * 100) : Math.round(L * 100).toLocaleString('en-US')) + '%';
-    ctx.font = '600 12px "Roboto Flex", system-ui, sans-serif';
-    const tw = ctx.measureText(label).width + 20;
-    const by = (my + R + 40 > this.H) ? (my - R - LOUPE_BADGE_HEIGHT - LOUPE_BADGE_OFFSET_Y) : (my + R + LOUPE_BADGE_OFFSET_Y);
-    ctx.fillStyle = '#B8C4FF';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_RADIUS);
-    else ctx.rect(mx - tw / 2, by, tw, LOUPE_BADGE_HEIGHT);
-    ctx.fill();
-    ctx.fillStyle = '#1F2D6F';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, mx, by + LOUPE_BADGE_HEIGHT / 2);
   }
 }

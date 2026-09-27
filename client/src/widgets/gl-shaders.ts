@@ -1,7 +1,11 @@
+import { DOT_TILE_CELLS } from '@/shared/config/render';
+
 /**
  * GLSL ES 3.00 sources for the WebGL2 viewer. Coordinates: `uView` is the drawing buffer in device
  * px, CSS px = device px / `uDpr`, origin top-left (gl_FragCoord is flipped once, here).
  */
+
+const DOT_TILE = DOT_TILE_CELLS.toFixed(1);
 
 const HEAD = `#version 300 es
 precision highp float;
@@ -89,18 +93,58 @@ void main() {
 }
 `;
 
-export const TILE_FS = `${HEAD}
+/**
+ * Brush colour, then (dots on) the pointillist mask: the cell grid is n×n per image pixel,
+ * locked to image coordinates; each cell's dot comes from the same tile as the Canvas2D path.
+ * Gaps fade to uUnder by uDots (0 = plain image), exactly the Canvas2D hole-pattern maths.
+ * uClip (x, y, r > 0) discards outside a CSS-px circle (the loupe).
+ */
+export const TILE_FS = `${HEAD}${CSS_POS}
 precision highp sampler2DArray;
 uniform sampler2DArray uTiles;
 uniform sampler2D uSketch;
 uniform bool uIsSketch;
+uniform highp sampler2D uDotTile;
+uniform float uDots;
+uniform float uDotsPerPx;
+uniform vec2 uCellOffset;
+uniform float uCellDev;
+uniform vec3 uUnder;
+uniform vec3 uClip;
 in vec2 vUv;
 in vec2 vImg;
 flat in float vLayer;
 out vec4 o;
 void main() {
+  if (uClip.z > 0.0 && length(cssPos() - uClip.xy) > uClip.z) discard;
   vec3 c = uIsSketch ? texture(uSketch, vUv).rgb : texture(uTiles, vec3(vUv, vLayer)).rgb;
+  if (uDots > 0.0) {
+    vec2 cellF = vImg * uDotsPerPx;
+    vec2 cell = floor(cellF);
+    vec4 d = texelFetch(uDotTile, ivec2(mod(cell + uCellOffset, ${DOT_TILE})), 0);
+    float cov = clamp((d.z - length(cellF - cell - d.xy)) * uCellDev + 0.5, 0.0, 1.0);
+    float gap = uDots * (1.0 - cov);
+    c = c * (1.0 - gap) + uUnder * gap;
+  }
   o = vec4(c, 1.0);
+}
+`;
+
+/** A rect outline of width uWidth centred on uBox's edges (the loupe's pixel box), clipped to uClip. */
+export const OUTLINE_FS = `${HEAD}${CSS_POS}
+uniform vec4 uBox;
+uniform float uWidth;
+uniform vec4 uColor;
+uniform vec3 uClip;
+out vec4 o;
+void main() {
+  vec2 p = cssPos();
+  if (uClip.z > 0.0 && length(p - uClip.xy) > uClip.z) discard;
+  vec2 c = 0.5 * (uBox.xy + uBox.zw);
+  vec2 h = 0.5 * (uBox.zw - uBox.xy);
+  vec2 q = abs(p - c) - h;
+  float d = abs(length(max(q, 0.0)) + min(max(q.x, q.y), 0.0));
+  o = vec4(uColor.rgb, uColor.a * clamp((0.5 * uWidth - d) * uDpr + 0.5, 0.0, 1.0));
 }
 `;
 

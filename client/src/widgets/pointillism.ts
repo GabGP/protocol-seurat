@@ -24,6 +24,20 @@ export function tileDots(): Array<{ x: number; y: number; r: number }> {
   return out;
 }
 
+/**
+ * The same dots as a DOT_TILE_CELLS² RGBA8 texture for the WebGL2 path: per cell, the dot's
+ * centre within the cell (x, y) and radius, all in cell units × 255.
+ */
+export function dotParams(): Uint8Array {
+  const out = new Uint8Array(DOT_TILE_CELLS * DOT_TILE_CELLS * 4);
+  tileDots().forEach((d, k) => {
+    const i = k % DOT_TILE_CELLS;
+    const j = Math.floor(k / DOT_TILE_CELLS);
+    out.set([Math.round((d.x - i) * 255), Math.round((d.y - j) * 255), Math.round(d.r * 255), 255], k * 4);
+  });
+  return out;
+}
+
 /** Tile origin near 0 that keeps the cell grid on the pixel grid (huge images pan to tx ≈ -1e7). */
 export function patternOrigin(t: number, period: number): number {
   return t - Math.floor(t / period) * period;

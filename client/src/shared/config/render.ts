@@ -28,7 +28,6 @@ export const LOUPE_PIXEL_OUTLINE_WIDTH = 2;
 export const LOUPE_RIM_WIDTH = 5;
 export const LOUPE_BADGE_OFFSET_Y = 10;
 export const LOUPE_BADGE_HEIGHT = 24;
-export const LOUPE_BADGE_RADIUS = 12;
 
 export const LOADER_DOT_COUNT = 10;
 export const LOADER_SPEED = 1.6;

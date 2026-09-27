@@ -2,13 +2,16 @@ import {
   TAU, BG_COLOR, BG_GRID_COLOR, BG_GRID_SPACING, BG_GRID_DOT_RADIUS, BG_GRID_PARALLAX, IMAGE_SMOOTHING_THRESHOLD,
   FRAME_SHADOW_PADDING, FRAME_SHADOW_OFFSET_Y, FRAME_SHADOW_MARGIN, FRAME_SHADOW_COLOR, FRAME_SHADOW_SIGMA,
   LOADER_DOT_COUNT, LOADER_SPEED, LOADER_ORBIT_RADIUS, LOADER_ORBIT_PULSE, LOADER_DOT_BASE_RADIUS,
-  GL_UPLOAD_BUDGET_MS,
+  GL_UPLOAD_BUDGET_MS, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM, DOT_TILE_CELLS,
+  LOUPE_RADIUS, LOUPE_SHADOW_BLUR, LOUPE_SHADOW_COLOR, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
 } from '@/shared/config/render';
+import { clamp } from '@/shared/lib/clamp';
+import { dotParams, dotsPerSide } from './pointillism';
 import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from './brush-cull';
 import { TileAtlas } from './tile-atlas';
 import { clipView, INSTANCE_FLOATS, packTiles, type PackView } from './gl-instances';
 import { link, rgb, rgba, type GLProgram } from './gl-context';
-import { BG_FS, DISC_FS, RECT_VS, SHADOW_FS, TILE_FS, TILE_VS } from './gl-shaders';
+import { BG_FS, DISC_FS, OUTLINE_FS, RECT_VS, SHADOW_FS, TILE_FS, TILE_VS } from './gl-shaders';
 import type { FrameState, LoaderState, ViewRenderer } from './view-renderer';
 
 const STRIDE = INSTANCE_FLOATS * 4;
@@ -16,6 +19,14 @@ const LOADER_COLORS = ['#B8C4FF', '#FF8A5B', '#DDE1F9', '#FFB599'].map(rgb);
 const BG = rgb(BG_COLOR);
 const GRID_DOT = rgba(BG_GRID_COLOR);
 const SHADOW_ALPHA = rgba(FRAME_SHADOW_COLOR)[3];
+const LOUPE_SHADOW = rgba(LOUPE_SHADOW_COLOR);
+const RIM = rgb('#B8C4FF');
+
+/** Per-layer extras for the tile pass: the dot mask and the loupe's circular clip. */
+interface LayerOpts {
+  dots: number;
+  clip: readonly [number, number, number] | null;
+}
 
 export interface GLHooks {
   /** A texture reservation failed: spec §5.2.3 voluntary eviction. */
@@ -34,12 +45,15 @@ export class WebGL2Renderer implements ViewRenderer {
   private readonly shadow: GLProgram;
   private readonly tile: GLProgram;
   private readonly disc: GLProgram;
+  private readonly outline: GLProgram;
+  private readonly dotTile: WebGLTexture | null;
   private readonly empty: WebGLVertexArrayObject | null;
   private readonly tiles: WebGLVertexArrayObject | null;
   private readonly buffer: WebGLBuffer | null;
   private readonly linear: WebGLSampler | null;
   private readonly nearest: WebGLSampler | null;
   private readonly mainCuller = new BrushCuller();
+  private readonly loupeCuller = new BrushCuller();
   private inst = new Float32Array(INSTANCE_FLOATS * 64);
   private lastBrushes: readonly BrushGeom[] | null = null;
   private ready: { src: readonly BrushGeom[]; version: number; list: BrushGeom[] } | null = null;
@@ -59,6 +73,12 @@ export class WebGL2Renderer implements ViewRenderer {
     this.shadow = link(gl, RECT_VS, SHADOW_FS);
     this.tile = link(gl, TILE_VS, TILE_FS);
     this.disc = link(gl, RECT_VS, DISC_FS);
+    this.outline = link(gl, RECT_VS, OUTLINE_FS);
+    this.dotTile = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.dotTile);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, DOT_TILE_CELLS, DOT_TILE_CELLS, 0, gl.RGBA, gl.UNSIGNED_BYTE, dotParams());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     this.empty = gl.createVertexArray();
     this.tiles = gl.createVertexArray();
     this.buffer = gl.createBuffer();
@@ -88,7 +108,8 @@ export class WebGL2Renderer implements ViewRenderer {
   dispose(): void {
     const gl = this.gl;
     this.atlas.dispose();
-    for (const p of [this.bg, this.shadow, this.tile, this.disc]) gl.deleteProgram(p.program);
+    for (const p of [this.bg, this.shadow, this.tile, this.disc, this.outline]) gl.deleteProgram(p.program);
+    gl.deleteTexture(this.dotTile);
     gl.deleteVertexArray(this.empty);
     gl.deleteVertexArray(this.tiles);
     gl.deleteBuffer(this.buffer);
@@ -119,10 +140,60 @@ export class WebGL2Renderer implements ViewRenderer {
       if (f.flags.shadow) this.frameShadow(x0, y0 + FRAME_SHADOW_OFFSET_Y, x1, y1 + FRAME_SHADOW_OFFSET_Y);
       if (!sketched) this.fill(x0, y0, x1, y1, [0, 0, 0]);
     }
+    let drawn = 0;
     const v = clipView(f.tx, f.ty, f.s, f.iw, f.ih, 0, 0, this.W, this.H, this.dpr);
-    if (!v) return 0;
-    const list = this.mainCuller.cull(ready, f.s * this.dpr, f.iw, f.ih, f.flags.cull, f.flags.lod);
-    return this.drawBrushes(list, v, f.s);
+    if (v) {
+      const list = this.mainCuller.cull(ready, f.s * this.dpr, f.iw, f.ih, f.flags.cull, f.flags.lod);
+      drawn += this.drawBrushes(list, v, f.s, { dots: this.dotsAt(f, f.s), clip: null });
+    }
+    if (f.loupe) drawn += this.loupe(f, ready, f.loupe);
+    return drawn;
+  }
+
+  /** Gap fade of the dot mask at zoom `s` (0 below the threshold), as in the Canvas2D path. */
+  private dotsAt(f: FrameState, s: number): number {
+    const th = f.dotThreshold;
+    if (!f.flags.dots || s < th) return 0;
+    return Math.min(1, (s - th) / (th * DOT_FADE_RAMP_FACTOR)) * MAX_BACKGROUND_DIM;
+  }
+
+  /** Shadowed disc, the image at `L` clipped to it (dots included), pixel box and rim. */
+  private loupe(f: FrameState, ready: BrushGeom[], { mx, my, L }: { mx: number; my: number; L: number }): number {
+    const R = LOUPE_RADIUS;
+    const ix = clamp((mx - f.tx) / f.s, 0, f.iw);
+    const iy = clamp((my - f.ty) / f.s, 0, f.ih);
+    const ltx = mx - ix * L;
+    const lty = my - iy * L;
+    const clip = [mx, my, R] as const;
+    this.discShape(mx, my, R, 0, LOUPE_SHADOW_BLUR / 2, LOUPE_SHADOW);
+    this.discShape(mx, my, R, 0, 0, [BG[0], BG[1], BG[2], 1]);
+    let drawn = 0;
+    const v = clipView(ltx, lty, L, f.iw, f.ih, mx - R, my - R, mx + R, my + R, this.dpr);
+    if (v) {
+      const list = this.loupeCuller.cull(ready, L * this.dpr, f.iw, f.ih, f.flags.cull, f.flags.lod);
+      drawn = this.drawBrushes(list, v, L, { dots: this.dotsAt(f, L), clip });
+    }
+    if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
+      const x0 = ltx + Math.floor(ix) * L;
+      const y0 = lty + Math.floor(iy) * L;
+      this.outlineBox(x0, y0, x0 + L, y0 + L, LOUPE_PIXEL_OUTLINE_WIDTH, clip);
+    }
+    this.discShape(mx, my, R, LOUPE_RIM_WIDTH, 0, [RIM[0], RIM[1], RIM[2], 1]);
+    return drawn;
+  }
+
+  private outlineBox(x0: number, y0: number, x1: number, y1: number, width: number,
+    clip: readonly [number, number, number]): void {
+    const gl = this.gl;
+    const e = width;
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.bindVertexArray(this.empty);
+    this.outline.use().f2('uView', this.canvas.width, this.canvas.height).f1('uDpr', this.dpr)
+      .f4('uRect', x0 - e, y0 - e, x1 + e, y1 + e).f4('uBox', x0, y0, x1, y1).f1('uWidth', width)
+      .f4('uColor', 1, 1, 1, 1).f3('uClip', clip);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.disable(gl.BLEND);
   }
 
   renderLoader(l: LoaderState): void {
@@ -204,30 +275,38 @@ export class WebGL2Renderer implements ViewRenderer {
   }
 
   /** Sketch, then tiles grouped by texture array, coarse → fine; returns draws issued. */
-  private drawBrushes(list: readonly BrushGeom[], v: PackView, s: number): number {
+  private drawBrushes(list: readonly BrushGeom[], v: PackView, s: number, opts: LayerOpts): number {
     const gl = this.gl;
     const need = (list.length + 1) * INSTANCE_FLOATS;
     if (this.inst.length < need) this.inst = new Float32Array(need * 2);
     const sketch = list[0]?.stratum === SKETCH_STRATUM ? list[0] : null;
     const tiles = sketch ? list.slice(1) : list;
     const groups: Array<{ first: number; count: number; array: number }> = [];
-    let n = sketch ? packTiles([sketch], v, () => 0, this.inst) : 0;
-    const sketchCount = n;
+    let total = sketch ? packTiles([sketch], v, () => 0, this.inst) : 0;
+    const sketchCount = total;
     for (let a = 0; a < this.atlas.arrayCount; a++) {
       const inArray = tiles.filter((b) => this.atlas.slotOf(b.bmp)?.array === a);
-      const count = packTiles(inArray, v, (b) => this.atlas.slotOf(b.bmp)?.layer ?? 0, this.inst, n);
-      if (count > 0) groups.push({ first: n, count, array: a });
-      n += count;
+      const count = packTiles(inArray, v, (b) => this.atlas.slotOf(b.bmp)?.layer ?? 0, this.inst, total);
+      if (count > 0) groups.push({ first: total, count, array: a });
+      total += count;
     }
-    if (n === 0) return 0;
+    if (total === 0) return 0;
     gl.disable(gl.BLEND);
     gl.bindVertexArray(this.tiles);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, this.inst.subarray(0, n * INSTANCE_FLOATS), gl.STREAM_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.inst.subarray(0, total * INSTANCE_FLOATS), gl.STREAM_DRAW);
     const smp = s < IMAGE_SMOOTHING_THRESHOLD ? this.linear : this.nearest;
     gl.bindSampler(0, smp);
     gl.bindSampler(1, smp);
-    this.tile.use().f2('uView', this.canvas.width, this.canvas.height).i1('uTiles', 0).i1('uSketch', 1);
+    const n = dotsPerSide(s);
+    const cells = DOT_TILE_CELLS;
+    this.tile.use().f2('uView', this.canvas.width, this.canvas.height).f1('uDpr', this.dpr)
+      .i1('uTiles', 0).i1('uSketch', 1).i1('uDotTile', 2)
+      .f1('uDots', opts.dots).f1('uDotsPerPx', n).f1('uCellDev', (s * this.dpr) / n)
+      .f2('uCellOffset', (((v.ox * n) % cells) + cells) % cells, (((v.oy * n) % cells) + cells) % cells)
+      .f3('uUnder', BG).f3('uClip', opts.clip ?? [0, 0, 0]);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.dotTile);
     if (sketch && sketchCount > 0) {
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D, this.atlas.sketchTexture(sketch.bmp));
@@ -242,7 +321,7 @@ export class WebGL2Renderer implements ViewRenderer {
       this.pointers(g.first);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, g.count);
     }
-    return n;
+    return total;
   }
 
   /** Instance attributes start at instance `first` (WebGL2 has no base-instance draw). */

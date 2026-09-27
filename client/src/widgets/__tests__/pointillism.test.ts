@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drawPointillism, dotsPerSide, patternOrigin, tileDots } from '../pointillism';
+import { dotParams, drawPointillism, dotsPerSide, patternOrigin, tileDots } from '../pointillism';
 import { DOT_SPACING_PX, DOT_TILE_CELLS } from '@/shared/config/render';
 
 describe('pointillism widget', () => {
@@ -44,6 +44,20 @@ describe('pointillism widget', () => {
     for (const px of [0, 1, 175_999]) {
       const cells = (tx + px * s - o) / cell;
       expect(Math.abs(cells - Math.round(cells))).toBeLessThan(1e-6);
+    }
+  });
+
+  it('encodes the same dots for the GPU (cell-relative centre and radius)', () => {
+    const data = dotParams();
+    const dots = tileDots();
+    expect(data).toHaveLength(DOT_TILE_CELLS * DOT_TILE_CELLS * 4);
+    for (const k of [0, 1, 33, dots.length - 1]) {
+      const d = dots[k]!;
+      const i = k % DOT_TILE_CELLS;
+      const j = Math.floor(k / DOT_TILE_CELLS);
+      expect(data[k * 4]! / 255).toBeCloseTo(d.x - i, 2);
+      expect(data[k * 4 + 1]! / 255).toBeCloseTo(d.y - j, 2);
+      expect(data[k * 4 + 2]! / 255).toBeCloseTo(d.r, 2);
     }
   });
 });
