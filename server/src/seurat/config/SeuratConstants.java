@@ -33,5 +33,11 @@ public final class SeuratConstants {
     public static final int SEED_STRATUM = 10;
     public static final int SKETCH_MIN = 7;
     public static final int DEFLATE_LEVEL = 6;
+    /** Source rows per ImageIO decode: fewer rescan restarts on JPEG MCU streams. */
+    public static final int INGEST_CHUNK_ROWS = 2048;
+    /** Cap on one decoded chunk (rows * width * 4 B) for very wide masters. */
+    public static final long INGEST_CHUNK_BYTES = 256L * 1024 * 1024;
+    /** Bands the read-ahead producer may hold while workers encode. */
+    public static final int INGEST_READAHEAD_BANDS = 2;
 }
 

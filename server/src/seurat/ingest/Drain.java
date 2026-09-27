@@ -40,9 +40,7 @@ final class Drain {
         int[][] hd = new int[3][128 * w2];
         int[][] vd = new int[3][128 * w2];
         int[][] dd = new int[3][128 * w2];
-        for (int c = 0; c < 3; c++) {
-            TransformS.blockForward(a.plane[c], a.width, 256, ps[c], vd[c], hd[c], dd[c]);
-        }
+        forwardAll(a, ps, vd, hd, dd);
         int nx = (a.width + 255) / 256;
         int by = drainCounts[stratum]++;
         int qy = Quant.qy(stratum);
@@ -67,6 +65,25 @@ final class Drain {
     }
 
     private static final int MAX_TASKS = Math.max(64, Runtime.getRuntime().availableProcessors() * 8);
+
+    /** Y/Co/Cg planes are disjoint: same bytes, one task per channel. */
+    private void forwardAll(Accumulator a, int[][] ps, int[][] vd, int[][] hd, int[][] dd) {
+        Future<?>[] done = new Future<?>[3];
+        for (int c = 0; c < 3; c++) {
+            final int ch = c;
+            done[c] = pool.submit(() -> {
+                TransformS.blockForward(a.plane[ch], a.width, 256, ps[ch], vd[ch], hd[ch], dd[ch]);
+                return null;
+            });
+        }
+        for (Future<?> f : done) {
+            try {
+                f.get();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        }
+    }
 
     private static void throttle(Deque<Future<?>> tasks) {
         while (tasks.size() >= MAX_TASKS) {

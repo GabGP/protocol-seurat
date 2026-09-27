@@ -15,6 +15,7 @@ public final class FileBrushStoreTest {
         absentEmpty(root);
         truncateRecovery(root);
         corruptBand(root);
+        concurrentAppend(root);
         System.out.println("FileBrushStoreTest OK");
     }
 
@@ -23,7 +24,11 @@ public final class FileBrushStoreTest {
     }
 
     static FileBrushStore open(Path dir) throws Exception {
-        return new FileBrushStore(dir, meta(), new int[]{2}, new int[]{2});
+        return open(dir, new int[]{2});
+    }
+
+    static FileBrushStore open(Path dir, int[] nx) throws Exception {
+        return new FileBrushStore(dir, meta(), nx, new int[]{nx.length});
     }
 
     static BrushEncoder.BrushBands bands(int seed) {
@@ -97,8 +102,7 @@ public final class FileBrushStoreTest {
         reopened.close();
     }
 
-    private static void corruptBand(Path root) throws Exception {
-        Path dir = root.resolve("d");
+    private static void corruptBand(Path root) throws Exception {        Path dir = root.resolve("d");
         FileBrushStore store = open(dir);
         var bb = bands(3);
         store.append(0, 0, 0, bb.bands(), bb.crcs());
@@ -111,6 +115,38 @@ public final class FileBrushStoreTest {
             throw new AssertionError("expected CRC failure");
         } catch (java.io.IOException expected) {
             TestKit.check(true, "corrupt band trips CRC");
+        }
+    }
+
+    /** Lock-free path: 8 threads reserve disjoint spans, every slot reads back exact. */
+    private static void concurrentAppend(Path root) throws Exception {
+        Path dir = root.resolve("e");
+        FileBrushStore store = open(dir, new int[]{8});
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            java.util.List<java.util.concurrent.Future<?>> tasks = new java.util.ArrayList<>();
+            for (int k = 0; k < 8; k++) {
+                final int slot = k;
+                tasks.add(pool.submit(() -> {
+                    var bb = bands(100 + slot);
+                    store.append(0, slot, 0, bb.bands(), bb.crcs());
+                    return null;
+                }));
+            }
+            for (java.util.concurrent.Future<?> task : tasks) {
+                task.get();
+            }
+        } finally {
+            pool.shutdown();
+        }
+        store.close();
+        for (int k = 0; k < 8; k++) {
+            var bb = bands(100 + k);
+            byte[][] back = store.bands(new BrushId(0, k, 0), 0, 4);
+            for (int b = 0; b < 4; b++) {
+                TestKit.check(java.util.Arrays.equals(back[b], bb.bands()[b]),
+                        "concurrent slot " + k + " band " + b);
+            }
         }
     }
 }

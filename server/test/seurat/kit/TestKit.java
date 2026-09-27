@@ -54,7 +54,21 @@ public final class TestKit {
         return out;
     }
 
-    /** Store that serves fixed band bytes per (brush, band). */
+    /** Master JPEG (forces the ImageIO chunk path: no PNG streaming). */
+    public static Path masterJpg(Path dir, String name, int w, int h) throws IOException {
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int r = (x * 255 / Math.max(1, w - 1) + y) & 0xFF;
+                int g = (y * 255 / Math.max(1, h - 1) + x) & 0xFF;
+                int b = ((x ^ y) + (x / 16 + y / 16) * 37) & 0xFF;
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        Path out = dir.resolve(name);
+        ImageIO.write(img, "jpg", out.toFile());
+        return out;
+    }
     public static final class FixedStore implements BrushStore {
         private final WorkMeta meta;
         private final Map<String, byte[][]> bands = new ConcurrentHashMap<>();

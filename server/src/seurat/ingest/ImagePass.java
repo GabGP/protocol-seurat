@@ -32,7 +32,7 @@ final class ImagePass {
         this.worksDir = worksDir;
     }
 
-    void run(PngReader reader) throws Exception {
+    void run(MasterReader reader) throws Exception {
         if (top == 0) {
             runTopZero(reader);
             return;
@@ -84,7 +84,7 @@ final class ImagePass {
         writeSeed(seed, paddedW >> top, paddedH >> top);
     }
 
-    private void runTopZero(PngReader reader) throws Exception {
+    private void runTopZero(MasterReader reader) throws Exception {
         List<short[][]> seed = new ArrayList<>();
         int[][] yuv = new int[3][width];
         int[][] band;

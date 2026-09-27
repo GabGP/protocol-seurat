@@ -5,18 +5,19 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * Ingest write path: persistent channels per stratum, bytes first and the
- * index entry as the commit. close() fsyncs everything.
+ * index entry as the commit. Each brush reserves its own .pinc span, so
+ * positional writes need no locks. close() fsyncs everything.
  */
 final class StoreWriter {
     private final Path dir;
     private final int[] nx;
     private FileChannel[] pincChannels;
     private FileChannel[] idxChannels;
-    private long[] pincSizes;
-    private final ByteBuffer idxBuf = ByteBuffer.allocate(IndexEntry.BYTES);
+    private AtomicLongArray pincEnds;
 
     StoreWriter(Path dir, int[] nx) {
         this.dir = dir;
@@ -53,18 +54,17 @@ final class StoreWriter {
         }
     }
 
-    private void channels(int stratum) throws IOException {
+    private synchronized void channels(int stratum) throws IOException {
         if (pincChannels == null) {
             pincChannels = new FileChannel[nx.length];
             idxChannels = new FileChannel[nx.length];
-            pincSizes = new long[nx.length];
+            pincEnds = new AtomicLongArray(nx.length);
         }
         if (pincChannels[stratum] == null) {
             FileChannel pinc = FileChannel.open(dir.resolve("E" + stratum + ".pinc"),
                     StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                     StandardOpenOption.READ);
-            pincSizes[stratum] = pinc.size();
-            pinc.position(pincSizes[stratum]);
+            pincEnds.set(stratum, pinc.size());
             pincChannels[stratum] = pinc;
             idxChannels[stratum] = FileChannel.open(dir.resolve("E" + stratum + ".idx"),
                     StandardOpenOption.CREATE, StandardOpenOption.WRITE,
@@ -72,38 +72,42 @@ final class StoreWriter {
         }
     }
 
-    synchronized void append(int stratum, int bx, int by, byte[][] bands,
+    void append(int stratum, int bx, int by, byte[][] bands,
             long[] crcs) throws IOException {
         channels(stratum);
         long slot = (long) by * nx[stratum] + bx;
-        long off = pincSizes[stratum];
         long[] ends = new long[4];
-        long acc = 0;
-        ByteBuffer[] bufs = new ByteBuffer[bands.length];
+        int total = 0;
         for (int i = 0; i < bands.length; i++) {
             byte[] band = bands[i];
-            if (band != null && band.length > 0) {
-                bufs[i] = ByteBuffer.wrap(band);
-                acc += band.length;
-            } else {
-                bufs[i] = ByteBuffer.allocate(0);
+            total += band == null ? 0 : band.length;
+            ends[i] = total;
+        }
+        long off = pincEnds.getAndAdd(stratum, total);
+        if (total > 0) {
+            ByteBuffer blob = ByteBuffer.allocate(total);
+            for (byte[] band : bands) {
+                if (band != null && band.length > 0) blob.put(band);
             }
-            ends[i] = acc;
+            blob.flip();
+            writeFully(pincChannels[stratum], blob, off);
         }
-        pincChannels[stratum].write(bufs, 0, bufs.length);
-        pincSizes[stratum] = off + acc;
+        ByteBuffer idx = ByteBuffer.allocate(IndexEntry.BYTES);
+        idx.putLong(off);
+        for (int i = 0; i < 4; i++) {
+            idx.putInt((int) ends[i]);
+        }
+        for (int i = 0; i < 4; i++) {
+            idx.putInt((int) (i < crcs.length ? crcs[i] : 0));
+        }
+        idx.flip();
+        writeFully(idxChannels[stratum], idx, slot * IndexEntry.BYTES);
+    }
 
-        long at = slot * IndexEntry.BYTES;
-        idxBuf.clear();
-        idxBuf.putLong(off);
-        for (int i = 0; i < 4; i++) {
-            idxBuf.putInt((int) ends[i]);
+    private static void writeFully(FileChannel ch, ByteBuffer buf, long pos) throws IOException {
+        while (buf.hasRemaining()) {
+            pos += ch.write(buf, pos);
         }
-        for (int i = 0; i < 4; i++) {
-            idxBuf.putInt((int) (i < crcs.length ? crcs[i] : 0));
-        }
-        idxBuf.flip();
-        idxChannels[stratum].write(idxBuf, at);
     }
 
     synchronized void close() throws IOException {
