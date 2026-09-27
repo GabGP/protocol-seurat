@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { drawPointillism, dotsPerSide, patternOrigin, samplePixelHex, tileDots, type PointillismBrush } from '../pointillism';
+import { drawPointillism, dotsPerSide, patternOrigin, tileDots } from '../pointillism';
 import { DOT_SPACING_PX, DOT_TILE_CELLS } from '@/shared/config/render';
 
 describe('pointillism widget', () => {
-  it('does nothing without brushes or with zoom <= 0', () => {
-    let drawn = 0;
-    const ctx = { drawImage: () => { drawn++; } } as unknown as CanvasRenderingContext2D;
-    const scratch = {} as HTMLCanvasElement;
-    const view = { tx: 0, ty: 0, cx0: 0, cy0: 0, cx1: 100, cy1: 100, scratchCanvas: scratch };
-    drawPointillism(ctx, { ...view, s: 16, brushes: [] });
-    drawPointillism(ctx, { ...view, s: 0, brushes: [{ x: 0, y: 0, w: 100, h: 100, bmp: {} as ImageBitmap }] });
-    expect(drawn).toBe(0);
+  it('does nothing when there is no fade, no zoom or no area', () => {
+    let filled = 0;
+    const ctx = { fillRect: () => { filled++; }, createPattern: () => { filled++; } } as unknown as CanvasRenderingContext2D;
+    const view = { tx: 0, ty: 0, cx0: 0, cy0: 0, cx1: 100, cy1: 100, under: '#000' };
+    drawPointillism(ctx, { ...view, s: 16, amount: 0 });
+    drawPointillism(ctx, { ...view, s: 0, amount: 1 });
+    drawPointillism(ctx, { ...view, s: 16, amount: 1, cx1: 0 });
+    expect(filled).toBe(0);
   });
 
   it('always paints a pixel with several dots, about DOT_SPACING_PX apart', () => {
@@ -45,32 +45,5 @@ describe('pointillism widget', () => {
       const cells = (tx + px * s - o) / cell;
       expect(Math.abs(cells - Math.round(cells))).toBeLessThan(1e-6);
     }
-  });
-
-  it('samplePixelHex samples the finest covering brush pixel in uppercase hex', () => {
-    let drawn = false;
-    const mockCtx = {
-      imageSmoothingEnabled: true,
-      drawImage: () => { drawn = true; },
-      getImageData: () => ({ data: new Uint8ClampedArray([18, 52, 86, 255]) }),
-    };
-    const scratch = {
-      width: 0,
-      height: 0,
-      getContext: () => mockCtx,
-    } as unknown as HTMLCanvasElement;
-
-    const brushes: PointillismBrush[] = [
-      { x: 0, y: 0, w: 100, h: 100, bmp: { width: 100, height: 100 } as unknown as ImageBitmap },
-      { x: 10, y: 10, w: 20, h: 20, bmp: { width: 20, height: 20 } as unknown as ImageBitmap },
-    ];
-
-    const hex = samplePixelHex(brushes, 15, 15, scratch);
-    expect(drawn).toBe(true);
-    expect(hex).toBe('#123456');
-
-    // Out of bounds
-    const outside = samplePixelHex(brushes, 999, 999, scratch);
-    expect(outside).toBeNull();
   });
 });

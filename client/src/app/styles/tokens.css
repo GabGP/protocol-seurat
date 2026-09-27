@@ -98,6 +98,13 @@ button { font-family: inherit; }
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* The viewer marks itself while the view moves: re-blurring a canvas that repaints every frame
+   is the costliest compositor work there is (Firefox, iOS Safari). The pill is 86% opaque anyway. */
+[data-moving] .glass-pill {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .visor-btn {
   display: grid;
   place-items: center;

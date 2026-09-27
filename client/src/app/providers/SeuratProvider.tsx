@@ -11,6 +11,7 @@ import type { WorkOpened, Welcome, Concession, PlanMsg, ProtocolError } from '@/
 import { GazeSender } from '@/features/send-gaze';
 import { PreviewManager } from '@/features/preview-works';
 import { ImageTelemetry } from '@/entities/telemetry/image-telemetry';
+import { frameBatch } from '@/shared/lib/frame-batch';
 
 export interface SeuratState {
   status: string;
@@ -56,6 +57,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
 
   useEffect(() => {
     let alive = true;
+    const bumpPaint = frameBatch(() => setPaintTick((t) => t + 1));
     const preview = new PreviewManager(() => clientRef.current);
     previewRef.current = preview;
     const events: SessionEvents = {
@@ -118,7 +120,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       onScrape: (r) => {
         if (sinkRef.current?.handle === r.handle) {
           sinkRef.current.applyScrape(r, () => performance.now());
-          if (alive) setPaintTick((t) => t + 1);
+          if (alive) bumpPaint();
         } else {
           const res = ledgersRef.current.applyScrape(r);
           clientRef.current?.sendScraped(r.handle, r.order, r.epoch, r.through, res.scraped, res.kib, res.keep);
@@ -176,7 +178,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         }
         if (previewRef.current?.onDelivery(bytes)) return;
         sinkRef.current?.ingest(bytes, () => performance.now(), () => {
-          if (alive) setPaintTick((t) => t + 1);
+          if (alive) bumpPaint();
         }, concessionRef.current?.leaseS ?? 120);
       },
       onStatus: (s) => {
@@ -212,6 +214,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     }, 1000);
     return () => {
       alive = false;
+      bumpPaint.cancel();
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('pagehide', onHide);
       window.removeEventListener('beforeunload', onHide);

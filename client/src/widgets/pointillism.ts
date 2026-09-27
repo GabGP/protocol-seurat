@@ -1,25 +1,6 @@
 import { hash3 } from '@/shared/lib/hash3';
 import { TAU, DOT_SPACING_PX, DOT_TILE_CELLS } from '@/shared/config/render';
-
-export interface PointillismBrush {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  bmp: ImageBitmap;
-}
-
-export interface PointillismParams {
-  tx: number;
-  ty: number;
-  s: number;
-  cx0: number;
-  cy0: number;
-  cx1: number;
-  cy1: number;
-  brushes: PointillismBrush[];
-  scratchCanvas: HTMLCanvasElement;
-}
+import { placePattern } from './render-sprites';
 
 /** Dots per image-pixel side: ~DOT_SPACING_PX apart on screen, never fewer than 2, so a pixel is always several dots. */
 export function dotsPerSide(s: number): number {
@@ -49,15 +30,20 @@ export function patternOrigin(t: number, period: number): number {
 }
 
 const CELL_PX = 16;
-let tile: HTMLCanvasElement | null = null;
+const tiles = new Map<string, HTMLCanvasElement>();
+const patterns = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasPattern>>();
 
-function dotTile(): HTMLCanvasElement {
-  if (tile) return tile;
+/** A tile of `under` colour with the dots punched out (antialiased edges keep partial alpha). */
+function holeTile(under: string): HTMLCanvasElement {
+  const hit = tiles.get(under);
+  if (hit) return hit;
   const c = document.createElement('canvas');
   c.width = c.height = DOT_TILE_CELLS * CELL_PX;
   const t = c.getContext('2d');
   if (t) {
-    t.fillStyle = '#fff';
+    t.fillStyle = under;
+    t.fillRect(0, 0, c.width, c.height);
+    t.globalCompositeOperation = 'destination-out';
     t.beginPath();
     for (const d of tileDots()) {
       t.moveTo((d.x + d.r) * CELL_PX, d.y * CELL_PX);
@@ -65,79 +51,56 @@ function dotTile(): HTMLCanvasElement {
     }
     t.fill();
   }
-  tile = c;
+  tiles.set(under, c);
   return c;
 }
 
+function holePattern(ctx: CanvasRenderingContext2D, under: string): CanvasPattern | null {
+  let byColour = patterns.get(ctx);
+  if (!byColour) {
+    byColour = new Map();
+    patterns.set(ctx, byColour);
+  }
+  const hit = byColour.get(under);
+  if (hit) return hit;
+  const p = ctx.createPattern(holeTile(under), 'repeat');
+  if (p) byColour.set(under, p);
+  return p;
+}
+
+export interface PointillismParams {
+  tx: number;
+  ty: number;
+  s: number;
+  cx0: number;
+  cy0: number;
+  cx1: number;
+  cy1: number;
+  /** How far the gaps between dots fade to `under` (0 = plain image, 1 = only dots). */
+  amount: number;
+  /** Colour under the image (what a fully faded gap shows). */
+  under: string;
+}
+
 /**
- * Paints the view as dots: every image pixel becomes dotsPerSide(s)² dots of its own colour.
- * The pixels are drawn as exact blocks, then masked by a tiled dot pattern locked to the pixel
- * grid (GPU work, constant per frame whatever the image size or zoom).
+ * Turns the image already drawn (opaque) into dots: every image pixel becomes dotsPerSide(s)²
+ * dots of its own colour. One pattern fill of `under`, with holes where the dots are, locked to
+ * the pixel grid and laid over at `amount`. Same result as masking a copy of the image with the
+ * dots, without a second full-viewport canvas (a CPU readback in Firefox).
  */
 export function drawPointillism(ctx: CanvasRenderingContext2D, params: PointillismParams): void {
-  const { tx, ty, s, cx0, cy0, cx1, cy1, brushes, scratchCanvas } = params;
-  if (brushes.length === 0 || s <= 0 || cx1 <= cx0 || cy1 <= cy0) return;
-  const k = ctx.getTransform().a;
-  const w = Math.ceil((cx1 - cx0) * k);
-  const h = Math.ceil((cy1 - cy0) * k);
-  if (scratchCanvas.width !== w || scratchCanvas.height !== h) {
-    scratchCanvas.width = w;
-    scratchCanvas.height = h;
-  }
-  const l = scratchCanvas.getContext('2d');
-  if (!l) return;
-  l.setTransform(1, 0, 0, 1, 0, 0);
-  l.globalCompositeOperation = 'source-over';
-  l.clearRect(0, 0, w, h);
-  l.setTransform(k, 0, 0, k, -cx0 * k, -cy0 * k);
-  l.imageSmoothingEnabled = false;
-  for (const b of brushes) {
-    const dx = tx + b.x * s;
-    const dy = ty + b.y * s;
-    if (dx + b.w * s < cx0 || dx > cx1 || dy + b.h * s < cy0 || dy > cy1) continue;
-    l.drawImage(b.bmp, dx, dy, b.w * s, b.h * s);
-  }
-  const pattern = l.createPattern(dotTile(), 'repeat');
+  const { tx, ty, s, cx0, cy0, cx1, cy1, amount, under } = params;
+  if (amount <= 0 || s <= 0 || cx1 <= cx0 || cy1 <= cy0) return;
+  const pattern = holePattern(ctx, under);
   if (!pattern) return;
   const cell = s / dotsPerSide(s);
   const period = DOT_TILE_CELLS * cell;
-  pattern.setTransform(new DOMMatrix([cell / CELL_PX, 0, 0, cell / CELL_PX,
-    patternOrigin(tx, period), patternOrigin(ty, period)]));
-  l.imageSmoothingEnabled = true;
-  l.globalCompositeOperation = 'destination-in';
-  l.fillStyle = pattern;
-  l.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
-  ctx.drawImage(scratchCanvas, cx0, cy0, cx1 - cx0, cy1 - cy0);
-}
-
-export function samplePixelHex(
-  brushes: PointillismBrush[],
-  ix: number,
-  iy: number,
-  scratch: HTMLCanvasElement,
-): string | null {
-  for (let i = brushes.length - 1; i >= 0; i--) {
-    const b = brushes[i];
-    if (!b) continue;
-    if (ix >= b.x && ix < b.x + b.w && iy >= b.y && iy < b.y + b.h) {
-      if (scratch.width !== 1) scratch.width = 1;
-      if (scratch.height !== 1) scratch.height = 1;
-      const ctx = scratch.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return null;
-      ctx.imageSmoothingEnabled = false;
-      const w = b.bmp.width ?? b.w;
-      const h = b.bmp.height ?? b.h;
-      const scaleX = w / b.w;
-      const scaleY = h / b.h;
-      const srcX = (ix - b.x) * scaleX;
-      const srcY = (iy - b.y) * scaleY;
-      ctx.drawImage(b.bmp, -srcX, -srcY);
-      const data = ctx.getImageData(0, 0, 1, 1).data;
-      const r = data[0] ?? 0;
-      const g = data[1] ?? 0;
-      const bVal = data[2] ?? 0;
-      return '#' + [r, g, bVal].map((n) => n.toString(16).padStart(2, '0')).join('').toUpperCase();
-    }
-  }
-  return null;
+  const k = cell / CELL_PX;
+  placePattern(pattern, k, patternOrigin(tx, period), patternOrigin(ty, period));
+  const alpha = ctx.globalAlpha;
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalAlpha = Math.min(1, amount);
+  ctx.fillStyle = pattern;
+  ctx.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+  ctx.globalAlpha = alpha;
 }

@@ -1,9 +1,14 @@
 import type { CSSProperties } from 'react';
-import type { ViewSync } from './ViewerChrome';
+import { useFeed, type Feed } from '@/shared/lib/feed';
+import type { PixelReadout } from './ViewerChrome';
 import styles from './StatusPill.module.css';
 
-export function StatusPill({ view }: { view: ViewSync | null }): JSX.Element {
-  const px = view?.px ?? null;
+/** Subscribes to the pointer readout alone: moving the mouse re-renders only this pill. */
+export function LiveStatusPill({ feed }: { feed: Feed<PixelReadout | null> }): JSX.Element {
+  return <StatusPill px={useFeed(feed)} />;
+}
+
+export function StatusPill({ px }: { px: PixelReadout | null }): JSX.Element {
   return (
     <div className={`glass-pill ${styles.pill}`}>
       {px ? (

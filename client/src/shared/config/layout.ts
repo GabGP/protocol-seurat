@@ -8,6 +8,8 @@ export const FIT_BOTTOM_CLEARANCE_MOBILE = 80;
 
 export const MINIMAP_MAX_W = 180;
 export const MINIMAP_MAX_H = 140;
+/** Thumbnail rebuilds at most this often while paint streams in (the viewport box is per frame). */
+export const MINIMAP_THUMB_MS = 250;
 
 export const SLIDER_WIDTH = 168;
 export const SLIDER_HEIGHT = 48;

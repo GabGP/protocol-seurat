@@ -28,17 +28,12 @@ describe('Icon component (offline SVG)', () => {
 
 describe('StatusPill component', () => {
   it('renders guidance hint when view or px is null', () => {
-    const html = renderToString(<StatusPill view={null} />);
+    const html = renderToString(<StatusPill px={null} />);
     expect(html).toContain('Wheel to zoom · drag to pan · double click to dive in');
   });
 
   it('renders X, Y and color hex swatch when pixel is focused', () => {
-    const view = {
-      s: 1, tx: 0, ty: 0, pct: 100, frac: 0.5, fitPct: 25,
-      px: { x: '1,200', y: '800', hex: '#4355B9' },
-      inDots: false, w: 1920, h: 1080,
-    };
-    const html = renderToString(<StatusPill view={view} />);
+    const html = renderToString(<StatusPill px={{ x: '1,200', y: '800', hex: '#4355B9' }} />);
     expect(html).toContain('1,200');
     expect(html).toContain('800');
     expect(html).toContain('#4355B9');

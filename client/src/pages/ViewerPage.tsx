@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
-import { ViewerChrome, type ChromeApi, type ViewSync } from '@/widgets/ViewerChrome';
+import {
+  ViewerChrome, sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect, type ViewSync,
+} from '@/widgets/ViewerChrome';
 import { ViewerToolbar } from '@/widgets/ViewerToolbar';
 import { ViewerMinimap } from '@/widgets/ViewerMinimap';
 import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
 import { TelemetryPanel } from '@/widgets/TelemetryPanel';
 import type { TelemetryInput } from '@/entities/telemetry/sections';
 import { ViewerTopBar } from '@/widgets/ViewerTopBar';
-import { StatusPill } from '@/widgets/StatusPill';
+import { LiveStatusPill } from '@/widgets/StatusPill';
 import { LoadError } from '@/widgets/LoadError';
 import { buildPresets } from '@/widgets/ZoomMenu';
 import { useSeurat } from '@/app/providers/SeuratProvider';
@@ -15,6 +17,7 @@ import { counterLabel } from '@/features/navigate-work';
 import { fmtPct } from '@/shared/lib/zoom';
 import { dotsPerSide } from '@/widgets/pointillism';
 import { Icon } from '@/shared/ui/Icon';
+import { createFeed } from '@/shared/lib/feed';
 import {
   POINTILLIST_ZOOM_THRESHOLD_PCT,
   VIEWER_MAX_ZOOM,
@@ -30,6 +33,11 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
   const seurat = useSeurat();
   const [view, setView] = useState<ViewSync | null>(null);
   const api = useRef<ChromeApi | null>(null);
+  // Frame-rate channels: the canvas publishes, the minimap and the pill listen, this page does not.
+  const feeds = useMemo(() => ({
+    view: createFeed<ViewRect | null>(null, sameViewRect),
+    readout: createFeed<PixelReadout | null>(null, sameReadout),
+  }), []);
 
   const { idx, n, iw, ih, title, dims, mp, err, loading, ready, retry, go, back, onSyncMotion } =
     useViewerWork(id, seurat);
@@ -93,6 +101,8 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
           setView(s);
           onSyncMotion(s);
         }}
+        viewFeed={feeds.view}
+        readoutFeed={feeds.readout}
       />
       <ViewerTopBar
         title={title}
@@ -116,7 +126,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         <div className={styles.loadingNotice}>Loading {title} · {dims} px</div>
       )}
       {err && <LoadError onRetry={retry} />}
-      <StatusPill view={view} />
+      <LiveStatusPill feed={feeds.readout} />
       <ViewerToolbar
         pctLabel={fmtPct(pct)}
         frac={frac}
@@ -140,7 +150,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         onToggleLoupe={() => patchUi({ loupe: !ui.loupe })}
         onDiveDots={handleDiveDots}
       />
-      <ViewerMinimap api={api} view={view} iw={iw} ih={ih} ready={ready} sink={seurat.sink} paintTick={seurat.paintTick} />
+      <ViewerMinimap api={api} feed={feeds.view} iw={iw} ih={ih} ready={ready} sink={seurat.sink} paintTick={seurat.paintTick} />
       {ui.info && <ViewerInfoPanel rows={rows} onClose={() => patchUi({ info: false })} />}
       {ui.telemetry && <TelemetryPanel read={readTelemetry} onClose={() => patchUi({ telemetry: false })} />}
     </div>
