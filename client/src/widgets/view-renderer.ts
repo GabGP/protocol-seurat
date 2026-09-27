@@ -41,5 +41,7 @@ export interface ViewRenderer {
   /** Paints the frame; returns how many brush draws it issued. */
   render(frame: FrameState): number;
   renderLoader(state: LoaderState): void;
+  /** Work still pending (e.g. texture uploads): paint again even if the view is idle. */
+  needsFrame?(): boolean;
   dispose(): void;
 }

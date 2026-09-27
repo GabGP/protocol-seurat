@@ -5,7 +5,8 @@ import { useSyncExternalStore } from 'react';
  * and overridable with `?render=a,b` (before the `#` route): `nogrid`, `noshadow`, `nodots` switch
  * a layer off; `nocull` draws every stratum (old overdraw); `nolod` keeps coverage culling but
  * draws fine tiles even where a coarser one is already sharp; `blur` keeps the glass backdrop blur
- * while moving; `fps` shows the frame meter. Also `window.__seuratRender` for console use.
+ * while moving; `fps` shows the frame meter; `gpu` / `nogpu` pick the WebGL2 or Canvas2D renderer.
+ * Also `window.__seuratRender` for console use.
  */
 export interface RenderFlags {
   grid: boolean;
@@ -15,10 +16,12 @@ export interface RenderFlags {
   lod: boolean;
   blurWhileMoving: boolean;
   fps: boolean;
+  /** WebGL2 renderer (spec §5.1 texture arrays); Canvas2D when off or unavailable. */
+  gpu: boolean;
 }
 
 export const DEFAULT_RENDER_FLAGS: Readonly<RenderFlags> = {
-  grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false,
+  grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: false,
 };
 
 const STORAGE_KEY = 'seurat.render';
@@ -35,6 +38,8 @@ export function parseRenderFlags(search: string, base: Readonly<RenderFlags> = D
   if (on.has('nolod')) out.lod = false;
   if (on.has('blur')) out.blurWhileMoving = true;
   if (on.has('fps')) out.fps = true;
+  if (on.has('gpu')) out.gpu = true;
+  if (on.has('nogpu')) out.gpu = false;
   return out;
 }
 

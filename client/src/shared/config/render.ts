@@ -42,3 +42,10 @@ export const DOT_SPACING_PX = 6;
 export const DOT_TILE_CELLS = 32;
 
 export const HERO_GRID_CELL = 11;
+
+/** WebGL2 renderer (spec §5.1): tile texture arrays of this many 256² layers (the guaranteed MAX_ARRAY_TEXTURE_LAYERS). */
+export const GL_ATLAS_LAYERS = 256;
+/** Tile uploads stop for the frame once they have taken this long (at least one always goes). */
+export const GL_UPLOAD_BUDGET_MS = 3;
+/** Frame shadow: canvas shadowBlur is 2σ. */
+export const FRAME_SHADOW_SIGMA = FRAME_SHADOW_BLUR / 2;

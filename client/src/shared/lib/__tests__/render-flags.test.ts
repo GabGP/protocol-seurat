@@ -7,13 +7,14 @@ describe('parseRenderFlags', () => {
   it('defaults to every optimization on, meter off', () => {
     expect(parseRenderFlags('')).toEqual(DEFAULT_RENDER_FLAGS);
     expect(DEFAULT_RENDER_FLAGS).toEqual({
-      grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false,
+      grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: false,
     });
   });
 
   it('reads a comma list, case- and space-insensitive, ignoring unknown switches', () => {
-    const f = parseRenderFlags('?render=NoCull, fps,nolod,blur,bogus');
-    expect(f).toMatchObject({ cull: false, lod: false, fps: true, blurWhileMoving: true, grid: true });
+    const f = parseRenderFlags('?render=NoCull, fps,nolod,blur,bogus,gpu');
+    expect(f).toMatchObject({ cull: false, lod: false, fps: true, blurWhileMoving: true, grid: true, gpu: true });
+    expect(parseRenderFlags('?render=nogpu', { ...f })).toMatchObject({ gpu: false });
   });
 
   it('overrides a stored base only where the query names a switch', () => {

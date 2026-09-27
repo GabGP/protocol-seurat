@@ -1,9 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { clamp } from '@/shared/lib/clamp';
 import { samplePixelHex } from './pixel-sample';
 import { collectBrushes, type BrushGeom } from './brush-cull';
-import { Canvas2DRenderer } from './canvas2d-renderer';
-import type { ViewRenderer } from './view-renderer';
+import { createRenderer } from './create-renderer';
 import { FrameMeter } from './frame-meter';
 import { renderFlags as flags, subscribeRenderFlags } from '@/shared/lib/render-flags';
 import type { Feed } from '@/shared/lib/feed';
@@ -126,6 +125,9 @@ export function ViewerChrome(props: Props): JSX.Element {
   propsRef.current = props;
   const wakeRef = useRef<() => void>(() => undefined);
   const meterRef = useRef<HTMLDivElement>(null);
+  /** Bumped to remount the canvas: a canvas keeps its first context type (WebGL2 ↔ Canvas2D). */
+  const [canvasGen, setCanvasGen] = useState(0);
+  const gpuFailed = useRef(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -153,7 +155,15 @@ export function ViewerChrome(props: Props): JSX.Element {
     const ptrs = new Map<number, { x: number; y: number }>();
     let pinch: { x: number; y: number; d: number } | null = null;
     let userMoved = false;
-    const renderer: ViewRenderer = new Canvas2DRenderer(cv);
+    const created = createRenderer(cv, flags.gpu && !gpuFailed.current, {
+      onVramFailure: () => undefined,
+    });
+    if (!created) {
+      gpuFailed.current = true;
+      setCanvasGen((g) => g + 1);
+      return;
+    }
+    const renderer = created;
 
     const th = (): number => (P().dotThreshold) / 100;
     const maxS = (): number => P().maxZoom;
@@ -307,6 +317,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       const now = performance.now();
       markMotion(now, moving);
       const revision = p.sink?.revision ?? -1;
+      if (renderer.needsFrame?.()) dirty = true; // uploads still landing
       if (revision !== drawnRevision) {
         drawnRevision = revision; // new paint repaints without waiting for React's paintTick
         dirty = true;
@@ -525,7 +536,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       wakeRef.current = () => undefined;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.iw, props.ih, props.handle]);
+  }, [props.iw, props.ih, props.handle, canvasGen]);
 
   useEffect(() => {
     stateRef.current.iw = props.iw;
@@ -540,6 +551,7 @@ export function ViewerChrome(props: Props): JSX.Element {
   return (
     <>
       <canvas
+        key={canvasGen}
         ref={canvasRef}
         className={`${styles.canvas} ${props.loupe ? styles.cursorCrosshair : styles.cursorGrab}`}
       />
