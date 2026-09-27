@@ -151,6 +151,7 @@ export class DeliverySink {
     }
     this.linkParent(req.delivery, parent.delivery);
     req.parentRef = undefined;
+    req.bands = this.brushBands(rec); // the first post transferred (detached) the old copies
     this.withParent(req, parent, bx, by);
     this.enqueue(req, brushId, epoch, false);
   }

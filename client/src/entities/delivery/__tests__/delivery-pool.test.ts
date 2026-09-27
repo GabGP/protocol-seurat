@@ -135,12 +135,14 @@ describe('DeliverySink pool', () => {
     expect(sent?.delivery).toBe(2);
     expect(sent?.parentRef).toBe(brushKey(seed, 1));
     expect(sent?.parentPlanes).toBeUndefined();
+    structuredClone(sent?.bands, { transfer: sent?.bands }); // postMessage detached them
     workers[0]?.answer({ delivery: 2, synthesisId: 2, ok: false, error: STALE_PARENT,
       rgba: null, planes: null, width: 0, height: 0, elapsedMs: 1 });
     const retry = workers[0]?.sent[2];
     expect(retry?.delivery).toBe(2);
     expect(retry?.parentRef).toBeUndefined();
     expect(retry?.parentPlanes).toHaveLength(3);
+    expect(retry?.bands.every((b) => b.byteLength > 0)).toBe(true); // fresh copies, not the detached ones
     workers[0]?.answer({ delivery: 2, synthesisId: 2, ok: true,
       rgba: new ArrayBuffer(4), planes: [new ArrayBuffer(8)], width: 1, height: 1, elapsedMs: 5 });
     await Promise.resolve();

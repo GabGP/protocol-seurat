@@ -5,9 +5,9 @@ import { ParentPlaneCache, type PlaneSet } from './synth-cache';
 /** Parent planes this worker synthesized or received: ref hits skip transfers. */
 const parents = new ParentPlaneCache(SYNTH_CACHE_SMALL, SYNTH_CACHE_MAIN, SYNTH_CACHE_GHOST);
 
-/** Cache identity: same `${brush}/${edition}` the main thread computes. */
+/** Cache identity: `req.brush` already is the `${brush}/${edition}` key the main thread refers to. */
 function ownKey(req: SynthRequest): string {
-  return `${req.brush}/${req.edition}`;
+  return req.brush;
 }
 
 /**

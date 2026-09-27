@@ -110,4 +110,13 @@ describe('synthesis worker decode (golden)', () => {
     expect(out.ok).toBe(true);
     expect(fnv(out.rgba as ArrayBuffer, ...(out.planes ?? []))).toBe('11dd8f53');
   });
+
+  it('serves its own result to a child that refers to it by the main-thread key', async () => {
+    const r = rng(5);
+    const key = 'own/1'; // brushKey(id, edition): what the main thread puts in parentRef
+    const parent = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seedBytes(13, 9, r)], brush: key }));
+    expect(parent.ok).toBe(true);
+    const child = await run(base({ qC: 0, parentRef: key, bands: [bandBytes(1, r)], brush: 'kid/1' }));
+    expect(child.ok).toBe(true);
+  });
 });
