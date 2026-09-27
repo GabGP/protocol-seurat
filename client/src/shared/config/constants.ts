@@ -29,3 +29,7 @@ export const MAX_DATAGRAM_BYTES = 1200;
 export const TOKEN_BYTES = 32;
 export const TICKET_BYTES = 32;
 export const MAX_RETIRED_HANDLES = 16;
+/** Synthesis pool: keep one core free for main thread + compositor, cap for VRAM/link. */
+export const SYNTH_POOL_MIN = 2;
+export const SYNTH_POOL_MAX = 8;
+export const SYNTH_POOL_FALLBACK_CORES = 4;

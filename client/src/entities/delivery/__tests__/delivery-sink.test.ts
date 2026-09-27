@@ -308,7 +308,7 @@ describe('DeliverySink', () => {
       postMessage = vi.fn();
       terminate = vi.fn();
     });
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = new DeliverySink(1, () => client, () => 36864, () => 768, 192, 160, 11, 1);
     for (let n = 1; n <= 40; n++) { // 40 syntheses in the worker ≈ 200 ms of backlog
       sink.ingest(makeDeliveryBytes({ handle: 1, delivery: n, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1 }), () => 1000, () => {}, 120);
     }

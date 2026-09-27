@@ -1,6 +1,8 @@
-import { RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS } from '@/shared/config/constants';
+import { RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, TILE } from '@/shared/config/constants';
 import { receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
+import { SynthQueue } from '@/entities/delivery/synth-queue';
+import { WorkerPool, defaultWorker, resolvePoolSize, type WorkerFactory } from '@/entities/delivery/worker-pool';
 import { makeBrushId, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape as scrapeMatches } from '@/entities/delivery/scrape';
@@ -25,7 +27,8 @@ export class DeliverySink {
   private static nextRevision = 1;
   /** Bumped on every book mutation; paint caches key on it, not just paintTick. */
   revision = DeliverySink.nextRevision++;
-  private worker: Worker | null = null;
+  private pool: WorkerPool | null = null;
+  private readonly ready = new SynthQueue();
   private receiptTimer = 0;
   private releaseTimer = 0;
   private expiredQueue: number[] = [];
@@ -53,56 +56,104 @@ export class DeliverySink {
     public seedWidth = 192,
     public seedHeight = 160,
     public strata = 11,
+    private poolSize: number = resolvePoolSize(),
+    private createWorker: WorkerFactory = defaultWorker,
   ) {}
 
   get top(): number {
     return Math.max(0, this.strata - 1);
   }
 
-  private ensureWorker(): Worker {
-    if (this.worker) return this.worker;
-    const w = new Worker(new URL('../../workers/synthesis.worker.ts', import.meta.url), { type: 'module' });
-    w.onmessage = (ev: MessageEvent) => {
-      const out = ev.data as { delivery: number; synthesisId: number; ok: boolean; error?: string; rgba: ArrayBuffer | null; planes: ArrayBuffer[] | null; width: number; height: number; elapsedMs: number };
-      this.decode.answered(out.elapsedMs);
-      // The server plans nothing while the last cola_ms said we were busy (spec §6.1): tell it we caught up.
-      if (this.lastQueue >= COLA_BUSY_MS && this.decode.ms < COLA_BUSY_MS) this.flushReceipt();
-      if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) return;
-      if (!out.ok || !out.rgba) {
-        this.failSynthesis(out.delivery);
-        return;
+  private ensurePool(): WorkerPool {
+    if (this.pool) return this.pool;
+    const pool = new WorkerPool(this.poolSize, this.createWorker);
+    pool.onResults((index, ev) => this.onResult(index, ev));
+    this.decode.setParallelism(pool.size);
+    this.pool = pool;
+    return pool;
+  }
+
+  /** A synthesis whose parents are done: claim its identity, queue it, run what fits. */
+  private enqueue(req: SynthRequest, brushId: bigint, epoch: number): void {
+    this.activeSynthesis.set(req.delivery, req.synthesisId);
+    this.ready.push({ req, brushId, epoch, distTiles: this.distTiles(brushId) });
+    this.decode.setWaiting(this.ready.size);
+    this.pump();
+  }
+
+  /** Post ready jobs to idle workers; drop jobs whose delivery died waiting. */
+  private pump(): void {
+    if (this.ready.size === 0) return;
+    const pool = this.ensurePool();
+    for (;;) {
+      const index = pool.idleIndex();
+      if (index < 0) break;
+      const job = this.ready.pop();
+      if (!job) break;
+      if (!this.book.byDelivery.has(job.req.delivery)) continue;
+      if (this.activeSynthesis.get(job.req.delivery) !== job.req.synthesisId) continue;
+      try {
+        const transfers = [...job.req.bands];
+        if (job.req.parentPlanes) transfers.push(...job.req.parentPlanes);
+        pool.send(index, job.req, transfers);
+        this.decode.posted();
+      } catch {
+        this.failSynthesis(job.req.delivery);
       }
-      createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba), out.width, out.height))
-        .then((bmp) => {
-          if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) {
-            bmp.close();
-            return;
+    }
+    this.decode.setWaiting(this.ready.size);
+  }
+
+  private distTiles(brushId: bigint): number {
+    const v = this.view;
+    if (!v) return 0;
+    const { stratum, bx, by } = splitBrushId(brushId);
+    const side = TILE * 2 ** stratum;
+    const cx = (v.x0 + v.x1) / 2;
+    const cy = (v.y0 + v.y1) / 2;
+    return Math.floor(Math.hypot(bx * side + side / 2 - cx, by * side + side / 2 - cy) / TILE);
+  }
+
+  private onResult(index: number, ev: MessageEvent): void {
+    const out = ev.data as { delivery: number; synthesisId: number; ok: boolean; error?: string; rgba: ArrayBuffer | null; planes: ArrayBuffer[] | null; width: number; height: number; elapsedMs: number };
+    this.decode.answered(out.elapsedMs);
+    this.pool?.complete(index);
+    // The server plans nothing while the last cola_ms said we were busy (spec §6.1): tell it we caught up.
+    if (this.lastQueue >= COLA_BUSY_MS && this.decode.ms < COLA_BUSY_MS) this.flushReceipt();
+    this.pump();
+    if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) return;
+    if (!out.ok || !out.rgba) {
+      this.failSynthesis(out.delivery);
+      return;
+    }
+    createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba), out.width, out.height))
+      .then((bmp) => {
+        if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) {
+          bmp.close();
+          return;
+        }
+        const rec = this.book.byDelivery.get(out.delivery);
+        if (rec) {
+          rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
+          rec.rgba = bmp;
+          rec.planes = out.planes;
+          this.revision++;
+          rec.pending = false;
+          if (!rec.receiptQueued && !rec.receiptSent) {
+            rec.receiptQueued = true;
+            this.book.pendingReceipt.push(out.delivery);
           }
-          const rec = this.book.byDelivery.get(out.delivery);
-          if (rec) {
-            rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
-            rec.rgba = bmp;
-            rec.planes = out.planes;
-            this.revision++;
-            rec.pending = false;
-            if (!rec.receiptQueued && !rec.receiptSent) {
-              rec.receiptQueued = true;
-              this.book.pendingReceipt.push(out.delivery);
-            }
-            this.notifyPaint();
-            this.resynthesizeChildren(out.delivery);
-            this.flushPending();
-            this.maybeFlushReceipt();
-          } else {
-            bmp.close();
-          }
-        })
-        .catch(() => {
-          if (this.activeSynthesis.get(out.delivery) === out.synthesisId) this.failSynthesis(out.delivery);
-        });
-    };
-    this.worker = w;
-    return w;
+          this.notifyPaint();
+          this.resynthesizeChildren(out.delivery);
+          this.flushPending();
+          this.maybeFlushReceipt();
+        } else {
+          bmp.close();
+        }
+      })
+      .catch(() => {
+        if (this.activeSynthesis.get(out.delivery) === out.synthesisId) this.failSynthesis(out.delivery);
+      });
   }
 
   ingest(
@@ -190,19 +241,7 @@ export class DeliverySink {
       this.pending.set(h.delivery, { req, parentId, edition: h.edition });
       return;
     }
-    this.dispatch(req);
-  }
-
-  private dispatch(req: SynthRequest): void {
-    try {
-      this.activeSynthesis.set(req.delivery, req.synthesisId);
-      const transfers = [...req.bands];
-      if (req.parentPlanes) transfers.push(...req.parentPlanes);
-      this.ensureWorker().postMessage(req, { transfer: transfers });
-      this.decode.posted();
-    } catch {
-      this.failSynthesis(req.delivery);
-    }
+    this.enqueue(req, h.brushId, h.epoch);
   }
 
   private flushPending(): void {
@@ -215,7 +254,7 @@ export class DeliverySink {
       this.linkParent(delivery, parent.delivery);
       this.withParent(item.req, parent, bx, by);
       this.pending.delete(delivery);
-      this.dispatch(item.req);
+      this.enqueue(item.req, rec.brushId, rec.epoch);
     }
   }
 
@@ -314,6 +353,7 @@ export class DeliverySink {
     }
     if (reason !== 0) this.release(all, reason);
     this.revision++;
+    this.pump(); // prune heap jobs whose delivery just died, refill freed workers
     return all;
   }
 
@@ -350,7 +390,7 @@ export class DeliverySink {
       };
       this.withParent(req, parent, bx, by);
       child.pending = true;
-      this.dispatch(req);
+      this.enqueue(req, child.brushId, child.epoch);
     }
   }
 
@@ -579,8 +619,9 @@ export class DeliverySink {
   dispose(): void {
     clearTimeout(this.receiptTimer);
     clearTimeout(this.releaseTimer);
-    this.worker?.terminate();
-    this.worker = null;
+    this.pool?.dispose();
+    this.pool = null;
+    this.ready.clear();
     this.pending.clear();
     this.activeSynthesis.clear();
     this.failed.clear();
