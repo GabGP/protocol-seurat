@@ -1,6 +1,6 @@
 # ADR-01 — Pluggable voluntary eviction (no LRU as final)
 
-Status: accepted. Date: 2026-09-24. Context: LAN, offline grade.
+Status: superseded by `adr-02-horizon-evict.md` (2026-09-27): eviction is client-only, LRU and the server seam were removed. Date: 2026-09-24. Context: LAN, offline grade.
 
 ## Constraint
 

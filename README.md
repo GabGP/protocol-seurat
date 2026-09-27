@@ -8,7 +8,7 @@ An asynchronous, server-authoritative protocol and viewer for streaming gigapixe
 
 - **Points Over Bitmaps**: Resolution is measured in points/brushes across adaptive pyramid strata. As the user zooms in, only missing detail bands are transferred; zooming out requires zero network transfer.
 - **Server Authority**: The server grants bounded density leases (`CONCESION`), tracks active loans (`LoanBook`), orders revocations (`RASPAR`), and regulates egress bandwidth based on viewer priority.
-- **Bounded Client Memory**: The client maintains a strict cache budget, voluntarily evicting out-of-view tiles and acknowledging purged leases (`SOLTAR`).
+- **Bounded Client Memory**: The client maintains a strict cache budget, voluntarily evicting with the client-side **Horizon** policy (predicted time-to-need from gaze motion, attention heat, lease horizon; see `docs/adr-02-horizon-evict.md`) and acknowledging purged leases (`SOLTAR`).
 - **Single Egress**: All outgoing brush tiles pass through a central chooser thread and virtual workers in `paint/Painter.java`, guaranteeing strict prioritization and rate regulation.
 
 ---
@@ -148,7 +148,6 @@ Server parameters can be customized in `seurat.conf`:
 | `works` | `.seurat/runtime/obras` | Directory containing committed multi-scale work packages. |
 | `coverage` | `.seurat/runtime/cobertura` | Persistent principal coverage tracking (fine strata token buckets). |
 | `admin.token` | `cambia-esto` | Token required for admin REST routes (`X-Admin-Token`). |
-| `eviction.policy` | `lru` | Voluntary eviction policy SPI implementation. |
 | `session.max_brushes`| `1024` | Maximum concurrent active brush grants per session. |
 | `rate.bytes_per_s` | `25000000` | Global egress bandwidth cap (bytes/sec). |
 | `log.level` | `INFO` | Console logging verbosity (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`). |
