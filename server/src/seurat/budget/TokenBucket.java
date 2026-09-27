@@ -14,10 +14,19 @@ final class TokenBucket {
         this.updatedNs = System.nanoTime();
     }
 
-    synchronized boolean take(long n) {
+    private void refill() {
         long now = System.nanoTime();
         balance = Math.min(capacity, balance + (now - updatedNs) / 1e9 * rate);
         updatedNs = now;
+    }
+
+    synchronized double balance() {
+        refill();
+        return balance;
+    }
+
+    synchronized boolean take(long n) {
+        refill();
         if (balance < n) {
             return false;
         }

@@ -1,32 +1,29 @@
 package seurat.session;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import seurat.config.SeuratConstants;
+import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgGaze;
 import seurat.proto.MsgHandshake;
+import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
+import seurat.proto.Wire;
 
-/** SALUDO validation (single-use token) + optional RESUME adoption. */
+/** SALUDO (spec 3.4.1): version, single-use token, caps subset, optional REANUDAR. No state before it. */
 final class SessionHandshake {
-    private final seurat.net.Mapping ref;
+    private final Mapping mapping;
     private final BlockingQueue<byte[]> entry;
-    private final Sessions sessions;
-    private final int sessionMax;
+    private final EaselContext ctx;
 
-    SessionHandshake(seurat.net.Mapping mapping, BlockingQueue<byte[]> entry,
-            Sessions sessions, int sessionMax) {
-        this.ref = mapping;
+    SessionHandshake(Mapping mapping, BlockingQueue<byte[]> entry, EaselContext ctx) {
+        this.mapping = mapping;
         this.entry = entry;
-        this.sessions = sessions;
-        this.sessionMax = sessionMax;
+        this.ctx = ctx;
     }
 
     Session hello() throws Exception {
@@ -34,99 +31,55 @@ final class SessionHandshake {
         if (raw.length == 0) {
             throw new java.io.EOFException("control closed");
         }
-        Frame f = Frame.decode(ByteBuffer.wrap(raw));
+        Frame f = Wire.parse(0, () -> Frame.decodeExact(raw));
         if (f.type() != FrameType.SALUDO) {
-            Log.warn("session", "Handshake failed: expected SALUDO (0x01), got " + FrameType.name(f.type()));
             throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, f.type(), "missing SALUDO");
         }
-        MsgHandshake.Hello hello = MsgHandshake.Hello.parse(f.payload());
+        MsgHandshake.Hello hello = Wire.parse(f.type(), () -> MsgHandshake.Hello.parse(f.payload()));
         if (hello.maxVersion() < 1 || hello.minVersion() > 1) {
-            Log.warn("session", "Handshake failed: version unsupported (" + hello.minVersion() + ".." + hello.maxVersion() + ")");
             throw new FatalProtocol(ProtoCodes.ERR_VERSION, f.type(), "VERSION");
         }
-        Sessions.Token token = sessions.consumeToken(Hex.hex(hello.token()));
+        Sessions.Token token = ctx.sessions().consumeToken(Hex.hex(hello.token()));
         if (token == null) {
             Log.warn("session", "Handshake failed: token invalid or expired");
             throw new FatalProtocol(ProtoCodes.ERR_AUTENTICACION, f.type(), "token");
         }
-        long caps = hello.caps() & ProtoCodes.CAP_REANUDAR;
-        Session session = new Session(sessions.reserveId(), token.principal(),
-                token.role(), token.memMib(), caps, ref, sessions.newTicket());
-        sessions.add(session);
-        List<Long> resumed = List.of();
+        long offered = ProtoCodes.CAP_REANUDAR | (mapping.datagrams() ? ProtoCodes.CAP_DATAGRAMAS : 0);
+        long caps = hello.caps() & offered;
+        Session session = new Session(ctx.sessions().reserveId(), token.principal(), token.role(),
+                token.memMib(), caps, mapping, ctx.sessions().newTicket(), ctx.rateBytesPerS());
+        ResumeAdopter.Result resumed = null;
         if (hello.resume() != null) {
-            resumed = resume(session, hello.resume());
+            resumed = new ResumeAdopter(ctx).adopt(session, hello.resume());
+            if (resumed == null) {
+                Log.warn("session", "Session " + session.id() + " resume rejected");
+                Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
+                        ProtoCodes.ERR_REANUDACION, 0, FrameType.SALUDO, "REANUDAR").encode());
+            }
         }
+        ctx.sessions().add(session);
+        List<Long> handles = resumed == null ? List.of() : resumed.handles();
         Log.info("session", "Session " + session.id() + " established for " + token.principal()
-                + " [role=" + token.role() + ", mem=" + token.memMib() + "MiB, caps=0x"
-                + Long.toHexString(caps) + "]");
-        var welcome = new MsgHandshake.Welcome(1, caps, session.id(),
-                SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S,
-                SeuratConstants.HEARTBEAT_S, SeuratConstants.MAX_IN_FLIGHT, sessionMax,
-                session.ticket(), resumed);
-        Easel.send(ref, FrameType.BIENVENIDA, welcome.encode());
-        for (long h : resumed) {
+                + " [role=" + token.role() + ", mem=" + token.memMib() + "MiB, caps=0x" + Long.toHexString(caps) + "]");
+        Easel.send(mapping, FrameType.BIENVENIDA, new MsgHandshake.Welcome(1, caps, session.id(),
+                SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S, SeuratConstants.HEARTBEAT_S,
+                SeuratConstants.MAX_IN_FLIGHT, ctx.sessionMax(), session.ticket(), handles).encode());
+        for (long h : handles) {
             Canvas c = session.canvases().get(h);
-            if (c != null) {
+            synchronized (c) {
                 Concession con = c.concession();
-                var msg = new MsgGaze.ConcessionMessage(h, con.epoch(), con.minStratum(),
-                        con.maxBands(), con.reason(), con.maxBrushes(), con.maxKiB(), con.leaseS());
-                Easel.send(ref, FrameType.CONCESION, msg.encode());
+                Easel.send(mapping, FrameType.CONCESION, new MsgGaze.ConcessionMessage(h, con.epoch(),
+                        con.minStratum(), con.maxBands(), con.reason(), con.maxBrushes(), con.maxKiB(),
+                        con.leaseS()).encode());
+                for (MsgLoans.Scrape s : resumed.reissued().getOrDefault(h, List.of())) {
+                    Easel.send(mapping, FrameType.RASPAR, s.encode());
+                }
+            }
+            var work = ctx.catalog().get(c.workId());
+            if (work != null && work.meta.edition() != c.meta().edition()) {
+                ctx.grants().substitute(c, work); // went LISTA while disconnected (spec 7.3)
             }
         }
         return session;
-    }
-
-    private List<Long> resume(Session session, MsgHandshake.ResumeRequest request) {
-        Sessions.Grave grave = sessions.recover(request.previousSession());
-        boolean ok = grave != null
-                && Arrays.equals(grave.session().ticket(), request.ticket())
-                && grave.session().principal().equals(session.principal());
-        if (ok) {
-            for (var claim : request.claims()) {
-                Canvas canvas = grave.session().canvases().get(claim.handle());
-                ok = canvas != null && covers(canvas, claim.ranges());
-                if (!ok) {
-                    break;
-                }
-            }
-        }
-        if (!ok) {
-            Log.warn("session", "Session " + session.id() + " resume validation failed");
-            Easel.send(ref, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    ProtoCodes.ERR_REANUDACION, 0, FrameType.SALUDO, "REANUDAR").encode());
-            return List.of();
-        }
-        // Adopt only what the client says it still holds (spec 8): a reloaded page claims
-        // nothing, and adopting full books would fail the next INVENTARIO audit.
-        List<Long> resumed = new ArrayList<>();
-        long now = System.nanoTime();
-        for (var claim : request.claims()) {
-            Canvas canvas = grave.session().canvases().get(claim.handle());
-            if (canvas == null) {
-                continue;
-            }
-            canvas.session(session);
-            canvas.auditNs = now;
-            canvas.renewNs = now;
-            canvas.book().retainOnly(canvas.book().lastNumber(), claim.ranges());
-            session.canvases().put(claim.handle(), canvas);
-            session.claimHandle(claim.handle());
-            resumed.add(claim.handle());
-        }
-        grave.session().canvases().keySet().forEach(session::claimHandle);
-        Log.info("session", "Session " + session.id() + " resumed " + resumed.size() + " canvas(es)");
-        session.ticket(sessions.newTicket());
-        return resumed;
-    }
-
-    private static boolean covers(Canvas canvas, seurat.proto.Ranges ranges) {
-        final boolean[] inside = {true};
-        ranges.forEach(n -> {
-            if (!canvas.book().contains(n)) {
-                inside[0] = false;
-            }
-        });
-        return inside[0];
     }
 }

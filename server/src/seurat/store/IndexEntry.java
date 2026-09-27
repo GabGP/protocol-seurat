@@ -1,6 +1,11 @@
 package seurat.store;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 /** One 40B index record: offset + 4 cumulative band ends + 4 CRC-32C. */
 public record IndexEntry(long offset, long[] ends, long[] crcs) {
@@ -37,6 +42,21 @@ public record IndexEntry(long offset, long[] ends, long[] crcs) {
             b.putInt((int) c);
         }
         return b.array();
+    }
+
+    /** Record `slot` of an E{s}.idx; missing when the file or the record is not there yet. */
+    public static IndexEntry read(Path idx, long slot) throws IOException {
+        if (!Files.exists(idx)) {
+            return missing();
+        }
+        try (FileChannel ch = FileChannel.open(idx, StandardOpenOption.READ)) {
+            ByteBuffer b = ByteBuffer.allocate(BYTES);
+            if (ch.read(b, slot * BYTES) < BYTES) {
+                return missing();
+            }
+            b.flip();
+            return decode(b);
+        }
     }
 
     public static IndexEntry decode(ByteBuffer b) {

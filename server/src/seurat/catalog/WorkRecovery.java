@@ -18,12 +18,20 @@ final class WorkRecovery {
     static Map<String, WorkRecord> readAll(Path worksDir) throws IOException {
         Map<String, WorkRecord> found = new HashMap<>();
         if (!Files.exists(worksDir)) return found;
+        java.util.List<Path> doomed = new java.util.ArrayList<>(); // no book survives a restart
         try (var walk = Files.walk(worksDir)) {
             for (Path meta : walk.filter(p -> p.getFileName().toString().equals("meta.json")).toList()) {
                 Path dir = meta.getParent();
                 if (dir.getFileName().toString().equals("ed1")) continue;
                 String defaultId = worksDir.relativize(dir).toString().replace('\\', '/');
                 var info = MetaJson.read(defaultId, Files.readString(meta));
+                if (info.state() == ProtoCodes.ST_RETIRADA) {
+                    doomed.add(dir); // withdrawn: its files can go now (spec 7.4)
+                    continue;
+                }
+                if (info.state() == ProtoCodes.ST_LISTA && Files.isDirectory(dir.resolve("ed1"))) {
+                    doomed.add(dir.resolve("ed1")); // superseded sketch nobody uses (spec 7.2)
+                }
                 String normId = normalize(info.id());
                 if (!info.id().equals(normId) && found.containsKey(normId)) {
                     continue;
@@ -33,6 +41,13 @@ final class WorkRecovery {
                     attachStore(dir, info, work);
                 }
                 found.put(normId, work);
+            }
+        }
+        for (Path dir : doomed) {
+            try (var tree = Files.walk(dir)) {
+                for (Path p : tree.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                    Files.deleteIfExists(p);
+                }
             }
         }
         return found;

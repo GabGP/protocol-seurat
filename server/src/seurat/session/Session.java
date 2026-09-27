@@ -2,14 +2,13 @@ package seurat.session;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
 
-/** Per-connection state. Only its Easel writes it. */
+/** Per-connection state. Its Easel writes the protocol state; the Painter reads the gates. */
 public final class Session {
-
     private final long id;
     private final String principal;
     private final String role;
@@ -17,23 +16,25 @@ public final class Session {
     private final long caps;
     private final Mapping mapping;
     private final Map<Long, Canvas> canvases = new ConcurrentHashMap<>();
-    private final Semaphore slots = new Semaphore(SeuratConstants.MAX_IN_FLIGHT);
     private final AtomicLong nextHandle = new AtomicLong();
+    private final AtomicInteger inFlight = new AtomicInteger();
+    public final SessionRate rate;
     public volatile byte[] ticket;
+    /** Session this one resumed; its ticket stays valid until our first RECIBO (spec 8). */
+    public volatile long resumedFrom;
     public volatile double alpha;
     public volatile double share = 1.0;
     public volatile long tickDeliveries;
     public volatile long tickMarked;
-    public volatile long stride;
-    public volatile long lastActivityNs = System.nanoTime();
+    public volatile double stride;
     public volatile long lastGazeNs;
+    public volatile long lastEchoNs = System.nanoTime();
     public volatile long queueMs;
-    public volatile long heartbeatNs;
-    private final java.util.concurrent.atomic.AtomicInteger inFlight = new java.util.concurrent.atomic.AtomicInteger();
-    private double bucket = SeuratConstants.GAZE_BURST;
+    /** Red receiver (cola_ms > 400): nothing new opens until it drops below 150 (spec 6.1). */
+    public volatile boolean red;
 
     public Session(long id, String principal, String role, long memMib, long caps,
-            Mapping mapping, byte[] ticket) {
+            Mapping mapping, byte[] ticket, long rateBytesPerS) {
         this.id = id;
         this.principal = principal;
         this.role = role;
@@ -41,6 +42,12 @@ public final class Session {
         this.caps = caps;
         this.mapping = mapping;
         this.ticket = ticket;
+        this.rate = new SessionRate(rateBytesPerS);
+    }
+
+    /** No byte-rate limit (tests, tools). */
+    public Session(long id, String principal, String role, long memMib, long caps, Mapping mapping, byte[] ticket) {
+        this(id, principal, role, memMib, caps, mapping, ticket, 0);
     }
 
     public long id() {
@@ -88,33 +95,43 @@ public final class Session {
         nextHandle.accumulateAndGet(handle, Math::max);
     }
 
-    public boolean takeSlot() {
-        if (!slots.tryAcquire()) {
-            return false;
+    /** RECIBO.cola_ms: amber halves max_en_vuelo, red stops new flows with hysteresis. */
+    public void queue(long ms) {
+        queueMs = ms;
+        if (ms > SeuratConstants.QUEUE_RED_MS) {
+            red = true;
+        } else if (ms < SeuratConstants.QUEUE_AMBER_MS) {
+            red = false;
         }
-        inFlight.incrementAndGet();
-        return true;
+    }
+
+    /** max_en_vuelo for this instant: 12, halved while the receiver is amber (spec 6.1). */
+    public int slotLimit() {
+        return queueMs >= SeuratConstants.QUEUE_AMBER_MS ? SeuratConstants.MAX_IN_FLIGHT / 2
+                : SeuratConstants.MAX_IN_FLIGHT;
+    }
+
+    public boolean canOpen() {
+        return !red && inFlight.get() < slotLimit() && rate.ready();
+    }
+
+    public boolean takeSlot() {
+        for (;;) {
+            int n = inFlight.get();
+            if (n >= slotLimit()) {
+                return false;
+            }
+            if (inFlight.compareAndSet(n, n + 1)) {
+                return true;
+            }
+        }
     }
 
     public void releaseSlot() {
         inFlight.decrementAndGet();
-        slots.release();
     }
 
     public int inFlight() {
         return inFlight.get();
-    }
-
-    /** 20/stratum bucket, burst 40; excess coalesces (last MIRADA wins). */
-    public synchronized boolean takeGaze() {
-        long now = System.nanoTime();
-        double dt = (now - lastGazeNs) / 1e9;
-        lastGazeNs = now;
-        bucket = Math.min(SeuratConstants.GAZE_BURST, bucket + dt * SeuratConstants.GAZE_PER_S);
-        if (bucket >= 1) {
-            bucket -= 1;
-            return true;
-        }
-        return false;
     }
 }

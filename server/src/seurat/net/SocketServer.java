@@ -9,19 +9,21 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import seurat.config.SeuratConfig;
+import seurat.config.SeuratConstants;
 import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
 
 /**
- * One TCP port: plain HTTP routes plus the seurat.1 WebSocket mapping.
- * No state is created before a valid SALUDO.
+ * One TCP port: HTTP routes plus the seurat.1 WebSocket mapping (TLS when a keystore
+ * is configured). No state is created before a valid SALUDO.
  */
 public final class SocketServer implements Closeable {
-    private final int port;
+    private final SeuratConfig config;
     private final HttpSurface http;
     private final WsAcceptor acceptor;
     private volatile ServerSocket bound;
@@ -31,16 +33,16 @@ public final class SocketServer implements Closeable {
         void accept(WsMapping mapping, BlockingQueue<byte[]> control);
     }
 
-    public SocketServer(int port, HttpSurface http, WsAcceptor acceptor) {
-        this.port = port;
+    public SocketServer(SeuratConfig config, HttpSurface http, WsAcceptor acceptor) {
+        this.config = config;
         this.http = http;
         this.acceptor = acceptor;
     }
 
     public void start() throws Exception {
-        try (ServerSocket server = new ServerSocket(port)) {
+        try (ServerSocket server = Listeners.open(config)) {
             bound = server;
-            Log.info("net", "SocketServer listening on TCP port " + port);
+            Log.info("net", "Listening on TCP port " + config.httpPort + (config.tls() ? " (TLS)" : ""));
             while (!closed) {
                 Socket socket;
                 try {
@@ -75,7 +77,6 @@ public final class SocketServer implements Closeable {
 
     private void handle(Socket socket, String remote) throws Exception {
         InputStream in = socket.getInputStream();
-        OutputStream out = socket.getOutputStream();
         String head = SocketIo.readLine(in);
         if (head == null) {
             socket.close();
@@ -87,59 +88,58 @@ public final class SocketServer implements Closeable {
         while ((line = SocketIo.readLine(in)) != null && !line.isEmpty()) {
             int colon = line.indexOf(':');
             if (colon > 0) {
-                headers.put(line.substring(0, colon).trim().toLowerCase(),
-                        line.substring(colon + 1).trim());
+                headers.put(line.substring(0, colon).trim().toLowerCase(), line.substring(colon + 1).trim());
             }
         }
         if (WsHandshake.isUpgrade(parts, headers)) {
-            Log.info("ws", "Upgrading WebSocket connection for " + remote + " [" + parts[1] + "]");
-            upgrade(socket, headers.get("sec-websocket-key"));
-            Log.info("ws", "WebSocket connection upgraded (seurat.1) for " + remote);
+            upgrade(socket, headers, remote);
             return;
         }
-        int length = 0;
-        try {
-            length = Integer.parseInt(headers.getOrDefault("content-length", "0"));
-        } catch (NumberFormatException ex) {
-            length = 0;
-        }
-        byte[] body = in.readNBytes(length);
-        String host = headers.getOrDefault("host", "localhost:" + port);
+        long length = contentLength(headers);
+        String host = headers.getOrDefault("host", "localhost:" + config.httpPort);
+        boolean streamed = HttpSurface.streamed(parts[0], parts[1]);
+        var request = new HttpSurface.Request(parts[0], parts[1], headers,
+                streamed ? new byte[0] : in.readNBytes((int) Math.min(length, SeuratConstants.FRAME_MAX)),
+                host, streamed ? in : null, length);
         long t0 = System.nanoTime();
-        var response = http.route(new HttpSurface.Request(parts[0], parts[1], headers,
-                body, host));
-        long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
-        Log.info("http", parts[0] + " " + parts[1] + " -> " + response.code()
-                + " (" + elapsedMs + "ms, " + response.body().length + " B) [" + remote + "]");
-        String status = statusLine(response.code());
-        String header = "HTTP/1.1 " + status + "\r\nContent-Type: " + response.type()
-                + "\r\nContent-Length: " + response.body().length
-                + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
-        out.write(header.getBytes(StandardCharsets.UTF_8));
+        var response = http.route(request);
+        Log.info("http", parts[0] + " " + parts[1] + " -> " + response.code() + " ("
+                + (System.nanoTime() - t0) / 1_000_000L + "ms) [" + remote + "]");
+        StringBuilder header = new StringBuilder("HTTP/1.1 " + Listeners.status(response.code())
+                + "\r\nContent-Type: " + response.type() + "\r\nContent-Length: " + response.body().length
+                + "\r\nCache-Control: no-store\r\nConnection: close\r\n");
+        response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append("\r\n"));
+        OutputStream out = socket.getOutputStream();
+        out.write(header.append("\r\n").toString().getBytes(StandardCharsets.UTF_8));
         out.write(response.body());
         out.flush();
         socket.close();
     }
 
-    private static String statusLine(int code) {
-        return switch (code) {
-            case 200 -> "200 OK";
-            case 201 -> "201 Created";
-            case 202 -> "202 Accepted";
-            case 403 -> "403 Forbidden";
-            case 500 -> "500 Internal Error";
-            default -> "404 Not Found";
-        };
+    private static long contentLength(Map<String, String> headers) {
+        try {
+            return Math.max(0, Long.parseLong(headers.getOrDefault("content-length", "0")));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
-    private void upgrade(Socket socket, String key) throws Exception {
-        String accept = WsHandshake.acceptKey(key);
-        String response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n"
-                + "Connection: Upgrade\r\nSec-WebSocket-Accept: " + accept
-                + "\r\nSec-WebSocket-Protocol: seurat.1\r\n\r\n";
-        socket.getOutputStream().write(response.getBytes(StandardCharsets.UTF_8));
-        socket.getOutputStream().flush();
-        BlockingQueue<byte[]> control = new LinkedBlockingQueue<>();
+    private void upgrade(Socket socket, Map<String, String> headers, String remote) throws Exception {
+        OutputStream out = socket.getOutputStream();
+        if (!WsHandshake.offersSubprotocol(headers) || !WsHandshake.originAllowed(headers, config.origins)) {
+            Log.warn("ws", "Upgrade refused for " + remote + " (subprotocol or Origin)");
+            out.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            socket.close();
+            return;
+        }
+        String accept = WsHandshake.acceptKey(headers.get("sec-websocket-key"));
+        out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                + "Sec-WebSocket-Accept: " + accept + "\r\nSec-WebSocket-Protocol: " + WsHandshake.SUBPROTOCOL
+                + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.flush();
+        BlockingQueue<byte[]> control = new ArrayBlockingQueue<>(SeuratConstants.INPUT_QUEUE_FRAMES);
+        Log.info("ws", "WebSocket connection upgraded (seurat.1) for " + remote);
         acceptor.accept(new WsMapping(socket, control), control);
     }
 }

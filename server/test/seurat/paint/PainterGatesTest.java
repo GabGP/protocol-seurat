@@ -1,0 +1,85 @@
+package seurat.paint;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import seurat.codec.BrushId;
+import seurat.kit.TestKit;
+import seurat.plan.PlanEntry;
+import seurat.proto.Headers;
+import seurat.store.WorkMeta;
+
+/** Painter gates: red cola_ms (spec 6.1), budget at open (9.2), valid band prefix (8). */
+public final class PainterGatesTest {
+    public static void main(String[] args) throws Exception {
+        redHoldsNewFlows();
+        amberHalvesSlots();
+        corruptBandServesPrefix();
+        System.out.println("PainterGatesTest OK");
+    }
+
+    private static void await(PainterTest.Rig rig, int n) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (rig.mapping.deliveries.size() < n && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+    }
+
+    /** Red (> 400 ms): nothing new opens until cola_ms drops below 150 ms (hysteresis). */
+    private static void redHoldsNewFlows() throws Exception {
+        PainterTest.Rig rig = PainterTest.rig();
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().settle(seurat.proto.Ranges.of(1));
+        rig.session.queue(450);
+        Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1)),
+                rig.canvas.plan().start(0, 1));
+        Thread.sleep(300);
+        TestKit.check(rig.mapping.deliveries.isEmpty(), "red: held");
+        rig.session.queue(200);
+        rig.painter.unpark(rig.canvas);
+        Thread.sleep(300);
+        TestKit.check(rig.mapping.deliveries.isEmpty(), "still red above 150 ms (hysteresis)");
+        rig.session.queue(100);
+        rig.painter.unpark(rig.canvas);
+        await(rig, 1);
+        TestKit.check(rig.mapping.deliveries.size() == 1, "green again: sent");
+        thread.interrupt();
+    }
+
+    /** Amber (150-400 ms): max_en_vuelo halves to 6. */
+    private static void amberHalvesSlots() throws Exception {
+        PainterTest.Rig rig = PainterTest.rig();
+        rig.session.queue(200);
+        int taken = 0;
+        while (rig.session.takeSlot()) {
+            taken++;
+        }
+        TestKit.check(taken == 6, "amber: 6 slots, got " + taken);
+        rig.session.queue(20);
+        TestKit.check(rig.session.takeSlot(), "green: back to 12");
+    }
+
+    /** A band whose CRC fails on disk: the delivery shrinks to the valid prefix before its header. */
+    private static void corruptBandServesPrefix() throws Exception {
+        PainterTest.Rig rig = PainterTest.rig();
+        WorkMeta meta = rig.canvas.meta();
+        TestKit.FixedStore store = new TestKit.FixedStore(meta) {
+            @Override
+            public byte[][] servable(BrushId p, int from, int through) {
+                return new byte[][]{new byte[]{10}}; // band 1 failed its CRC-32C
+            }
+        };
+        store.put(new BrushId(1, 0, 0), new byte[]{10}, new byte[]{11}, new byte[]{12}, new byte[]{13});
+        rig.canvas.setStore(store, meta);
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().settle(seurat.proto.Ranges.of(1));
+        Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1)),
+                rig.canvas.plan().start(0, 1));
+        await(rig, 1);
+        var head = Headers.BrushHead.parse(ByteBuffer.wrap(rig.mapping.deliveries.get(0)));
+        TestKit.check(head.from() == 0 && head.through() == 1, "header says [0,1), got " + head.through());
+        TestKit.check(rig.canvas.book().get(head.delivery()).through() == 1, "book annotated with the prefix");
+        thread.interrupt();
+    }
+}

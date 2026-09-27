@@ -69,7 +69,7 @@ public final class TestKit {
         ImageIO.write(img, "jpg", out.toFile());
         return out;
     }
-    public static final class FixedStore implements BrushStore {
+    public static class FixedStore implements BrushStore {
         private final WorkMeta meta;
         private final Map<String, byte[][]> bands = new ConcurrentHashMap<>();
 

@@ -21,7 +21,8 @@ public final class WsCloseTest {
             int b0 = in.read();
             int b1 = in.read();
             TestKit.check(b0 == (0x80 | WsFraming.CLOSE), "fin+close opcode");
-            TestKit.check(b1 == 0, "empty close payload");
+            TestKit.check(b1 == 2, "close carries a status code");
+            TestKit.check(((in.read() << 8) | in.read()) == WsFraming.NORMAL, "1000 normal closure");
             TestKit.check(in.read() == -1, "socket closed after the frame");
         }
         System.out.println("WsCloseTest OK");

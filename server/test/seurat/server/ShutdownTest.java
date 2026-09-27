@@ -84,7 +84,9 @@ public final class ShutdownTest {
     }
 
     private static void listenerStops() throws Exception {
-        SocketServer server = new SocketServer(0, null, (m, c) -> {});
+        Path root = Files.createTempDirectory("shutdown-listener");
+        Files.writeString(root.resolve("seurat.conf"), "http.port=0\n");
+        SocketServer server = new SocketServer(SeuratConfig.load(root.resolve("seurat.conf")), null, (m, c) -> {});
         Thread serving = new Thread(() -> {
             try {
                 server.start();
@@ -176,6 +178,9 @@ public final class ShutdownTest {
 
         @Override
         public void cancel(long delivery) {}
+
+        @Override
+        public void fail() {}
 
         @Override
         public void close() {

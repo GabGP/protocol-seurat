@@ -36,10 +36,9 @@ public final class PainterTest {
         rig.canvas.book().settle(seurat.proto.Ranges.of(1));
         rig.canvas.free = 1;
         Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
-        rig.canvas.startPlan(2, 2);
         rig.painter.enqueue(rig.canvas, List.of(
                 new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1),
-                new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)));
+                new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
         Thread.sleep(500);
         TestKit.check(rig.mapping.deliveries.size() == 1, "window 1: second entry parked, got "
                 + rig.mapping.deliveries.size());
@@ -59,7 +58,8 @@ public final class PainterTest {
         rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
         rig.canvas.free = 0;
         Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
-        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1)));
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1)),
+                rig.canvas.plan().start(0, 1));
         Thread.sleep(300);
         rig.painter.drop(rig.canvas);
         rig.canvas.free = 10;
@@ -104,10 +104,9 @@ public final class PainterTest {
         Rig rig = rig();
         rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
         Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
-        rig.canvas.startPlan(2, 2);
         rig.painter.enqueue(rig.canvas, List.of(
                 new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1),
-                new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)));
+                new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
         long deadline = System.currentTimeMillis() + 5000;
         while (rig.mapping.deliveries.size() < 2 && System.currentTimeMillis() < deadline) {
             Thread.sleep(20);
@@ -136,25 +135,39 @@ public final class PainterTest {
         thread.interrupt();
     }
 
+    /** (a)(b) failures are discarded, and a plan made only of them still ends with PLAN FIN. */
     private static void dropsViolations() throws Exception {
         Rig rig = rig();
         Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
-        rig.canvas.startPlan(1, 3);
         rig.painter.enqueue(rig.canvas, List.of(
                 new PlanEntry(new BrushId(0, 0, 0), 0, 4, 1),
                 new PlanEntry(new BrushId(1, 0, 0), 0, 4, 1),
-                new PlanEntry(new BrushId(9, 9, 9), 0, 2, 1)));
+                new PlanEntry(new BrushId(9, 9, 9), 0, 2, 1)), rig.canvas.plan().start(0, 3));
         Thread.sleep(700);
         TestKit.check(rig.mapping.deliveries.isEmpty(), "a/b violations dropped, got "
                 + rig.mapping.deliveries.size());
+        TestKit.check(planEvents(rig, 1) == 1, "PLAN FIN once every entry is resolved");
         thread.interrupt();
+    }
+
+    static int planEvents(Rig rig, int event) {
+        int n = 0;
+        synchronized (rig.mapping) {
+            for (byte[] frame : rig.mapping.control) {
+                Frame f = Frame.decode(java.nio.ByteBuffer.wrap(frame));
+                if (f.type() == FrameType.PLAN && seurat.proto.MsgGaze.Plan.parse(f.payload()).event() == event) {
+                    n++;
+                }
+            }
+        }
+        return n;
     }
 
     private static void purgeCancels() throws Exception {
         Rig rig = rig();
         rig.painter.enqueue(rig.canvas, List.of(
                 new PlanEntry(new BrushId(0, 0, 0), 0, 2, 1),
-                new PlanEntry(new BrushId(2, 0, 0), 0, 2, 1)));
+                new PlanEntry(new BrushId(2, 0, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
         Concession narrow = new Concession(2, 2, 4, 1, 768, 36864, 120);
         var cancelled = rig.painter.purge(rig.canvas, narrow);
         TestKit.check(cancelled.isEmpty(), "queue purged cleanly");

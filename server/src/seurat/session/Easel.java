@@ -1,37 +1,28 @@
 package seurat.session;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
-import seurat.catalog.Catalog;
-import seurat.concession.GrantController;
-import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
 import seurat.observe.Log;
-import seurat.paint.Painter;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
+import seurat.proto.Wire;
 
-/** One virtual thread per session. Single writer of its session state. */
+/**
+ * Caballete: one virtual thread per session, the only writer of its session state.
+ * Its input loop is ordered, so a RASPADO is read after every earlier SOLTAR (spec 4.2.5).
+ */
 public final class Easel implements Runnable {
     private final Mapping mapping;
     private final BlockingQueue<byte[]> entry;
-    private final Sessions sessions;
-    private final Catalog catalog;
-    private final GrantController control;
-    private final int sessionMax;
-    private CanvasService service;
+    private final EaselContext ctx;
 
-    public Easel(Mapping mapping, BlockingQueue<byte[]> entry, Sessions sessions,
-            Catalog catalog, GrantController control, Painter painter, int sessionMax) {
+    public Easel(Mapping mapping, BlockingQueue<byte[]> entry, EaselContext ctx) {
         this.mapping = mapping;
         this.entry = entry;
-        this.sessions = sessions;
-        this.catalog = catalog;
-        this.control = control;
-        this.sessionMax = sessionMax;
+        this.ctx = ctx;
     }
 
     static void send(Mapping mapping, long type, byte[] payload) {
@@ -46,29 +37,29 @@ public final class Easel implements Runnable {
     public void run() {
         Session session = null;
         try {
-            session = new SessionHandshake(mapping, entry, sessions, sessionMax).hello();
-            service = new CanvasService(mapping, catalog, control, sessionMax);
-            loop(session);
+            session = new SessionHandshake(mapping, entry, ctx).hello();
+            loop(session, new CanvasService(mapping, ctx));
         } catch (java.io.EOFException ex) {
-            Log.info("session", "Session " + (session == null ? "?" : session.id())
-                    + " client disconnected (EOF)");
+            Log.info("session", "Session " + (session == null ? "?" : session.id()) + " disconnected");
         } catch (FatalProtocol fail) {
-            Log.warn("session", "Fatal protocol error [session " + (session == null ? "?" : session.id())
-                    + "]: " + ProtoCodes.errorName(fail.code) + " (ref=" + FrameType.name(fail.refType)
-                    + "): " + fail.getMessage());
-            if (session != null) {
-                fail(session, fail.code, fail.refType);
-            }
+            Log.warn("session", "Fatal [session " + (session == null ? "?" : session.id()) + "]: "
+                    + ProtoCodes.errorName(fail.code) + " (ref=" + FrameType.name(fail.refType) + "): " + fail.getMessage());
+            fail(fail.code, fail.refType, fail.getMessage());
         } catch (Throwable ex) {
-            String detail = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-            Log.error("session", "Session error [session " + (session == null ? "?" : session.id())
-                    + "]: " + detail, ex);
-            if (session != null) {
-                fail(session, ProtoCodes.ERR_INTERNO, 0);
-            }
+            Log.error("session", "Session error [session " + (session == null ? "?" : session.id()) + "]", ex);
+            fail(ProtoCodes.ERR_INTERNO, 0, "interno");
         } finally {
             close(session);
         }
+    }
+
+    /** ERROR with fatal = 1 precedes the close (spec 3.3); a protocol failure closes with 1002. */
+    private void fail(int code, long refType, String msg) {
+        try {
+            send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(code, 1, refType, msg).encode());
+        } catch (RuntimeException ignored) {
+        }
+        mapping.fail();
     }
 
     private void close(Session session) {
@@ -77,17 +68,10 @@ public final class Easel implements Runnable {
         } catch (Exception ignored) {
         }
         if (session != null) {
-            Log.info("session", "Session " + session.id() + " closed/retired");
-            session.canvases().values().forEach(control::drop);
-            sessions.retire(session, (SeuratConstants.LEASE_S * 1000 + SeuratConstants.SKEW_MS) * 1_000_000L);
-        }
-    }
-
-    private void fail(Session session, int code, long refType) {
-        try {
-            send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    code, 1, refType, "fail").encode());
-        } catch (RuntimeException ignored) {
+            Log.info("session", "Session " + session.id() + " closed; books kept L + delta");
+            session.canvases().values().forEach(ctx.grants()::drop);
+            ctx.gazes().forget(session);
+            ctx.sessions().retire(session);
         }
     }
 
@@ -99,10 +83,10 @@ public final class Easel implements Runnable {
         return f;
     }
 
-    private void loop(Session session) throws Exception {
+    private void loop(Session session, CanvasService service) throws Exception {
         for (;;) {
-            Frame f = Frame.decode(ByteBuffer.wrap(take()));
-            session.lastActivityNs = System.nanoTime();
+            byte[] raw = take();
+            Frame f = Wire.parse(0, () -> Frame.decodeExact(raw));
             long type = f.type();
             Log.debug("proto", "Session " + session.id() + " received " + FrameType.name(type));
             if (type == FrameType.MIRADA) {
@@ -120,13 +104,15 @@ public final class Easel implements Runnable {
             } else if (type == FrameType.CERRAR) {
                 service.closeCanvas(session, f);
             } else if (type == FrameType.CATALOGO) {
-                service.sendCatalog(session);
+                service.sendCatalog(session, f);
+            } else if (type == FrameType.ECO) {
+                service.echo(session, f);
             } else if (type == FrameType.ADIOS) {
                 Log.info("session", "Session " + session.id() + " sent ADIOS, closing cleanly");
                 return;
-            } else if (type != FrameType.ECO && Frame.mandatory(type)) {
-                throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, type,
-                        "unknown mandatory type");
+            } else if (Frame.mandatory(type)) {
+                // Known S->C types (BIENVENIDA, CONCESION, ...) are just as invalid from a client.
+                throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, type, "unexpected mandatory type");
             }
         }
     }

@@ -12,7 +12,7 @@ import seurat.proto.MsgCatalog;
 import seurat.proto.ProtoCodes;
 import seurat.store.BrushStore;
 
-/** id -> work map + meta.json. Pushes OBRA to sessions (Observer). */
+/** id -> work map + meta.json. Every change is pushed as OBRA to its observers (spec 7.3). */
 public final class Catalog {
     private final Path worksDir;
     private final Map<String, WorkRecord> records = new ConcurrentHashMap<>();
@@ -62,7 +62,9 @@ public final class Catalog {
                 persist(work);
             } catch (IOException ignored) {
             }
-            emit(message(work, ProtoCodes.OBRA_ESTADO, 100));
+            if (state != ProtoCodes.ST_LISTA) { // LISTA is announced by OBRA(EDICION), see list()
+                emit(message(work, ProtoCodes.OBRA_ESTADO, lastPct.getOrDefault(id, 0)));
+            }
         }
     }
 
@@ -73,14 +75,30 @@ public final class Catalog {
         }
     }
 
+    /** DELETE (spec 7.4): RETIRADA persisted (a restart must not bring it back), then OBRA(BAJA). */
     public void withdraw(String id) {
         WorkRecord work = records.remove(id);
         lastPct.remove(id);
         if (work != null) {
-            emit(new MsgCatalog.WorkMessage(ProtoCodes.OBRA_BAJA, ProtoCodes.ST_RETIRADA,
-                    0, work.meta.edition(), work.meta.width(), work.meta.height(),
-                    work.meta.strata(), id, work.meta.name()));
+            work.meta = new seurat.store.WorkMeta(work.meta.id(), work.meta.name(), work.meta.width(),
+                    work.meta.height(), work.meta.side(), work.meta.strata(), ProtoCodes.ST_RETIRADA,
+                    work.meta.edition(), work.meta.ceilingStratum(), work.meta.ceilingBands());
+            try {
+                persist(work);
+            } catch (IOException ignored) {
+            }
+            emit(message(work, ProtoCodes.OBRA_BAJA, 0));
         }
+    }
+
+    /** CATALOGO: one OBRA(LISTADO) per work, with its current state and progress. */
+    public java.util.List<MsgCatalog.WorkMessage> listing() {
+        java.util.List<MsgCatalog.WorkMessage> out = new java.util.ArrayList<>();
+        for (WorkRecord work : records.values()) {
+            int pct = work.meta.state() == ProtoCodes.ST_LISTA ? 100 : lastPct.getOrDefault(work.meta.id(), 0);
+            out.add(message(work, ProtoCodes.OBRA_LISTADO, pct));
+        }
+        return out;
     }
 
     public WorkRecord get(String id) {

@@ -1,9 +1,7 @@
 package seurat.session;
 
-import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.concession.Concessions;
-import seurat.concession.GrantController;
 import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.proto.Frame;
@@ -11,48 +9,48 @@ import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
 import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
+import seurat.proto.Wire;
 
-/** Factory for opening a work on a session canvas. */
+/** ABRIR (spec 3.3, 7.3): ABIERTA, then CONCESION and the sketch. RECIBIENDO is ERROR 5, not fatal. */
 final class CanvasOpener {
     private CanvasOpener() {}
 
-    static void open(Mapping mapping, Catalog catalog, GrantController control,
-            int sessionMax, Session session, Frame f) {
-        MsgCatalog.OpenWork request = MsgCatalog.OpenWork.parse(f.payload());
-        WorkRecord work = catalog.get(request.id());
-        if (work == null) {
-            Log.warn("session", "Session " + session.id() + " open failed: work not found '" + request.id() + "'");
+    static void open(Mapping mapping, EaselContext ctx, Session session, Frame f) {
+        MsgCatalog.OpenWork request = Wire.parse(f.type(), () -> MsgCatalog.OpenWork.parse(f.payload()));
+        WorkRecord work = ctx.catalog().get(request.id());
+        if (work == null || work.meta.state() == ProtoCodes.ST_RETIRADA) {
+            Log.warn("session", "Session " + session.id() + " open failed: no work '" + request.id() + "'");
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, "work").encode());
+                    ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
-        if (work.store == null
-                || work.meta.state() == ProtoCodes.ST_RECIBIENDO
-                || work.meta.state() == ProtoCodes.ST_FALLIDA) {
-            Log.warn("session", "Session " + session.id() + " open failed: work '" + request.id()
-                    + "' not ready (state=" + ProtoCodes.stateName(work.meta.state()) + ")");
+        int state = work.meta.state();
+        if (work.store == null || state == ProtoCodes.ST_RECIBIENDO || state == ProtoCodes.ST_FALLIDA) {
+            Log.warn("session", "Session " + session.id() + " open failed: '" + request.id()
+                    + "' not ready (state=" + ProtoCodes.stateName(state) + ")");
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, "not ready").encode());
+                    ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
         long handle = session.newHandle();
         long[] ceiling = work.ceiling(session.role());
+        int top = work.meta.strata() - 1;
         Canvas canvas = new Canvas(handle, request.id(), work.store, work.meta,
-                Concessions.initial(session.memMib(), sessionMax, work.meta.strata() - 1));
+                Concessions.initial(session.memMib(), ctx.sessionMax(), top));
         canvas.session(session);
         canvas.renewNs = System.nanoTime();
         canvas.auditNs = System.nanoTime();
-        session.canvases().put(handle, canvas);
-        int top = work.meta.strata() - 1;
         long paddedW = ((long) work.meta.width() + (1L << top) - 1) >> top << top;
         long paddedH = ((long) work.meta.height() + (1L << top) - 1) >> top << top;
         Log.info("session", "Session " + session.id() + " opened canvas " + handle + " for work '"
                 + request.id() + "' (" + work.meta.width() + "x" + work.meta.height() + ", strata="
                 + work.meta.strata() + ", ed=" + work.meta.edition() + ")");
-        Easel.send(mapping, FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,
-                work.meta.width(), work.meta.height(), work.meta.strata(),
-                work.meta.edition(), (int) ceiling[0], (int) ceiling[1],
-                paddedW >> top, paddedH >> top).encode());
-        control.open(session, canvas);
+        synchronized (canvas) {
+            session.canvases().put(handle, canvas);
+            Easel.send(mapping, FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,
+                    work.meta.width(), work.meta.height(), work.meta.strata(), work.meta.edition(),
+                    (int) ceiling[0], (int) ceiling[1], paddedW >> top, paddedH >> top).encode());
+            ctx.grants().open(session, canvas);
+        }
     }
 }

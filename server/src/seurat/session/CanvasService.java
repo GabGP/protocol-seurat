@@ -1,62 +1,52 @@
 package seurat.session;
 
 import java.nio.ByteBuffer;
-import seurat.catalog.Catalog;
-import seurat.catalog.WorkRecord;
-import seurat.concession.GrantController;
 import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
 import seurat.observe.Log;
+import seurat.proto.Buf;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
-import seurat.proto.MsgCatalog;
 import seurat.proto.MsgGaze;
 import seurat.proto.MsgHandshake;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.VarInt;
+import seurat.proto.Wire;
 
-/** Per-frame handlers: open/close/catalog/gaze/loans. Null canvas = skip. */
+/** Per-frame handlers of an Easel. An unknown handle is ERROR 6 (not fatal) and the frame is skipped. */
 final class CanvasService {
     private final Mapping mapping;
-    private final Catalog catalog;
-    private final GrantController control;
-    private final int sessionMax;
+    private final EaselContext ctx;
 
-    CanvasService(Mapping mapping, Catalog catalog, GrantController control,
-            int sessionMax) {
+    CanvasService(Mapping mapping, EaselContext ctx) {
         this.mapping = mapping;
-        this.catalog = catalog;
-        this.control = control;
-        this.sessionMax = sessionMax;
+        this.ctx = ctx;
     }
 
-    Canvas canvas(Session session, long handle) {
+    private Canvas canvas(Session session, long handle, long type) {
         Canvas canvas = session.canvases().get(handle);
         if (canvas == null) {
-            Log.warn("session", "Session " + session.id() + " invalid canvas handle: " + handle);
+            Log.warn("session", "Session " + session.id() + " invalid handle " + handle);
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    ProtoCodes.ERR_HANDLE, 0, handle, "HANDLE").encode());
+                    ProtoCodes.ERR_HANDLE, 0, type, "handle " + handle).encode());
         }
         return canvas;
     }
 
     void gaze(Session session, Frame f) {
-        MsgGaze.Gaze gaze = MsgGaze.Gaze.parse(f.payload());
+        MsgGaze.Gaze gaze = Wire.parse(f.type(), () -> MsgGaze.Gaze.parse(f.payload()));
         session.lastGazeNs = System.nanoTime();
-        Canvas canvas = canvas(session, gaze.handle());
+        Canvas canvas = canvas(session, gaze.handle(), f.type());
         if (canvas != null) {
-            Log.debug("gaze", "Session " + session.id() + " h=" + gaze.handle() + " gaze: ["
-                    + gaze.x0() + "," + gaze.y0() + ".." + gaze.x1() + "," + gaze.y1()
-                    + "] seq=" + gaze.seq());
-            control.gaze(session, canvas, gaze);
+            ctx.gazes().offer(session, canvas, gaze);
         }
     }
 
     void receipt(Session session, Frame f) {
-        MsgLoans.Receipt receipt = MsgLoans.Receipt.parse(f.payload());
-        Canvas canvas = canvas(session, receipt.handle());
+        MsgLoans.Receipt receipt = Wire.parse(f.type(), () -> MsgLoans.Receipt.parse(f.payload()));
+        Canvas canvas = canvas(session, receipt.handle(), f.type());
         if (canvas == null) {
             return;
         }
@@ -66,71 +56,83 @@ final class CanvasService {
             long skewNs = SeuratConstants.SKEW_MS * 1_000_000L;
             canvas.book().acknowledge(receipt.completed(), now, leaseNs, skewNs);
             canvas.book().settle(receipt.completed());
-            if (receipt.renewThrough() > 0) {
-                canvas.acknowledgeRenewal(receipt.renewThrough(), now, leaseNs, skewNs);
+            for (var ranges : canvas.orders().takeRenewalsThrough(receipt.renewThrough())) {
+                canvas.book().acknowledge(ranges, now, leaseNs, skewNs); // vence_srv from renov_hasta
             }
-            canvas.free = Math.max(1, receipt.free());
-            session.queueMs = receipt.queueMs();
-            Log.debug("loan", "Session " + session.id() + " h=" + receipt.handle()
-                    + " receipt: ack=" + receipt.completed() + " free=" + canvas.free);
+            canvas.free = receipt.free();
+            session.queue(receipt.queueMs());
         }
-        control.credit(canvas);
+        ctx.sessions().settled(session);
+        ctx.grants().credit(canvas);
     }
 
     void release(Session session, Frame f) {
-        MsgLoans.Release release = MsgLoans.Release.parse(f.payload());
-        Canvas canvas = canvas(session, release.handle());
-        if (canvas != null) {
-            synchronized (canvas) {
-                canvas.book().release(release.ranges());
-                Log.debug("loan", "Session " + session.id() + " h=" + release.handle()
-                        + " released brushes: " + release.ranges());
-            }
-            control.credit(canvas);
+        MsgLoans.Release release = Wire.parse(f.type(), () -> MsgLoans.Release.parse(f.payload()));
+        Canvas canvas = canvas(session, release.handle(), f.type());
+        if (canvas == null) {
+            return;
         }
+        synchronized (canvas) {
+            if (release.reason() == ProtoCodes.SOLTAR_DECODIFICACION || release.reason() == ProtoCodes.SOLTAR_CRC) {
+                release.ranges().forEach(n -> {
+                    Delivery d = canvas.book().get(n);
+                    if (d != null && canvas.retryOnce(d.brush())) {
+                        ctx.grants().resend(canvas, d); // spec 5.3: resent once, then unusable
+                    }
+                });
+            }
+            canvas.book().release(release.ranges());
+        }
+        ctx.grants().credit(canvas);
     }
 
     void scraped(Session session, Frame f) {
-        MsgLoans.Scraped scraped = MsgLoans.Scraped.parse(f.payload());
-        Canvas canvas = canvas(session, scraped.handle());
+        MsgLoans.Scraped scraped = Wire.parse(f.type(), () -> MsgLoans.Scraped.parse(f.payload()));
+        Canvas canvas = canvas(session, scraped.handle(), f.type());
         if (canvas != null) {
-            Log.debug("loan", "Session " + session.id() + " h=" + scraped.handle()
-                    + " scraped confirmed order=" + scraped.order());
-            control.confirm(canvas, scraped);
+            ctx.grants().confirm(canvas, scraped);
+            ctx.grants().credit(canvas);
         }
     }
 
     void inventory(Session session, Frame f) {
-        MsgAudit.Inventory inventory = MsgAudit.Inventory.parse(f.payload());
-        Canvas canvas = canvas(session, inventory.handle());
+        MsgAudit.Inventory inventory = Wire.parse(f.type(), () -> MsgAudit.Inventory.parse(f.payload()));
+        Canvas canvas = canvas(session, inventory.handle(), f.type());
         if (canvas != null) {
-            Log.debug("audit", "Session " + session.id() + " h=" + inventory.handle()
-                    + " inventory audit: through=" + inventory.through());
-            control.audit(canvas, inventory);
+            ctx.grants().audit(canvas, inventory);
         }
     }
 
     void open(Session session, Frame f) {
-        CanvasOpener.open(mapping, catalog, control, sessionMax, session, f);
+        CanvasOpener.open(mapping, ctx, session, f);
     }
 
+    /** CERRAR: the client released everything of that canvas (spec 3.3). */
     void closeCanvas(Session session, Frame f) {
-        ByteBuffer b = ByteBuffer.wrap(f.payload());
-        long handle = VarInt.get(b);
+        long handle = Wire.parse(f.type(), () -> {
+            ByteBuffer b = ByteBuffer.wrap(f.payload());
+            long h = VarInt.get(b);
+            Buf.tail(b);
+            return h;
+        });
         Canvas closed = session.canvases().remove(handle);
-        if (closed != null) {
-            control.drop(closed);
+        if (closed == null) {
+            canvas(session, handle, f.type());
+            return;
         }
+        ctx.grants().drop(closed);
         Log.info("session", "Session " + session.id() + " closed canvas handle=" + handle);
     }
 
-    void sendCatalog(Session session) {
-        Log.info("catalog", "Sending catalog listing to session " + session.id());
-        for (WorkRecord work : catalog.all()) {
-            Easel.send(mapping, FrameType.OBRA, new MsgCatalog.WorkMessage(
-                    ProtoCodes.OBRA_LISTADO, work.meta.state(), 100,
-                    work.meta.edition(), work.meta.width(), work.meta.height(),
-                    work.meta.strata(), work.meta.id(), work.meta.name()).encode());
+    void echo(Session session, Frame f) {
+        Wire.parse(f.type(), () -> MsgHandshake.Heartbeat.parse(f.payload()));
+        session.lastEchoNs = System.nanoTime();
+    }
+
+    void sendCatalog(Session session, Frame f) {
+        Wire.parse(f.type(), () -> Buf.tail(ByteBuffer.wrap(f.payload())));
+        for (var message : ctx.catalog().listing()) {
+            Easel.send(mapping, FrameType.OBRA, message.encode());
         }
     }
 }

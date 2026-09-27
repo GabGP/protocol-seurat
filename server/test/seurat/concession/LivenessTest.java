@@ -6,6 +6,7 @@ import seurat.kit.TestKit;
 import seurat.net.RecordingMapping;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
+import seurat.proto.MsgAudit;
 import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -15,10 +16,12 @@ import seurat.session.Session;
 import seurat.session.Sessions;
 import seurat.store.WorkMeta;
 
+/** Liveness (spec 4.2.6-7, 8): 3 LATIDO without ECO, RENOVAR only what is permitted, ERROR 8. */
 public final class LivenessTest {
     public static void main(String[] args) throws Exception {
         testHeartbeatTimeout();
         testRenewalAck();
+        testScrapeDeadline();
         System.out.println("LivenessTest OK");
     }
 
@@ -26,49 +29,58 @@ public final class LivenessTest {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
         Session s = new Session(1, "alice", "autenticado", 256, 0, mapping, new byte[32]);
-        // Set last activity to 46 seconds ago
-        s.lastActivityNs = System.nanoTime() - 46_000_000_000L;
+        s.lastEchoNs = System.nanoTime() - 46_000_000_000L; // 3 x 15 s without ECO
         sessions.add(s);
-
-        GrantController grants = new GrantController(null, null, sessions);
-        Liveness liveness = new Liveness(grants, sessions);
-        liveness.tick();
-
-        TestKit.check(sessions.find(1) == null, "hung session removed from live");
-        TestKit.check(!mapping.control.isEmpty(), "error frame sent");
-        Frame err = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
-        TestKit.check(err.type() == FrameType.ERROR, "is ERROR frame");
-        var pe = MsgHandshake.ProtocolError.parse(err.payload());
-        TestKit.check(pe.code() == ProtoCodes.ERR_PROTOCOLO, "ERR_PROTOCOLO");
+        new Liveness(new GrantController(null, null, sessions), sessions).tick();
+        TestKit.check(mapping.closed, "silent session closed (its Easel retires it)");
     }
 
+    /** Passive revocation: RENOVAR never names what a pending RASPAR takes back. */
     private static void testRenewalAck() throws Exception {
+        var s = GrantControllerTest.setup();
+        s.canvas.book().log(new BrushId(0, 0, 0), 0, 2, 100, 1); // 257, stratum 0
+        s.grants.narrow(s.canvas, new Concession(2, 1, 4, 2, 768, 36864, 120),
+                Concessions.cuts(s.canvas.concession(), new int[]{1, 4}, 1, 2), null);
+        s.mapping.control.clear();
+        s.canvas.renewNs = System.nanoTime() - 65_000_000_000L;
+        new Liveness(s.grants, s.sessions).tick();
+        Frame renew = null;
+        for (byte[] f : s.mapping.control) {
+            Frame fr = Frame.decode(ByteBuffer.wrap(f));
+            if (fr.type() == FrameType.RENOVAR) {
+                renew = fr;
+            }
+        }
+        TestKit.check(renew != null, "RENOVAR sent");
+        var b = ByteBuffer.wrap(renew.payload());
+        seurat.proto.VarInt.get(b);
+        seurat.proto.VarInt.get(b);
+        seurat.proto.VarInt.get(b);
+        Ranges named = Ranges.decode(b);
+        TestKit.check(named.contains(1) && !named.contains(257), "stratum 0 (being scraped) not renewed");
+        long now = System.nanoTime();
+        s.canvas.orders().takeRenewalsThrough(Long.MAX_VALUE).forEach(r ->
+                s.canvas.book().acknowledge(r, now, 120_000_000_000L, 1_000_000_000L));
+        TestKit.check(s.canvas.book().pruneExpired(now + 60_000_000_000L).isEmpty(), "renewed within lease");
+    }
+
+    private static void testScrapeDeadline() throws Exception {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
-        Session s = new Session(2, "alice", "autenticado", 256, 0, mapping, new byte[32]);
-        WorkMeta meta = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2);
-        Canvas canvas = new Canvas(1, "w", null, meta, new Concession(1, 0, 4, 1, 768, 36864, 120));
-        canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
+        Session s = new Session(3, "alice", "autenticado", 256, 0, mapping, new byte[32]);
+        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
+                new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.session(s);
         s.canvases().put(1L, canvas);
         sessions.add(s);
-
-        GrantController grants = new GrantController(null, null, sessions);
-        Liveness liveness = new Liveness(grants, sessions);
-
-        // Force renew tick
-        canvas.renewNs = System.nanoTime() - 65_000_000_000L;
-        liveness.tick();
-
-        TestKit.check(!mapping.control.isEmpty(), "RENOVAR sent");
-        Frame renewFrame = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
-        TestKit.check(renewFrame.type() == FrameType.RENOVAR, "is RENOVAR");
-
-        // Client acknowledges renewal order
-        long now = System.nanoTime();
-        canvas.acknowledgeRenewal(1, now, 120_000_000_000L, 1_000_000_000L);
-        // Delivery 1 deadline was extended
-        Ranges expired = canvas.book().pruneExpired(now + 60_000_000_000L);
-        TestKit.check(expired.isEmpty(), "delivery 1 still valid within lease");
+        canvas.orders().addScrape(new seurat.session.CanvasOrders.ScrapeOrder(canvas.orders().next(), 0, 1,
+                d -> true, Ranges.empty(), System.nanoTime() - 1, null, null));
+        new Liveness(new GrantController(null, null, sessions), sessions).tick();
+        Frame err = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
+        var pe = MsgHandshake.ProtocolError.parse(err.payload());
+        TestKit.check(err.type() == FrameType.ERROR && pe.code() == ProtoCodes.ERR_LIQUIDACION && pe.fail() == 1,
+                "no RASPADO in 10 s: ERROR 8 fatal");
+        TestKit.check(mapping.closed, "then closed");
+        MsgAudit.class.getName();
     }
 }

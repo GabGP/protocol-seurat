@@ -27,6 +27,15 @@ public final class WtMapping implements Mapping {
     }
 
     @Override
+    public boolean datagrams() {
+        return true;
+    }
+
+    @Override
+    public void fail() {
+    }
+
+    @Override
     public void close() throws IOException {
     }
 }

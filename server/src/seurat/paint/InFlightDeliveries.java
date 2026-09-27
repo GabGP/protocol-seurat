@@ -2,12 +2,12 @@ package seurat.paint;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Concession;
 import seurat.session.Delivery;
 
-/** Tracks in-flight deliveries per canvas to cancel on concession reduction. */
+/** Deliveries opened and not finished, per canvas: what a reduction must cut (spec 4.2.2). */
 final class InFlightDeliveries {
     private final ConcurrentHashMap<Canvas, Set<Delivery>> active = new ConcurrentHashMap<>();
 
@@ -18,28 +18,28 @@ final class InFlightDeliveries {
     void remove(Canvas canvas, Delivery delivery) {
         Set<Delivery> set = active.get(canvas);
         if (set != null) {
-            set.remove(delivery);
+            set.removeIf(d -> d.number() == delivery.number());
+            if (set.isEmpty()) {
+                active.remove(canvas, set);
+            }
         }
     }
 
     boolean isEmpty() {
-        for (Set<Delivery> set : active.values()) {
-            if (!set.isEmpty()) return false;
-        }
-        return true;
+        return active.values().stream().allMatch(Set::isEmpty);
     }
 
-    Ranges purge(Canvas canvas, Concession next) {
+    /** Cuts the in-flight deliveries matching `cut`: out of the book, RESET_STREAM on the mapping. */
+    Ranges cancel(Canvas canvas, Predicate<Delivery> cut) {
         Set<Delivery> set = active.get(canvas);
-        if (set == null || set.isEmpty()) {
-            return Ranges.empty();
-        }
         Ranges.Builder cancelled = new Ranges.Builder();
-        for (Delivery d : set) {
-            if (!next.allows(d.brush(), d.through())) {
-                canvas.book().cancel(d.number());
-                cancelled.add(d.number());
-                set.remove(d);
+        if (set != null) {
+            for (Delivery d : set) {
+                if (cut.test(d)) {
+                    canvas.book().cancel(d.number());
+                    canvas.session().mapping().cancel(d.number());
+                    cancelled.add(d.number());
+                }
             }
         }
         return cancelled.build();

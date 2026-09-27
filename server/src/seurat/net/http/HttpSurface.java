@@ -1,36 +1,50 @@
 package seurat.net.http;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.catalog.Catalog;
-import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
-import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.session.Sessions;
 
 /**
- * HTTP routes. Only handshake and intake live here; points never do.
- * Single egress stays paint/Painter over PINCELADA flows.
+ * HTTP routes (spec 3.1). Only handshake and intake live here; points never do:
+ * the single egress stays paint/Painter over PINCELADA flows.
  */
 public final class HttpSurface {
+    /** body is read up front, except a master upload, which streams (length bytes from stream). */
     public record Request(String method, String path, Map<String, String> headers,
-            byte[] body, String host) {}
-    public record Response(int code, String type, byte[] body) {}
+            byte[] body, String host, InputStream stream, long length) {
+        public Request(String method, String path, Map<String, String> headers, byte[] body, String host) {
+            this(method, path, headers, body, host, null, body.length);
+        }
+    }
+
+    public record Response(int code, String type, byte[] body, Map<String, String> headers) {
+        public Response(int code, String type, byte[] body) {
+            this(code, type, body, Map.of());
+        }
+    }
 
     private final StaticFiles files;
-    private final Sessions sessions;
+    private final SessionRoute session;
     private final WorkRoutes routes;
 
     public HttpSurface(Path staticRoot, Sessions sessions, Catalog catalog,
             SeuratConfig config, BiConsumer<String, Path> onMaster,
             Consumer<String> onPolicy, Consumer<String> onWithdraw) {
         this.files = new StaticFiles(staticRoot);
-        this.sessions = sessions;
+        this.session = new SessionRoute(sessions, config);
         this.routes = new WorkRoutes(catalog, config, onMaster, onPolicy, onWithdraw);
+    }
+
+    /** PUT /seurat/v1/obras/{id} streams to inbox/ instead of being buffered in memory. */
+    public static boolean streamed(String method, String path) {
+        return method.equals("PUT") && WorkRoutes.isMasterUpload(path);
     }
 
     public Response route(Request req) {
@@ -39,10 +53,10 @@ public final class HttpSurface {
                 return staticGet(req.path());
             }
             if (req.method().equals("POST") && req.path().equals("/seurat/v1/sesion")) {
-                return newSession(req);
+                return session.issue(req);
             }
             if (req.path().startsWith("/seurat/v1/obras/")) {
-                return obras(req);
+                return routes.route(req);
             }
             return json(404, "{\"error\":\"no existe\"}");
         } catch (Exception ex) {
@@ -62,29 +76,6 @@ public final class HttpSurface {
                 ? "text/html; charset=utf-8"
                 : StaticFiles.contentType(path);
         return new Response(200, type, body);
-    }
-
-    private Response newSession(Request req) {
-        String body = new String(req.body(), StandardCharsets.UTF_8);
-        long memMib = number(body, "memMiB", 128);
-        String auth = req.headers().getOrDefault("authorization", "");
-        boolean authed = auth.startsWith("Bearer ") && auth.length() > 7;
-        String role = authed ? WorkRecord.AUTHENTICATED : WorkRecord.ANONYMOUS;
-        String principal = authed ? "bearer-" + auth.substring(7, Math.min(15, auth.length()))
-                : "anonimo";
-        String token = sessions.issueToken(principal, role, memMib,
-                SeuratConstants.TOKEN_TTL_S * 1000);
-        Log.info("session", "Issued session token for principal=" + principal
-                + " (role=" + role + ", mem=" + memMib + "MiB)");
-        String base = "ws://" + req.host();
-        String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + base
-                + "/seurat/v1/lienzo-ws\",\"respaldo\":\"" + base
-                + "/seurat/v1/lienzo-ws\",\"versiones\":[1],\"lado\":256}";
-        return json(201, json);
-    }
-
-    private Response obras(Request req) throws Exception {
-        return routes.route(req);
     }
 
     static long number(String json, String key, long dflt) {

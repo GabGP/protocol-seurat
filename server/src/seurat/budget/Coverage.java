@@ -9,49 +9,70 @@ import java.nio.file.StandardOpenOption;
 import seurat.codec.BrushId;
 import seurat.store.WorkMeta;
 
-/** Persistent coverage: 4 bits per E0/E1 brush, mmap. Redelivery is free. */
+/** Persistent coverage: 4 bits per E0/E1 brush (max bands delivered), mmap. Redelivery is free. */
 final class Coverage {
     private final ByteBuffer table;
-    private final FileChannel channel;
-    private final int n0;
-    private final int n1;
+    private final int[] total = new int[2];
+    private final int[] covered = new int[2];
     private final int w0;
     private final int w1;
 
     Coverage(Path path, WorkMeta meta) throws IOException {
         w0 = (meta.width() + 255) / 256;
         w1 = (meta.width() / 2 + 255) / 256;
-        n0 = w0 * ((meta.height() + 255) / 256);
-        n1 = w1 * ((meta.height() / 2 + 255) / 256);
-        long bytes = (4L * (n0 + n1) + 1) / 2;
+        total[0] = w0 * ((meta.height() + 255) / 256);
+        total[1] = w1 * ((meta.height() / 2 + 255) / 256);
+        long bytes = (4L * (total[0] + total[1]) + 1) / 2;
         boolean fresh = !Files.exists(path);
-        channel = FileChannel.open(path, StandardOpenOption.CREATE,
-                StandardOpenOption.READ, StandardOpenOption.WRITE);
-        if (fresh) {
-            channel.position(bytes - 1);
-            channel.write(ByteBuffer.wrap(new byte[1]));
+        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE,
+                StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+            if (fresh) {
+                channel.position(bytes - 1);
+                channel.write(ByteBuffer.wrap(new byte[1]));
+            }
+            table = channel.map(FileChannel.MapMode.READ_WRITE, 0, bytes);
         }
-        table = channel.map(FileChannel.MapMode.READ_WRITE, 0, bytes);
+        for (int i = 0; i < total[0] + total[1]; i++) {
+            if (nibble(i) > 0) {
+                covered[i < total[0] ? 0 : 1]++;
+            }
+        }
     }
 
     private int index(BrushId p) {
-        if (p.stratum() == 0) {
-            return p.by() * w0 + p.bx();
-        }
-        return n0 + p.by() * w1 + p.bx();
+        return p.stratum() == 0 ? p.by() * w0 + p.bx() : total[0] + p.by() * w1 + p.bx();
     }
 
-    synchronized int get(BrushId p) {
-        int i = index(p);
+    private int nibble(int i) {
         int b = table.get(i / 2) & 0xFF;
         return (i % 2 == 0) ? b & 0xF : (b >>> 4) & 0xF;
     }
 
-    synchronized void set(BrushId p, int through) throws IOException {
+    synchronized int get(BrushId p) {
+        return nibble(index(p));
+    }
+
+    /** Fraction of the stratum's brushes with any band delivered (the spec 9.2 cap). */
+    synchronized double fraction(int stratum) {
+        return total[stratum] == 0 ? 1 : (double) covered[stratum] / total[stratum];
+    }
+
+    synchronized void set(BrushId p, int through) {
         int i = index(p);
+        if (nibble(i) == 0 && through > 0) {
+            covered[p.stratum()]++;
+        }
         int at = i / 2;
         int b = table.get(at) & 0xFF;
         b = (i % 2 == 0) ? (b & 0xF0) | (through & 0xF) : (b & 0xF) | ((through & 0xF) << 4);
         table.put(at, (byte) b); // mapped: the OS writes it back; no fsync per band
+    }
+
+    int totalBrushes(int stratum) {
+        return total[stratum];
+    }
+
+    int width(int stratum) {
+        return stratum == 0 ? w0 : w1;
     }
 }

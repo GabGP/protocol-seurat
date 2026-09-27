@@ -1,36 +1,37 @@
 package seurat.session;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import seurat.codec.BrushId;
 import seurat.config.SeuratConstants;
 import seurat.proto.Ranges;
 
 /**
- * Authoritative loan model for one canvas. Touched by its Easel and the
- * Painter under the canvas lock. Survives L+delta past disconnect (resume).
+ * Authoritative loan model for one canvas. Touched by its Easel and the Painter
+ * under the canvas lock. Survives L+delta past disconnect (resume). Bands are
+ * counted per edition: after the ed1 -> ed2 swap the sketch is owed again.
  */
 public final class LoanBook {
+    private record Key(BrushId brush, long edition) {}
+
     private final TreeMap<Long, Delivery> deliveries = new TreeMap<>();
-    private final Map<BrushId, TreeMap<Integer, Delivery>> byBrush = new HashMap<>();
-    private final Map<Long, Long> deadlineNs = new HashMap<>();
-    private final Set<Long> settled = new HashSet<>();
+    private final Map<Key, TreeMap<Integer, Delivery>> byBrush = new HashMap<>();
+    private final LoanLeases leases = new LoanLeases();
     private long last;
+    private long edition;
 
-    public synchronized long lastNumber() {
-        return last;
-    }
+    public synchronized long lastNumber() { return last; }
 
-    public synchronized int size() {
-        return deliveries.size();
-    }
+    public synchronized int size() { return deliveries.size(); }
 
-    /** Bands held contiguously from 0 (a retouch missing its sketch is resent); seed: all or none. */
+    /** Edition new deliveries are stamped with and bands() counts. */
+    public synchronized void edition(long value) { edition = value; }
+
+    /** Bands held contiguously from 0 in the current edition; seed: all or none. */
     public synchronized int bands(BrushId p) {
-        TreeMap<Integer, Delivery> group = byBrush.get(p);
+        TreeMap<Integer, Delivery> group = byBrush.get(new Key(p, edition));
         if (group == null || p.stratum() == SeuratConstants.SEED_STRATUM) {
             return group == null ? 0 : 4;
         }
@@ -42,31 +43,40 @@ public final class LoanBook {
     }
 
     /** Numbers BEFORE opening the flow. */
-    public synchronized Delivery log(BrushId p, int from, int through, int bytes,
-            long epoch) {
-        Delivery e = new Delivery(++last, p, from, through, bytes, epoch);
+    public synchronized Delivery log(BrushId p, int from, int through, int bytes, long epoch) {
+        Delivery e = new Delivery(++last, p, from, through, bytes, epoch, edition);
         deliveries.put(e.number(), e);
-        byBrush.computeIfAbsent(p, k -> new TreeMap<>()).put(from, e);
+        byBrush.computeIfAbsent(new Key(p, edition), k -> new TreeMap<>()).put(from, e);
         return e;
     }
 
-    public synchronized void acknowledge(Ranges r, long ahoraNs, long arriendoNs, long deltaNs) {
-        r.forEach(n -> deadlineNs.put(n, ahoraNs + arriendoNs + deltaNs));
+    /** Corrupt band on disk (spec 8): the delivery shrinks to its valid prefix before its header goes out. */
+    public synchronized Delivery shrink(long n, int through, int bytes) {
+        Delivery e = deliveries.get(n);
+        if (e == null) {
+            return null;
+        }
+        Delivery s = new Delivery(n, e.brush(), e.from(), through, bytes, e.epoch(), e.edition());
+        deliveries.put(n, s);
+        byBrush.get(new Key(e.brush(), e.edition())).put(e.from(), s);
+        return s;
     }
+
+    public synchronized Delivery get(long n) { return deliveries.get(n); }
+
+    public synchronized boolean contains(long n) { return deliveries.containsKey(n); }
+
+    public synchronized boolean holds(long ed) { return deliveries.values().stream().anyMatch(d -> d.edition() == ed); }
+
+    public synchronized void acknowledge(Ranges r, long nowNs, long leaseNs, long deltaNs) { leases.acknowledge(r, nowNs, leaseNs, deltaNs); }
 
     /** Client confirmed synthesis via RECIBO: safe to audit through it. */
-    public synchronized void settle(Ranges r) {
-        r.forEach(settled::add);
-    }
+    public synchronized void settle(Ranges r) { leases.settle(r); }
 
-    /**
-     * Highest N such that every book entry ≤ N is client-confirmed (RECIBO).
-     * Unsettled (in-flight or unsynthesized) deliveries block the watermark,
-     * so an audit never counts a number the client may not hold yet.
-     */
+    /** Highest N such that every book entry <= N is RECIBO-confirmed: audits never count unsettled numbers. */
     public synchronized long settledThrough() {
         for (long n : deliveries.keySet()) {
-            if (!settled.contains(n)) {
+            if (!leases.isSettled(n)) {
                 return n - 1;
             }
         }
@@ -75,58 +85,44 @@ public final class LoanBook {
 
     /** Deliveries RECIBO has not confirmed yet (in flight or unsynthesized): receiver-window load. */
     public synchronized int unsettled() {
-        return (int) deliveries.keySet().stream().filter(n -> !settled.contains(n)).count();
+        return (int) deliveries.keySet().stream().filter(n -> !leases.isSettled(n)).count();
     }
 
-    public synchronized void release(Ranges r) {
-        r.forEach(this::remove);
-    }
-
-    public synchronized void cancel(long n) {
-        remove(n);
-    }
-
-    public synchronized boolean contains(long n) {
-        return deliveries.containsKey(n);
-    }
+    /** Session died: unacked grants expire at deadline (spec 8, t_desconexion + L + delta). */
+    public synchronized void expireUnacked(long deadlineNs) { leases.expireUnacked(deliveries.keySet(), deadlineNs); }
 
     public synchronized Ranges pruneExpired(long nowNs) {
         Ranges.Builder expired = new Ranges.Builder();
-        for (var entry : new HashMap<>(deadlineNs).entrySet()) {
-            if (entry.getValue() < nowNs) {
-                expired.add(entry.getKey());
-                remove(entry.getKey());
-            }
-        }
-        return expired.build();
+        leases.expired(nowNs, expired::add);
+        Ranges out = expired.build();
+        out.forEach(this::remove);
+        return out;
     }
 
-    /** Book ∩ [1,through] minus predicate minus cancelled: what client must keep. */
-    public synchronized Ranges expected(long through,
-            java.util.function.Predicate<Delivery> scrape, Ranges cancelled) {
+    public synchronized void release(Ranges r) { r.forEach(this::remove); }
+
+    public synchronized void cancel(long n) { remove(n); }
+
+    /** Numbers of the entries matching keep (renewals: only what is still permitted). */
+    public synchronized Ranges select(Predicate<Delivery> keep) {
         Ranges.Builder c = new Ranges.Builder();
-        for (Delivery e : deliveries.headMap(through, true).values()) {
-            if (!scrape.test(e) && !cancelled.contains(e.number())) {
-                c.add(e.number());
-            }
-        }
+        deliveries.values().stream().filter(keep).forEach(e -> c.add(e.number()));
         return c.build();
     }
 
-    public synchronized void retainOnly(long through, Ranges conservar) {
-        for (long n : deliveries.headMap(through, true).keySet().stream().toList()) {
-            if (!conservar.contains(n)) {
+    /** Book ∩ [1,through] minus the scraped ones minus cancelled: what the client must keep. */
+    public synchronized Ranges expected(long through, Predicate<Delivery> scrape, Ranges cancelled) {
+        return select(e -> e.number() <= through && !scrape.test(e) && !cancelled.contains(e.number()));
+    }
+
+    public synchronized Ranges numbersThrough(long through) { return select(e -> e.number() <= through); }
+
+    public synchronized void retainOnly(long through, Ranges keep) {
+        numbersThrough(through).forEach(n -> {
+            if (!keep.contains(n)) {
                 remove(n);
             }
-        }
-    }
-
-    public synchronized Ranges numbersThrough(long through) {
-        Ranges.Builder c = new Ranges.Builder();
-        for (long n : deliveries.headMap(through, true).keySet()) {
-            c.add(n);
-        }
-        return c.build();
+        });
     }
 
     private void remove(long n) {
@@ -134,13 +130,13 @@ public final class LoanBook {
         if (e == null) {
             return;
         }
-        deadlineNs.remove(n);
-        settled.remove(n);
-        TreeMap<Integer, Delivery> group = byBrush.get(e.brush());
+        leases.forget(n);
+        Key key = new Key(e.brush(), e.edition());
+        TreeMap<Integer, Delivery> group = byBrush.get(key);
         if (group != null) {
             group.remove(e.from(), e); // a resend from the same band may have replaced it
             if (group.isEmpty()) {
-                byBrush.remove(e.brush());
+                byBrush.remove(key);
             }
         }
     }

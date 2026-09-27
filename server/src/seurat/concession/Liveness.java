@@ -1,21 +1,23 @@
 package seurat.concession;
 
+import java.util.function.Predicate;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
 import seurat.proto.MsgHandshake;
-import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Concession;
+import seurat.session.CanvasOrders;
+import seurat.session.Delivery;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
-/** 1s liveness: RENEW/AUDIT, 10s scrape timeouts, 60s inactivity floor. */
+/** 1 s tick (spec 4.2, 8): scrape deadlines, expiry, inactivity floor, RENOVAR, AUDITAR, heartbeat. */
 public final class Liveness {
+    private static final long S = 1_000_000_000L;
     private final GrantController grants;
     private final Sessions sessions;
 
@@ -27,28 +29,22 @@ public final class Liveness {
     public void tick() {
         long now = System.nanoTime();
         for (Session session : sessions.all()) {
-            if (session.lastActivityNs > 0
-                    && now - session.lastActivityNs > 3 * SeuratConstants.HEARTBEAT_S * 1_000_000_000L) {
-                Log.warn("liveness", "Session " + session.id() + " heartbeat timeout (inactive "
-                        + ((now - session.lastActivityNs) / 1_000_000_000L) + "s), closing");
-                close(session, ProtoCodes.ERR_PROTOCOLO, FrameType.LATIDO);
+            if (now - session.lastEchoNs > SeuratConstants.HEARTBEAT_MISSES * SeuratConstants.HEARTBEAT_S * S) {
+                Log.warn("liveness", "Session " + session.id() + ": " + SeuratConstants.HEARTBEAT_MISSES
+                        + " LATIDO without ECO, closing");
+                close(session, null);
                 continue;
             }
             for (Canvas canvas : session.canvases().values()) {
                 try {
                     tickCanvas(session, canvas, now);
                 } catch (FatalProtocol fail) {
-                    Log.warn("liveness", "Session " + session.id() + " canvas " + canvas.handle()
-                            + " fatal liveness failure: " + fail.getMessage());
-                    close(session, fail.code, fail.refType);
+                    Log.warn("liveness", "Session " + session.id() + " canvas " + canvas.handle() + ": " + fail.getMessage());
+                    close(session, fail);
                     break;
                 } catch (RuntimeException ex) {
-                    if (ex.getCause() instanceof java.net.SocketException) {
-                        Log.info("liveness", "Session " + session.id() + " connection lost: " + ex.getCause().getMessage());
-                    } else {
-                        Log.error("liveness", "Session " + session.id() + " unexpected liveness error", ex);
-                    }
-                    close(session, ProtoCodes.ERR_INTERNO, 0);
+                    Log.info("liveness", "Session " + session.id() + " unreachable: " + ex.getMessage());
+                    close(session, null);
                     break;
                 }
             }
@@ -57,64 +53,64 @@ public final class Liveness {
 
     private void tickCanvas(Session session, Canvas canvas, long now) {
         synchronized (canvas) {
-            for (Canvas.ScrapeOrder order : canvas.pendingOrders()) {
+            for (CanvasOrders.ScrapeOrder order : canvas.orders().pendingScrapes()) {
                 if (order.deadlineNs() < now) {
-                    Log.warn("liveness", "Session " + session.id() + " scrape order "
-                            + order.order() + " expired without confirmation");
-                    throw new FatalProtocol(ProtoCodes.ERR_LIQUIDACION,
-                            FrameType.RASPADO, "LIQUIDACION_VENCIDA");
+                    throw new FatalProtocol(ProtoCodes.ERR_LIQUIDACION, FrameType.RASPADO, "LIQUIDACION_VENCIDA");
                 }
             }
             canvas.book().pruneExpired(now);
-            int sMin = Concessions.sketchMin(canvas.meta().strata() - 1);
-            if (session.lastGazeNs > 0
-                    && now - session.lastGazeNs > SeuratConstants.IDLE_S * 1_000_000_000L
-                    && canvas.concession().minStratum() < sMin) {
-                Log.info("liveness", "Session " + session.id() + " canvas " + canvas.handle()
-                        + " idle timeout, narrowing concession to sketch");
-                Concession current = canvas.concession();
-                grants.narrow(canvas, new Concession(current.epoch() + 1,
-                        sMin, 4, ProtoCodes.MOT_INACTIVIDAD,
-                        current.maxBrushes(), current.maxKiB(), current.leaseS()),
-                        Concessions.lowStratum(sMin),
-                        MsgLoans.Scrape.lowStratum(canvas.handle(), 0,
-                                current.epoch() + 1, 0, sMin));
+            if (!canvas.floored && session.lastGazeNs > 0 && now - session.lastGazeNs > SeuratConstants.IDLE_S * S) {
+                canvas.floored = true;
+                grants.apply(canvas, Concessions.target(grants.ceiling(canvas), true, canvas.meta().strata() - 1),
+                        ProtoCodes.MOT_INACTIVIDAD, false);
             }
-            if (now - canvas.renewNs > SeuratConstants.RENEW_S * 1_000_000_000L) {
+            if (now - canvas.renewNs > SeuratConstants.RENEW_S * S) {
                 canvas.renewNs = now;
-                long order = canvas.nextOrder();
-                Ranges ranges = canvas.book().numbersThrough(canvas.book().lastNumber());
-                canvas.addPendingRenewal(order, ranges);
-                GrantController.send(session, FrameType.RENOVAR,
-                        new MsgAudit.Renew(canvas.handle(), order,
-                                SeuratConstants.LEASE_S, ranges).encode());
+                renew(session, canvas);
             }
             long done = canvas.book().settledThrough();
-            if (canvas.pendingOrders().isEmpty() && done > 0
-                    && (now - canvas.auditNs > SeuratConstants.AUDIT_S * 1_000_000_000L
+            if (canvas.orders().pendingScrapes().isEmpty() && done > 0
+                    && (now - canvas.auditNs > SeuratConstants.AUDIT_S * S
                     || done - canvas.auditBase > SeuratConstants.AUDIT_EVERY_N)) {
                 canvas.auditNs = now;
                 canvas.auditBase = done;
-                GrantController.send(session, FrameType.AUDITAR,
-                        new MsgAudit.Audit(canvas.handle(), canvas.nextOrder(), done)
-                                .encode());
+                long order = canvas.orders().next();
+                canvas.orders().addAudit(new CanvasOrders.AuditOrder(order, done));
+                GrantController.send(session, FrameType.AUDITAR, new MsgAudit.Audit(canvas.handle(), order, done).encode());
             }
         }
     }
 
-    private void close(Session session, int code, long refType) {
-        Log.info("liveness", "Session " + session.id() + " closed by liveness (code="
-                + ProtoCodes.errorName(code) + ", ref=" + FrameType.name(refType) + ")");
-        try {
-            GrantController.send(session, FrameType.ERROR,
-                    new MsgHandshake.ProtocolError(code, 1, refType, "fatal").encode());
-        } catch (RuntimeException ignored) {
+    /** Passive revocation (spec 4.2.6): what is no longer permitted is never renewed. */
+    private static void renew(Session session, Canvas canvas) {
+        Predicate<Delivery> scraping = d -> false;
+        for (CanvasOrders.ScrapeOrder o : canvas.orders().pendingScrapes()) {
+            Predicate<Delivery> p = o.scrape();
+            scraping = scraping.or(d -> d.number() <= o.through() && p.test(d));
+        }
+        Predicate<Delivery> pending = scraping;
+        Ranges ranges = canvas.book().select(d -> !canvas.retiring
+                && canvas.concession().allows(d.brush(), d.through()) && !pending.test(d));
+        if (ranges.isEmpty()) {
+            return;
+        }
+        long order = canvas.orders().next();
+        canvas.orders().addRenewal(order, ranges);
+        GrantController.send(session, FrameType.RENOVAR,
+                new MsgAudit.Renew(canvas.handle(), order, SeuratConstants.LEASE_S, ranges).encode());
+    }
+
+    private void close(Session session, FatalProtocol fail) {
+        if (fail != null) {
+            try {
+                GrantController.send(session, FrameType.ERROR,
+                        new MsgHandshake.ProtocolError(fail.code, 1, fail.refType, fail.getMessage()).encode());
+            } catch (RuntimeException ignored) {
+            }
         }
         try {
             session.mapping().close();
         } catch (Exception ignored) {
         }
-        sessions.retire(session,
-                (SeuratConstants.LEASE_S * 1000 + SeuratConstants.SKEW_MS) * 1_000_000L);
     }
 }

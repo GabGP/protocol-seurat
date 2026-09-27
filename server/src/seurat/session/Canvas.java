@@ -1,40 +1,45 @@
 package seurat.session;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Predicate;
+import java.util.HashSet;
+import java.util.Set;
+import seurat.codec.BrushId;
+import seurat.config.SeuratConstants;
 import seurat.proto.MsgGaze;
-import seurat.proto.Ranges;
 import seurat.store.BrushStore;
 import seurat.store.WorkMeta;
 
-/** Open work: handle, concession, authoritative book, pending orders. */
+/** Open work: handle, concession, authoritative book, orders and live plan. Lock: the canvas. */
 public final class Canvas {
-    public record ScrapeOrder(long order, long through, long epoch,
-            Predicate<Delivery> scrape, Ranges cancelled, long deadlineNs) {}
-
     private final long handle;
     private final String workId;
     private BrushStore store;
     private WorkMeta meta;
     private Concession concession;
     private final LoanBook book = new LoanBook();
+    private final CanvasOrders orders = new CanvasOrders();
+    private final PlanProgress plan = new PlanProgress();
+    private final Set<BrushId> retried = new HashSet<>();
+    private final Set<BrushId> unusable = new HashSet<>();
     private Session session;
-    private long nextOrder;
-    private final Map<Long, ScrapeOrder> pendingOrders = new HashMap<>();
-    private final Map<Long, Ranges> pendingRenewals = new HashMap<>();
     private MsgGaze.Gaze gaze;
-    private long gazeSeq;
-    private long planPrevistas;
-    private long planHechas;
 
-    public Canvas(long handle, String workId, BrushStore store, WorkMeta meta,
-            Concession concession) {
+    public long renewNs;
+    public long auditNs;
+    public long auditBase;
+    /** Receiver window from this handle's last RECIBO.libre: max unconfirmed deliveries. */
+    public volatile long free = SeuratConstants.INITIAL_CREDIT;
+    /** Withdrawal under way (spec 7.4): no new plans, only the final scrape. */
+    public volatile boolean retiring;
+    /** Inactivity floor (spec 2.3): no MIRADA yet, OCULTA, 60 s idle, or the work not LISTA. */
+    public volatile boolean floored = true;
+
+    public Canvas(long handle, String workId, BrushStore store, WorkMeta meta, Concession concession) {
         this.handle = handle;
         this.workId = workId;
         this.store = store;
         this.meta = meta;
         this.concession = concession;
+        book.edition(meta.edition());
     }
 
     public long handle() {
@@ -49,9 +54,15 @@ public final class Canvas {
         return store;
     }
 
-    public void setStore(BrushStore store, WorkMeta meta) {
-        this.store = store;
-        this.meta = meta;
+    public WorkMeta meta() {
+        return meta;
+    }
+
+    /** Edition swap: bands are owed again in the new edition. */
+    public void setStore(BrushStore value, WorkMeta nextMeta) {
+        store = value;
+        meta = nextMeta;
+        book.edition(nextMeta.edition());
     }
 
     public Session session() {
@@ -62,18 +73,16 @@ public final class Canvas {
         session = value;
     }
 
-    public long renewNs;
-    public long auditNs;
-    public long auditBase;
-    /** Receiver window from this handle's last RECIBO.libre: max unconfirmed deliveries. */
-    public volatile long free = seurat.config.SeuratConstants.INITIAL_CREDIT;
-
-    public WorkMeta meta() {
-        return meta;
-    }
-
     public LoanBook book() {
         return book;
+    }
+
+    public CanvasOrders orders() {
+        return orders;
+    }
+
+    public PlanProgress plan() {
+        return plan;
     }
 
     public Concession concession() {
@@ -84,60 +93,25 @@ public final class Canvas {
         concession = c;
     }
 
-    public long nextOrder() {
-        return ++nextOrder;
-    }
-
-    public void addPendingOrder(ScrapeOrder order) {
-        pendingOrders.put(order.order(), order);
-    }
-
-    public ScrapeOrder pendingOrder(long order) {
-        return pendingOrders.get(order);
-    }
-
-    public java.util.List<ScrapeOrder> pendingOrders() {
-        return java.util.List.copyOf(pendingOrders.values());
-    }
-
-    public void resolve(ScrapeOrder order) {
-        pendingOrders.remove(order.order());
-    }
-
-    public void addPendingRenewal(long order, Ranges ranges) {
-        pendingRenewals.put(order, ranges);
-    }
-
-    public void acknowledgeRenewal(long throughOrder, long nowNs, long leaseNs, long deltaNs) {
-        var iter = pendingRenewals.entrySet().iterator();
-        while (iter.hasNext()) {
-            var e = iter.next();
-            if (e.getKey() <= throughOrder) {
-                book.acknowledge(e.getValue(), nowNs, leaseNs, deltaNs);
-                iter.remove();
-            }
-        }
-    }
-
     public MsgGaze.Gaze gaze() {
         return gaze;
     }
 
     public void setGaze(MsgGaze.Gaze value) {
         gaze = value;
-        gazeSeq = value.seq();
     }
 
-    public long gazeSeq() {
-        return gazeSeq;
+    /** Planner view: a brush unusable this session (spec 5.3) counts as held, so it is never planned again. */
+    public int plannedBands(BrushId p) {
+        return unusable.contains(p) ? 4 : book.bands(p);
     }
 
-    public void startPlan(long first, long expectedCount) {
-        planPrevistas = expectedCount;
-        planHechas = 0;
-    }
-
-    public boolean advancePlan() {
-        return ++planHechas >= planPrevistas && planPrevistas > 0;
+    /** SOLTAR DECODIFICACION / CRC: true the first time (resend once), then the brush is given up. */
+    public boolean retryOnce(BrushId p) {
+        if (retried.add(p)) {
+            return true;
+        }
+        unusable.add(p);
+        return false;
     }
 }

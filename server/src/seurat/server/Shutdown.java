@@ -9,6 +9,9 @@ import java.util.function.BooleanSupplier;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.paint.Painter;
+import seurat.proto.Frame;
+import seurat.proto.FrameType;
+import seurat.proto.MsgGoodbye;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
@@ -64,8 +67,10 @@ public final class Shutdown implements Runnable {
         drainIdle(painter::isIdle, SeuratConstants.SHUTDOWN_POLL_MS,
                 TimeUnit.SECONDS.toNanos(SeuratConstants.SHUTDOWN_TIMEOUT_S));
         Log.info("server", "Closing sessions");
+        byte[] adios = new Frame(FrameType.ADIOS, new MsgGoodbye(0, "apagado").encode()).encode();
         for (Session session : sessions.all()) {
             try {
+                session.mapping().sendControl(adios); // orderly close (spec 3.3): books stay L + delta
                 session.mapping().close();
             } catch (Exception ex) {
                 Log.debug("server", "Session " + session.id() + " close: " + ex.getMessage());

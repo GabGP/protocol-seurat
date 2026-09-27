@@ -11,6 +11,8 @@ import seurat.session.Delivery;
 public final class RecordingMapping implements Mapping {
     public final List<byte[]> control = new ArrayList<>();
     public final List<byte[]> deliveries = new ArrayList<>();
+    public volatile boolean closed;
+    public volatile boolean failed;
 
     @Override
     public synchronized void sendControl(byte[] frame) {
@@ -34,6 +36,12 @@ public final class RecordingMapping implements Mapping {
     }
 
     @Override
+    public void fail() {
+        failed = true;
+    }
+
+    @Override
     public void close() {
+        closed = true;
     }
 }

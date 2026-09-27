@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import seurat.codec.BrushId;
+import seurat.config.SeuratConstants;
 import seurat.proto.MsgGaze;
 import seurat.proto.ProtoCodes;
 import seurat.session.Concession;
@@ -54,11 +55,9 @@ public final class ConePlanner {
                 focusBands = Math.min(focusBands, concession.maxBands());
             }
         }
-        if (queueMs > 400) {
-            flags |= ProtoCodes.REG_COLA;
-            return new ConePlan(List.of(), flags);
-        }
-        if (queueMs >= 150) {
+        if (queueMs >= SeuratConstants.QUEUE_AMBER_MS) {
+            // Amber and red (spec 6.1): new focus entries capped to 2 bands; the Painter halves
+            // max_en_vuelo and, while red, opens nothing until cola_ms is back under 150 ms.
             flags |= ProtoCodes.REG_COLA;
             focusCap = Math.min(focusCap, 2);
         }

@@ -12,9 +12,7 @@ import seurat.config.SeuratConfig;
 import seurat.ingest.IngestJob;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
-import seurat.proto.ProtoCodes;
 import seurat.session.Canvas;
-import seurat.session.Concession;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
@@ -27,6 +25,8 @@ public final class MasterIntake implements Closeable {
     private final Executor ingest;
     private final InboxWatcher watcher;
     private volatile boolean closed;
+    /** After the swap: ed1/ is deleted once no canvas uses it (DiskReaper). */
+    public volatile java.util.function.Consumer<String> onSwapped;
 
     public MasterIntake(Catalog catalog, Sessions sessions, GrantController grants,
             SeuratConfig config, Executor ingest) {
@@ -112,23 +112,19 @@ public final class MasterIntake implements Closeable {
         return catalog.isCompleted(id);
     }
 
-    /** Edition swap: point canvases at ed2, re-issue concession, replan without withdrawing. */
+    /** Edition swap (spec 7.1 [6], 7.3): every open canvas of the work moves to ed2. */
     private void substitute(String id) {
         WorkRecord work = catalog.get(id);
         if (work == null) return;
         Log.info("ingest", "Swapping edition for work '" + id + "' across active canvases");
         for (Session session : sessions.all()) {
             for (Canvas canvas : session.canvases().values()) {
-                if (!canvas.workId().equals(id)) continue;
-                canvas.setStore(work.store, work.meta);
-                long[] c = work.ceiling(session.role());
-                Concession prev = canvas.concession();
-                canvas.setConcession(new Concession(prev.epoch() + 1, (int) c[0], (int) c[1],
-                        ProtoCodes.MOT_POLITICA, prev.maxBrushes(), prev.maxKiB(), prev.leaseS()));
-                if (canvas.gaze() != null) grants.gaze(session, canvas, canvas.gaze());
-                else grants.open(session, canvas);
+                if (canvas.workId().equals(id) && canvas.meta().edition() != work.meta.edition()) {
+                    grants.substitute(canvas, work);
+                }
             }
         }
+        if (onSwapped != null) onSwapped.accept(id);
     }
 
     public void watch() {

@@ -1,113 +1,106 @@
 package seurat.paint;
 
-import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.concurrent.Semaphore;
 import java.util.zip.CRC32C;
-import seurat.codec.BrushId;
 import seurat.codec.Quant;
-import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.observe.Metrics;
-import seurat.proto.Frame;
-import seurat.proto.FrameType;
 import seurat.proto.Headers;
-import seurat.proto.MsgGaze;
-import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
 import seurat.session.Delivery;
+import seurat.store.BrushStore;
+import seurat.store.FileBrushStore;
 
-/** Flow writer: header + band bytes + FIN, then PLAN FIN / CANCELADAS. */
+/**
+ * One PINCELADA flow: header + bands + FIN on a virtual thread. A corrupt band on
+ * disk shrinks the delivery to its valid prefix (spec 8); a failed flow is cancelled.
+ */
 final class DeliveryWriter {
+    /** What the Painter opened: the store is the one of the delivery's edition. */
+    record Flow(Canvas canvas, Delivery delivery, BrushStore store, long generation) {}
+
     private final Metrics metrics;
     private final Semaphore globalSlots;
     private final InFlightDeliveries inFlight;
     private final Runnable slotFreed;
 
-    DeliveryWriter(Metrics metrics, Semaphore globalSlots, InFlightDeliveries inFlight,
-            Runnable slotFreed) {
+    DeliveryWriter(Metrics metrics, Semaphore globalSlots, InFlightDeliveries inFlight, Runnable slotFreed) {
         this.metrics = metrics;
         this.globalSlots = globalSlots;
         this.inFlight = inFlight;
         this.slotFreed = slotFreed;
     }
 
-    void write(Canvas canvas, Delivery delivery) {
+    void write(Flow flow) {
+        Canvas canvas = flow.canvas();
+        Delivery delivery = flow.delivery();
         var session = canvas.session();
         try {
-            byte[][] bandBytes = delivery.brush().stratum() == SeuratConstants.SEED_STRATUM
-                    ? seedBands(canvas)
-                    : canvas.store().bands(delivery.brush(), delivery.from(),
-                            delivery.through());
-            long[] crcs = new long[bandBytes.length];
-            long[] lengths = new long[bandBytes.length];
+            byte[][] bands = flow.store().servable(delivery.brush(), delivery.from(), delivery.through());
+            if (bands.length == 0) {
+                throw new IOException("no valid band");
+            }
+            delivery = prefix(canvas, delivery, bands);
+            long[] crcs = new long[bands.length];
+            long[] lengths = new long[bands.length];
             CRC32C crc = new CRC32C();
-            for (int i = 0; i < bandBytes.length; i++) {
+            for (int i = 0; i < bands.length; i++) {
                 crc.reset();
-                crc.update(bandBytes[i]);
+                crc.update(bands[i]);
                 crcs[i] = crc.getValue();
-                lengths[i] = bandBytes[i].length;
+                lengths[i] = bands[i].length;
             }
             // The store's own table: works ingested before table 2 still decode right.
-            int table = canvas.store() instanceof seurat.store.FileBrushStore s
-                    ? s.quantTable : Quant.TABLE;
-            var head = new Headers.BrushHead(canvas.handle(), delivery.number(),
-                    delivery.brush().id(), delivery.from(), delivery.through(),
-                    delivery.epoch(), Quant.qy(table, delivery.brush().stratum()),
-                    Quant.qc(table, delivery.brush().stratum()), canvas.meta().edition(),
-                    crcs, lengths);
+            int table = flow.store() instanceof FileBrushStore s ? s.quantTable : Quant.TABLE;
+            int stratum = delivery.brush().stratum();
+            var head = new Headers.BrushHead(canvas.handle(), delivery.number(), delivery.brush().id(),
+                    delivery.from(), delivery.through(), delivery.epoch(), Quant.qy(table, stratum),
+                    Quant.qc(table, stratum), delivery.edition(), crcs, lengths);
             try (OutputStream out = session.mapping().openDelivery(canvas, delivery)) {
                 out.write(head.encode());
-                for (byte[] band : bandBytes) {
+                for (byte[] band : bands) {
                     out.write(band);
                 }
             }
             metrics.deliveries.increment();
             metrics.bytes.add(delivery.bytes());
-            Log.debug("paint", "Delivered brush " + delivery.brush().id() + " (#"
-                    + delivery.number() + ") to session " + session.id() + " canvas "
-                    + canvas.handle() + " (" + delivery.bytes() + " B)");
-            synchronized (canvas) {
-                if (canvas.book().contains(delivery.number()) && canvas.advancePlan()) {
-                    var planEnd = new MsgGaze.Plan(canvas.handle(), canvas.gazeSeq(),
-                            ProtoCodes.PLAN_FIN, 0, 0, 0, canvas.book().lastNumber(),
-                            null);
-                    session.mapping().sendControl(
-                            new Frame(FrameType.PLAN, planEnd.encode()).encode());
-                    Log.debug("paint", "Plan complete on canvas " + canvas.handle()
-                            + " (session " + session.id() + ")");
-                }
-            }
+            Log.debug("paint", "Delivered brush " + delivery.brush().id() + " (#" + delivery.number()
+                    + ") to session " + session.id() + " canvas " + canvas.handle());
         } catch (Throwable ex) {
-            Log.warn("paint", "Delivery failed on canvas " + canvas.handle()
-                    + " delivery #" + delivery.number() + ": " + ex.getMessage());
-            boolean wasInBook;
+            Log.warn("paint", "Delivery failed on canvas " + canvas.handle() + " delivery #"
+                    + delivery.number() + ": " + ex.getMessage());
             synchronized (canvas) {
-                wasInBook = canvas.book().contains(delivery.number());
                 canvas.book().cancel(delivery.number());
-            }
-            if (wasInBook) {
-                var cancel = new MsgGaze.Plan(canvas.handle(), canvas.gazeSeq(),
-                        ProtoCodes.PLAN_CANCELADAS, 0, 0, 0, 0,
-                        Ranges.of(delivery.number()));
-                try {
-                    session.mapping().sendControl(
-                            new Frame(FrameType.PLAN, cancel.encode()).encode());
-                } catch (Exception ignored) {
-                }
+                PlanEvents.cancelled(canvas, Ranges.of(delivery.number())); // every number settles (spec 4.2.4c)
             }
         } finally {
             inFlight.remove(canvas, delivery);
             session.releaseSlot();
             globalSlots.release();
+            synchronized (canvas) {
+                PlanEvents.resolved(canvas, flow.generation());
+            }
             slotFreed.run();
         }
     }
 
-    private byte[][] seedBands(Canvas canvas) throws Exception {
-        ByteArrayOutputStream b = new ByteArrayOutputStream();
-        canvas.store().copy(new BrushId(10, 0, 0), 0, 1, b);
-        return new byte[][]{b.toByteArray()};
+    /** The book holds what goes on the wire: a shorter prefix is annotated before the header. */
+    private static Delivery prefix(Canvas canvas, Delivery d, byte[][] bands) {
+        int through = d.from() + bands.length;
+        if (through == d.through()) {
+            return d;
+        }
+        int bytes = 0;
+        for (byte[] b : bands) {
+            bytes += b.length;
+        }
+        synchronized (canvas) {
+            Delivery shrunk = canvas.book().shrink(d.number(), through, bytes);
+            return shrunk == null ? new Delivery(d.number(), d.brush(), d.from(), through, bytes,
+                    d.epoch(), d.edition()) : shrunk;
+        }
     }
 }
