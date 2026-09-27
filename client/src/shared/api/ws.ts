@@ -45,7 +45,7 @@ export class WsTransport implements SeuratTransport {
   sendControl(frame: Uint8Array): void {
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    if (ws.bufferedAmount > 256 * 1024) return;
+    // Never dropped: RASPADO, SOLTAR and RECIBO are accounting, and the stream is ordered (spec 3.1).
     const out = new Uint8Array(frame.length + 1);
     out[0] = CONTROL_CHANNEL;
     out.set(frame, 1);

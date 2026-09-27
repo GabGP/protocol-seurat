@@ -3,7 +3,9 @@ import { SessionClient, type SessionEvents } from './session-client';
 import { DeliverySink } from './delivery-sink';
 import { HandleLedgers } from '@/entities/delivery/ledgers';
 import { parseBrushHead, splitBrushId } from '@/shared/proto/brush';
-import { MAX_RETIRED_HANDLES } from '@/shared/config/constants';
+import { MAX_RETIRED_HANDLES, RECONNECT_BASE_MS, RECONNECT_MAX_MS } from '@/shared/config/constants';
+import { ownedDeliveries } from '@/entities/delivery/store';
+import { T } from '@/shared/proto/messages';
 import { clearResume } from '@/entities/session/store';
 import { applyWork, sortWorks } from '@/entities/work/store';
 import type { Work } from '@/entities/work/types';
@@ -60,10 +62,43 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     const bumpPaint = frameBatch(() => setPaintTick((t) => t + 1));
     const preview = new PreviewManager(() => clientRef.current);
     previewRef.current = preview;
+    /** Handle whose book a REANUDAR is claiming, until BIENVENIDA says whether it was adopted. */
+    let resuming: number | null = null;
+    let retries = 0;
+    const reconnect = (): void => {
+      if (!alive) return;
+      const sink = sinkRef.current;
+      resuming = sink?.handle ?? null;
+      previewRef.current?.dispose();
+      previewRef.current = new PreviewManager(() => clientRef.current);
+      client.boot(sink ? [{ handle: sink.handle, ranges: ownedDeliveries(sink.book) }] : []).then(
+        () => {
+          retries = 0;
+          client.requestCatalog();
+        },
+        () => {
+          retries += 1;
+          window.setTimeout(reconnect, Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** retries));
+        },
+      );
+    };
     const events: SessionEvents = {
       onWelcome: (b) => {
+        const kept = resuming !== null && b.resumed.includes(resuming) && sinkRef.current?.handle === resuming;
+        resuming = null;
+        if (kept) {
+          sinkRef.current?.resumed(); // spec 3.4.4: the book is adopted, nothing is downloaded again
+          gazesRef.current?.again();
+          return;
+        }
+        if (sinkRef.current) {
+          sinkRef.current.dispose(); // not adopted: empty the canvas, the viewer reopens it from the sketch
+          sinkRef.current = null;
+          setWorkOpened(null);
+        }
         if (alive) setWelcome(b);
       },
+      onDisconnect: () => reconnect(),
       onWork: (m) => {
         worksRef.current = applyWork(worksRef.current, m);
         const list = sortWorks([...worksRef.current.values()]);
@@ -106,11 +141,13 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       onConcession: (c) => {
         if (sinkRef.current && sinkRef.current.handle !== c.handle) return;
         concessionRef.current = c;
+        sinkRef.current?.concede({ epoch: c.epoch, minStratum: c.minStratum, maxBands: c.maxBands });
         if (alive) setConcession(c);
       },
       onPlan: (p) => {
         if (telemetryRef.current?.handle === p.handle) telemetryRef.current.onPlan(p, performance.now());
         if (sinkRef.current?.handle === p.handle) {
+          if (p.event === 0) sinkRef.current.planStart(p.first);
           if (alive) setPlan(p);
           if (p.event === 2) sinkRef.current?.applyPlanCanceladas(p.cancelled);
         } else if (p.event === 2) {
@@ -142,7 +179,8 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         }
       },
       onProtocolError: (e) => {
-        if (e.code === 12) {
+        // 12: resume rejected; 4 after a RASPAR TODO: the work was withdrawn and the handle is dead (spec 7.4).
+        if (e.code === 12 || (e.code === 4 && e.refType !== T.ABRIR && sinkRef.current?.withdrawn)) {
           clearResume();
           sinkRef.current?.dispose();
           sinkRef.current = null;
@@ -200,27 +238,15 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         if (alive) setStatus('offline: ' + (e instanceof Error ? e.message : String(e)));
       },
     );
-    const onVis = (): void => {
-      if (document.visibilityState === 'hidden') {
-        const h = sinkRef.current;
-        void h;
-      }
-    };
-    const onHide = (): void => {
-      client.sendGoodbye();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('pagehide', onHide);
-    window.addEventListener('beforeunload', onHide);
+    // pagehide sends nothing (spec 5.3): the book survives L + delta and pageshow resumes it.
+    // visibilitychange -> MIRADA OCULTA is sent by the viewer (useViewerWork).
     const sweep = window.setInterval(() => {
       sinkRef.current?.sweepExpiry(() => performance.now());
+      previewRef.current?.sweep(performance.now());
     }, 1000);
     return () => {
       alive = false;
       bumpPaint.cancel();
-      document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('pagehide', onHide);
-      window.removeEventListener('beforeunload', onHide);
       window.clearInterval(sweep);
       gazesRef.current?.dispose();
       previewRef.current?.dispose();

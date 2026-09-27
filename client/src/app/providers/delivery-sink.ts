@@ -13,19 +13,39 @@ import { makeBrushId, brushKey, parseBrushHead, splitBrushId, sliceBands, verify
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape as scrapeMatches } from '@/entities/delivery/scrape';
 import { effectiveExpiry, emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from '@/entities/delivery/store';
+import { Settlement } from '@/entities/delivery/settlement';
 import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 import type { SessionClient } from './session-client';
 
 /** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
 const COLA_BUSY_MS = 150;
 
+/** A RASPAR applied to what is held, whose RASPADO waits until every number ≤ through is settled. */
 interface PendingScrape {
   order: number;
   epoch: number;
   through: number;
   predicate: number;
   params: Uint8Array;
+  scraped: number;
+  kib: number;
 }
+
+/** The part of the current CONCESION a delivery is checked against on arrival (spec 5.4). */
+export interface Grant {
+  epoch: number;
+  minStratum: number;
+  maxBands: number;
+}
+
+/** SOLTAR motivo 4: beyond what the client may hold (concession or its declared memory budget). */
+const RELEASE_BUDGET = 4;
+const RELEASE_CRC = 6;
+const RELEASE_REPLACED = 7;
+/** RASPAR predicate 5 TODO. */
+const SCRAPE_ALL = 5;
+/** Early (future-epoch) deliveries held at most: max_en_vuelo. */
+const MAX_EARLY = 12;
 
 export class DeliverySink {
   book: DeliveryLedger = emptyLedger();
@@ -40,8 +60,14 @@ export class DeliverySink {
   private expiredQueue: number[] = [];
   private readonly decode = new DecodeQueue();
   private scrapes: PendingScrape[] = [];
+  private lastScrape: { through: number; epoch: number } | null = null;
   private cancelled = new Set<number>();
-  private settledBelow: number | null = null;
+  private readonly settlement = new Settlement();
+  private grant: Grant | null = null;
+  /** A RASPAR TODO arrived: the work is being withdrawn. */
+  withdrawn = false;
+  /** Deliveries of an epoch whose CONCESION has not arrived yet (flows can overtake control). */
+  private early: Array<() => void> = [];
   private avgDelivery = 0;
   private linkBps = 0;
   private pending = new Map<number, { req: SynthRequest; parentId: bigint; edition: number }>();
@@ -209,6 +235,7 @@ export class DeliverySink {
             rec.receiptQueued = true;
             this.book.pendingReceipt.push(out.delivery);
           }
+          this.replaceOlderEditions(rec);
           this.notifyPaint();
           this.resynthesizeChildren(out.delivery);
           this.flushPending();
@@ -236,13 +263,30 @@ export class DeliverySink {
       return;
     }
     if (h.handle !== this.handle) return;
+    if (this.grant !== null && h.epoch > this.grant.epoch && this.early.length < MAX_EARLY) {
+      // Spec 5.4 / 4.2: a newer epoch than any CONCESION seen is held until that CONCESION arrives.
+      this.early.push(() => this.ingest(bytes, now, onPaint, leaseS));
+      return;
+    }
+    this.sweepExpiry(now); // spec 5.2.2: expiry is checked with every incoming message
+    try {
+      this.accept(h, bytes, now, leaseS);
+    } finally {
+      this.settle(h.delivery); // applied or dropped, this number is done (spec 4.2.4c)
+    }
+  }
+
+  /** Spec 4.1.6 and 5.4 on one arrived flow: every check, then synthesis. */
+  private accept(h: ReturnType<typeof parseBrushHead>, bytes: Uint8Array, now: () => number, leaseS: number): void {
     this.failed.delete(h.delivery);
-    if (this.settledBelow !== null && h.delivery <= this.settledBelow) {
-      const probe: DeliveryRecord = {
-        delivery: h.delivery, brushId: h.brushId, stratum: Number((h.brushId >> 56n) & 0xffn),
-        from: h.from, through: h.through, bytes: 0, epoch: h.epoch, edition: h.edition, expires: 0, rgba: null,
-      };
-      if (this.scrapes.some((p) => h.delivery <= p.through && this.matchesScrape(probe, p.predicate, p.params))) return;
+    const probe: DeliveryRecord = {
+      delivery: h.delivery, brushId: h.brushId, stratum: Number((h.brushId >> 56n) & 0xffn),
+      from: h.from, through: h.through, bytes: 0, epoch: h.epoch, edition: h.edition, expires: 0, rgba: null,
+    };
+    const scrape = this.scrapes.find((p) => h.delivery <= p.through && this.matchesScrape(probe, p.predicate, p.params));
+    if (scrape) {
+      scrape.scraped += 1; // spec 4.2.4b: a late ≤ N delivery the predicate covers is dropped on arrival
+      return;
     }
     if (this.cancelled.has(h.delivery)) return;
     let bands;
@@ -255,11 +299,17 @@ export class DeliverySink {
       const band = bands[i];
       const crc = h.crcs[i];
       if (band === undefined || crc === undefined || !verifyBand(band, crc)) {
-        this.release([h.delivery], 6);
+        this.release([h.delivery], RELEASE_CRC);
         return;
       }
     }
     const total = bands.reduce((n, b) => n + b.length, 0);
+    const refusal = this.refuse(probe, total);
+    if (refusal !== null) {
+      console.warn('Seurat: delivery ' + h.delivery + ' refused (' + refusal + '): a server fault');
+      this.release([h.delivery], RELEASE_BUDGET);
+      return;
+    }
     this.avgDelivery = this.avgDelivery === 0 ? bytes.length : 0.8 * this.avgDelivery + 0.2 * bytes.length;
     const split = splitBrushId(h.brushId);
     const retainedBands = bands.map((band) => band.slice().buffer);
@@ -412,6 +462,7 @@ export class DeliverySink {
     const removed = new Set(all);
     this.book.pendingReceipt = this.book.pendingReceipt.filter((n) => !removed.has(n));
     for (const n of all) {
+      this.settlement.mark(n); // it was held, so it arrived: settled whatever happens to it now
       this.pending.delete(n);
       this.inflight.delete(n);
       const rec = this.book.byDelivery.get(n);
@@ -466,6 +517,25 @@ export class DeliverySink {
     }
   }
 
+  /** Spec 7.3: the same brush of a newer edition is on screen, so the older edition's deliveries go (SOLTAR 7). */
+  private replaceOlderEditions(rec: DeliveryRecord): void {
+    const old = [...this.book.byDelivery.values()].filter((r) => r.brushId === rec.brushId && r.edition < rec.edition);
+    for (const r of old) {
+      this.settlement.mark(r.delivery);
+      r.rgba?.close();
+      this.origin.delete(brushKey(r.brushId, r.edition));
+      this.book.byDelivery.delete(r.delivery);
+      this.book.inFlight.delete(r.delivery);
+      this.activeSynthesis.delete(r.delivery);
+      this.pending.delete(r.delivery);
+      this.unlink(r.delivery);
+    }
+    if (old.length > 0) {
+      this.revision++;
+      this.release(old.map((r) => r.delivery), RELEASE_REPLACED);
+    }
+  }
+
   private notifyPaint(): void {
     this.repaint();
   }
@@ -473,6 +543,7 @@ export class DeliverySink {
   applyPlanCanceladas(ranges: number[]): void {
     for (const n of ranges) {
       this.cancelled.add(n);
+      this.settle(n);
       const brushId = this.book.byDelivery.get(n)?.brushId;
       this.removeSubtree(n, 0);
       if (brushId !== undefined) {
@@ -483,29 +554,92 @@ export class DeliverySink {
     }
   }
 
+  /**
+   * RASPAR (spec 4.2.4), synchronously before the next control frame: (a) the predicate
+   * frees what is held ≤ N now; (b) late ≤ N arrivals it covers are dropped on arrival;
+   * (c)(d) RASPADO waits until every number ≤ N is settled, after the pending SOLTAR.
+   */
   applyScrape(r: Scrape, now: () => number): void {
-    void now;
-    this.scrapes.push({ order: r.order, epoch: r.epoch, through: r.through, predicate: r.predicate, params: r.params });
-    let scrapedCount = 0;
-    let kib = 0;
+    const pending: PendingScrape = { ...r, scraped: 0, kib: 0 };
     for (const [n, rec] of [...this.book.byDelivery]) {
-      if (n > r.through) continue;
-      if (this.matchesScrape(rec, r.predicate, r.params)) {
-        const subtree = [n, ...this.descendants(n)];
-        for (const id of subtree) {
-          const child = this.book.byDelivery.get(id);
-          if (child) {
-            kib += Math.ceil(child.bytes / 1024);
-            scrapedCount += 1;
-          }
+      if (n > r.through || !this.book.byDelivery.has(n) || !this.matchesScrape(rec, r.predicate, r.params)) continue;
+      for (const id of [n, ...this.descendants(n)]) {
+        const held = this.book.byDelivery.get(id);
+        if (held) {
+          pending.kib += Math.ceil(held.bytes / 1024);
+          pending.scraped += 1;
         }
-        this.removeSubtree(n, 0);
       }
+      this.removeSubtree(n, 0);
     }
-    this.flushRelease();
-    const keep = ownedDeliveries(this.book).filter((n) => n <= r.through);    this.client()?.sendScraped(this.handle, r.order, r.epoch, r.through, scrapedCount, kib, keep);
-    this.settledBelow = this.settledBelow === null ? r.through : Math.max(this.settledBelow, r.through);
-    this.scrapes = this.scrapes.filter((p) => p.through > r.through);
+    this.scrapes.push(pending);
+    this.lastScrape = { through: r.through, epoch: r.epoch };
+    if (r.predicate === SCRAPE_ALL) this.withdrawn = true; // spec 7.4: ERROR 4 follows the RASPADO
+    this.sweepExpiry(now);
+    this.answerScrapes();
+  }
+
+  /** RASPADO for every pending order whose range is settled, in order (spec 4.2.5). */
+  private answerScrapes(): void {
+    while (this.scrapes.length > 0) {
+      const r = this.scrapes[0]!;
+      if (!this.settlement.settledThrough(r.through, (n) => this.book.byDelivery.has(n))) return;
+      this.scrapes.shift();
+      this.flushRelease(); // SOLTAR first: RASPADO depends on the count
+      const keep = ownedDeliveries(this.book).filter((n) => n <= r.through);
+      this.client()?.sendScraped(this.handle, r.order, r.epoch, r.through, r.scraped, r.kib, keep);
+    }
+  }
+
+  private settle(n: number): void {
+    this.settlement.mark(n);
+    this.answerScrapes();
+  }
+
+  /** CONCESION: checks use it from now on; deliveries that waited for its epoch go in. */
+  concede(g: Grant): void {
+    this.grant = g;
+    const early = this.early;
+    this.early = [];
+    for (const run of early) run();
+  }
+
+  /** PLAN INICIO: after a resume, numbers below `first` that never came are gone. */
+  planStart(first: number): void {
+    this.settlement.planStart(first);
+    this.answerScrapes();
+  }
+
+  /** REANUDAR accepted: the old connection's in-flight numbers will never arrive; RASPAR are re-sent. */
+  resumed(): void {
+    this.settlement.resume();
+    this.scrapes = [];
+  }
+
+  /** Spec 5.4: why this arrival cannot be held, or null. */
+  private refuse(rec: DeliveryRecord, bytes: number): string | null {
+    const g = this.grant;
+    if (g !== null) {
+      if (rec.stratum < g.minStratum || (rec.stratum === g.minStratum && rec.through > g.maxBands)) return 'concession';
+      const s = this.lastScrape;
+      if (s !== null && rec.delivery > s.through && rec.epoch < s.epoch) return 'epoch';
+    }
+    const fits = (): boolean => this.book.byDelivery.size < this.maxBrushes()
+      && ownedBytes(this.book) + bytes <= this.maxKiB() * 1024;
+    if (!fits()) this.relieve(); // at capacity the pressure trigger holds: make room first (spec 5.2.3)
+    if (!fits()) return 'capacity';
+    if (g === null || rec.stratum >= 10) return null;
+    const { bx, by } = splitBrushId(rec.brushId);
+    const seed = makeBrushId(10, 0, 0);
+    const parentId = rec.stratum + 1 >= this.top ? seed : makeBrushId(rec.stratum + 1, bx >> 1, by >> 1);
+    let held = 0;
+    for (const p of this.book.byDelivery.values()) {
+      if (p.brushId === parentId && p.edition === rec.edition) held = parentId === seed ? 4 : Math.max(held, p.through);
+    }
+    if (held >= rec.through || !this.settlement.settledBelow(rec.delivery, (n) => this.book.byDelivery.has(n))) {
+      return null; // parent held with ≥ b1 bands, or still on its way: the child waits for it
+    }
+    return 'parent';
   }
 
   applyRenew(ranges: number[], order: number, leaseS: number, now: () => number): void {
@@ -519,6 +653,7 @@ export class DeliverySink {
   }
 
   inventory(through: number): { brushCount: number; kib: number; ranges: number[] } {
+    this.sweepExpiry(() => performance.now());
     this.flushRelease();
     const ranges = ownedDeliveries(this.book).filter((n) => n <= through);
     return { brushCount: new Set([...this.book.byDelivery.values()].map((r) => r.brushId.toString())).size, kib: Math.ceil(ownedBytes(this.book) / 1024), ranges };

@@ -15,6 +15,9 @@ export const CREDIT_MIN = 2;
 export const RELEASE_BATCH_MS = 100;
 export const SCRAPE_TIMEOUT_MS = 10_000;
 export const LEASE_S = 120;
+/** Reconnect after a lost connection (spec 8: POST /sesion + REANUDAR), backing off up to the max. */
+export const RECONNECT_BASE_MS = 500;
+export const RECONNECT_MAX_MS = 8000;
 export const HEARTBEAT_S = 15;
 export const DEFAULT_MEM_MIB = 128;
 export const CHROME_MEM_MIB = 256;

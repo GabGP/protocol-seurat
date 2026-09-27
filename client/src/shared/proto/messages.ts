@@ -1,6 +1,6 @@
 import { concat, strDecode, strEncode, u64Decode, u64Encode, viDecode, viEncode } from './varint';
 import { rangesDecode, rangesEncode } from './ranges';
-import { parseTlvs, tlvEncode } from './frame';
+import { FatalProtocolError, parseTlvs, tlvEncode } from './frame';
 
 export const T = {
   SALUDO: 0x01, BIENVENIDA: 0x02, LATIDO: 0x03, ECO: 0x04, ERROR: 0x05, ADIOS: 0x06,
@@ -8,6 +8,13 @@ export const T = {
   MIRADA: 0x20, CONCESION: 0x21, PLAN: 0x23, RASPAR: 0x24, RASPADO: 0x25,
   RECIBO: 0x26, SOLTAR: 0x27, RENOVAR: 0x28, AUDITAR: 0x2a, INVENTARIO: 0x2b,
 } as const;
+
+/** A fixed u8 field; past the payload the frame is malformed (fatal ERROR 1), never 0. */
+export function u8At(payload: Uint8Array, p: number): number {
+  const v = payload[p];
+  if (v === undefined) throw new FatalProtocolError('truncated payload');
+  return v;
+}
 
 export const CAP_DATAGRAMAS = 0x01;
 export const CAP_REANUDAR = 0x02;
@@ -138,7 +145,7 @@ export function errorCore(e: ProtocolError): Uint8Array {
 export function errorDecode(payload: Uint8Array): ProtocolError {
   let p = 0;
   let r = viDecode(payload, p); const code = r.value; p = r.next;
-  const fatal = payload[p] ?? 0; p += 1;
+  const fatal = u8At(payload, p); p += 1;
   r = viDecode(payload, p); const refType = r.value; p = r.next;
   const s = strDecode(payload, p);
   return { code, fatal, refType, msg: s.value };
@@ -166,11 +173,11 @@ export function workCore(o: WorkMessage): Uint8Array {
 }
 export function workDecode(payload: Uint8Array): WorkMessage {
   let p = 0;
-  const event = payload[p] ?? 0; const state = payload[p + 1] ?? 0; const progress = payload[p + 2] ?? 0; p += 3;
+  const event = u8At(payload, p); const state = u8At(payload, p + 1); const progress = u8At(payload, p + 2); p += 3;
   let r = viDecode(payload, p); const edition = r.value; p = r.next;
   r = viDecode(payload, p); const width = r.value; p = r.next;
   r = viDecode(payload, p); const height = r.value; p = r.next;
-  const strata = payload[p] ?? 0; p += 1;
+  const strata = u8At(payload, p); p += 1;
   const id = strDecode(payload, p); p = id.next;
   const name = strDecode(payload, p);
   return { event, state, progress, edition, width, height, strata, id: id.value, name: name.value };
@@ -199,9 +206,9 @@ export function openedDecode(payload: Uint8Array): WorkOpened {
   let r = viDecode(payload, p); const handle = r.value; p = r.next;
   r = viDecode(payload, p); const width = r.value; p = r.next;
   r = viDecode(payload, p); const height = r.value; p = r.next;
-  const strata = payload[p] ?? 0; p += 1;
+  const strata = u8At(payload, p); p += 1;
   r = viDecode(payload, p); const edition = r.value; p = r.next;
-  const ceilingStratum = payload[p] ?? 0; const ceilingBands = payload[p + 1] ?? 0; p += 2;
+  const ceilingStratum = u8At(payload, p); const ceilingBands = u8At(payload, p + 1); p += 2;
   r = viDecode(payload, p); const seedWidth = r.value; p = r.next;
   r = viDecode(payload, p); const seedHeight = r.value; p = r.next;
   return { handle, width, height, strata, edition, ceilingStratum, ceilingBands, seedWidth, seedHeight };
@@ -228,7 +235,7 @@ export function gazeDecode(payload: Uint8Array): Gaze {
   return {
     handle: vals[0] ?? 0, seq: vals[1] ?? 0, x0: vals[2] ?? 0, y0: vals[3] ?? 0,
     x1: vals[4] ?? 0, y1: vals[5] ?? 0, vw: vals[6] ?? 0, vh: vals[7] ?? 0,
-    flags: payload[p] ?? 0,
+    flags: u8At(payload, p),
   };
 }
 
@@ -246,7 +253,7 @@ export function concessionDecode(payload: Uint8Array): Concession {
   let p = 0;
   let r = viDecode(payload, p); const handle = r.value; p = r.next;
   r = viDecode(payload, p); const epoch = r.value; p = r.next;
-  const minStratum = payload[p] ?? 0; const maxBands = payload[p + 1] ?? 0; const reason = payload[p + 2] ?? 0; p += 3;
+  const minStratum = u8At(payload, p); const maxBands = u8At(payload, p + 1); const reason = u8At(payload, p + 2); p += 3;
   r = viDecode(payload, p); const maxBrushes = r.value; p = r.next;
   r = viDecode(payload, p); const maxKiB = r.value; p = r.next;
   r = viDecode(payload, p); const leaseS = r.value; p = r.next;
@@ -267,11 +274,11 @@ export function planDecode(payload: Uint8Array): PlanMsg {
   let p = 0;
   let r = viDecode(payload, p); const handle = r.value; p = r.next;
   r = viDecode(payload, p); const gazeSeq = r.value; p = r.next;
-  const event = payload[p] ?? 0; p += 1;
+  const event = u8At(payload, p); p += 1;
   if (event === 0) {
     r = viDecode(payload, p); const first = r.value; p = r.next;
     r = viDecode(payload, p); const expectedCount = r.value; p = r.next;
-    return { handle, gazeSeq, event, first, expectedCount, throttle: payload[p] ?? 0 };
+    return { handle, gazeSeq, event, first, expectedCount, throttle: u8At(payload, p) };
   }
   if (event === 1) {
     r = viDecode(payload, p);
@@ -291,7 +298,7 @@ export function scrapeDecode(payload: Uint8Array): Scrape {
   r = viDecode(payload, p); const order = r.value; p = r.next;
   r = viDecode(payload, p); const epoch = r.value; p = r.next;
   r = viDecode(payload, p); const through = r.value; p = r.next;
-  const predicate = payload[p] ?? 0; p += 1;
+  const predicate = u8At(payload, p); p += 1;
   return { handle, order, epoch, through, predicate, params: payload.slice(p) };
 }
 export function scrapeParamsLowStratum(stratum: number): Uint8Array {
@@ -353,7 +360,7 @@ export function releaseCore(s: Release): Uint8Array {
 export function releaseDecode(payload: Uint8Array): Release {
   let p = 0;
   let r = viDecode(payload, p); const handle = r.value; p = r.next;
-  const reason = payload[p] ?? 0; p += 1;
+  const reason = u8At(payload, p); p += 1;
   const rr = rangesDecode(payload, p);
   return { handle, reason, ranges: rr.values };
 }

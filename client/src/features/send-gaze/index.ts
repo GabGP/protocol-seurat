@@ -47,6 +47,15 @@ export class GazeSender {
     this.flush(true);
   }
 
+  /** After a resume the server has no plan: the current view again, reliably, with a new seq. */
+  again(): void {
+    if (!this.last) return;
+    this.seq += 1;
+    this.pending = { ...this.last, seq: this.seq };
+    this.last = this.pending;
+    this.flush(true);
+  }
+
   hidden(handle: number): void {
     this.seq += 1;
     const t = this.transport();
@@ -66,9 +75,8 @@ export class GazeSender {
       const core = gazeCore({ ...m, flags: m.flags | MFLAGS_STILL });
       t.sendControl(concat(viEncode(T.MIRADA), viEncode(core.length), core));
     } else {
-      const core = gazeCore(m);
-      if (t.supportsDatagrams) t.sendGazeDatagram(concat(viEncode(T.MIRADA), core));
-      else t.sendGazeDatagram(core);
+      // Datagram form, vi tipo · payload (spec 3.2): a WT datagram, or the WS channel-2 message.
+      t.sendGazeDatagram(concat(viEncode(T.MIRADA), gazeCore(m)));
     }
   }
 
