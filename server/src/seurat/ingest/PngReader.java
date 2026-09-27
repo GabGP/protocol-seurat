@@ -1,21 +1,16 @@
 package seurat.ingest;
 
-import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.zip.InflaterInputStream;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
 
 /**
- * Sequential streaming PNG reader (O(1) memory, zero rewind) with ImageIO fallback
- * for non-standard/interlaced PNG or other formats.
+ * Sequential streaming PNG reader (O(1) memory, zero rewind) with ImageIoReader fallback
+ * for non-standard/interlaced PNG or other formats (e.g. JPEG).
  */
 public final class PngReader implements MasterReader {
     private final int width;
@@ -26,11 +21,11 @@ public final class PngReader implements MasterReader {
     private final DataInputStream scanlines;
     private final java.util.zip.Inflater inf;
     private final InputStream rawStream;
-    private final ImageReader fallbackReader;
-    private final ImageInputStream fallbackInput;
+    private final ImageIoReader fallback;
     private byte[] curRow;
     private byte[] prevRow;
     private int row;
+    private int[][] bandBuffer;
 
     public PngReader(Path source) throws IOException {
         StreamHeader hdr = tryStream(source);
@@ -45,8 +40,7 @@ public final class PngReader implements MasterReader {
             this.inf = hdr.inf;
             this.curRow = new byte[hdr.w * hdr.bp];
             this.prevRow = new byte[hdr.w * hdr.bp];
-            this.fallbackReader = null;
-            this.fallbackInput = null;
+            this.fallback = null;
         } else {
             this.streaming = false;
             this.rawStream = null;
@@ -54,13 +48,9 @@ public final class PngReader implements MasterReader {
             this.inf = null;
             this.bpp = 0;
             this.colorType = 0;
-            this.fallbackInput = ImageIO.createImageInputStream(source.toFile());
-            Iterator<ImageReader> it = ImageIO.getImageReaders(fallbackInput);
-            if (!it.hasNext()) throw new IOException("unsupported format: " + source);
-            this.fallbackReader = it.next();
-            this.fallbackReader.setInput(fallbackInput);
-            this.width = fallbackReader.getWidth(0);
-            this.height = fallbackReader.getHeight(0);
+            this.fallback = new ImageIoReader(source);
+            this.width = fallback.width();
+            this.height = fallback.height();
         }
     }
 
@@ -105,44 +95,42 @@ public final class PngReader implements MasterReader {
     @Override
     public int height() { return height; }
 
-    private int[][] bandBuffer;
-
     @Override
     public int[][] next() throws IOException {
+        if (fallback != null) {
+            int[][] b = fallback.next();
+            row = (int) Math.round(fallback.fraction() * height);
+            return b;
+        }
         if (row >= height) return null;
         int n = Math.min(256, height - row);
-        if (bandBuffer == null) {
-            bandBuffer = new int[256][width];
-        }
+        if (bandBuffer == null) bandBuffer = new int[256][width];
         int[][] band = (n == 256) ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
-        if (streaming) {
-            int rowBytes = width * bpp;
-            for (int y = 0; y < n; y++) {
-                int filter = scanlines.readUnsignedByte();
-                scanlines.readFully(curRow);
-                PngUnfilter.unfilter(filter, curRow, prevRow, bpp, rowBytes);
-                PngUnfilter.decodeRgb(curRow, band[y], colorType, width);
-                byte[] tmp = prevRow; prevRow = curRow; curRow = tmp;
-            }
-        } else {
-            var param = fallbackReader.getDefaultReadParam();
-            param.setSourceRegion(new java.awt.Rectangle(0, row, width, n));
-            BufferedImage img = fallbackReader.read(0, param);
-            for (int y = 0; y < n; y++) img.getRGB(0, y, width, 1, band[y], 0, width);
+        int rowBytes = width * bpp;
+        for (int y = 0; y < n; y++) {
+            int filter = scanlines.readUnsignedByte();
+            scanlines.readFully(curRow);
+            PngUnfilter.unfilter(filter, curRow, prevRow, bpp, rowBytes);
+            PngUnfilter.decodeRgb(curRow, band[y], colorType, width);
+            byte[] tmp = prevRow; prevRow = curRow; curRow = tmp;
         }
         row += n;
         return band;
     }
 
     @Override
-    public double fraction() { return (double) row / Math.max(1, height); }
+    public double fraction() {
+        return fallback != null ? fallback.fraction() : (double) row / Math.max(1, height);
+    }
 
     @Override
     public void close() throws IOException {
+        if (fallback != null) {
+            fallback.close();
+            return;
+        }
         if (scanlines != null) scanlines.close();
         if (inf != null) inf.end();
         if (rawStream != null) rawStream.close();
-        if (fallbackReader != null) fallbackReader.dispose();
-        if (fallbackInput != null) fallbackInput.close();
     }
 }
