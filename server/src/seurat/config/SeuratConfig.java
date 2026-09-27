@@ -13,20 +13,18 @@ public final class SeuratConfig {
     public final Path works;
     public final Path coverage;
     public final String adminToken;
-    public final String evictionPolicy;
     public final int sessionMaxBrushes;
     public final long rateBytesPerSec;
     public final String logLevel;
 
     private SeuratConfig(int httpPort, Path inbox, Path works, Path coverage,
-            String adminToken, String evictionPolicy, int sessionMax, long rate,
+            String adminToken, int sessionMax, long rate,
             String logLevel) {
         this.httpPort = httpPort;
         this.inbox = inbox;
         this.works = works;
         this.coverage = coverage;
         this.adminToken = adminToken;
-        this.evictionPolicy = evictionPolicy;
         this.sessionMaxBrushes = sessionMax;
         this.rateBytesPerSec = rate;
         this.logLevel = logLevel;
@@ -62,7 +60,6 @@ public final class SeuratConfig {
                 works,
                 coverage,
                 strOf(props, "admin.token", "cambia-esto"),
-                strOf(props, "eviction.policy", "lru"),
                 intOf(props, "session.max_brushes", 1024),
                 Long.parseLong(strOf(props, "rate.bytes_per_s", "25000000")),
                 strOf(props, "log.level", "INFO"));
