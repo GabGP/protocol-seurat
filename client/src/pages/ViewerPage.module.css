@@ -41,6 +41,11 @@
   text-align: center;
 }
 
+/* The frame meter (settings) sits under the top bar: the banner moves below it. */
+.container[data-meter] .pointillistBanner {
+  top: 128px;
+}
+
 @media (max-width: 640px) {
   .pointillistBanner {
     top: max(60px, calc(env(safe-area-inset-top) + 52px));
@@ -50,5 +55,8 @@
     max-width: calc(100% - 24px);
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .container[data-meter] .pointillistBanner {
+    top: calc(max(60px, calc(env(safe-area-inset-top) + 52px)) + 46px);
   }
 }

@@ -6,7 +6,7 @@ import { BrushCuller, collectBrushes, SKETCH_STRATUM, type BrushGeom } from './b
 import { ViewerSprites } from './render-sprites';
 import { snapSpan, tilesCover } from './tile-cover';
 import { FrameMeter } from './frame-meter';
-import { renderFlags as flags } from '@/shared/lib/render-flags';
+import { renderFlags as flags, subscribeRenderFlags } from '@/shared/lib/render-flags';
 import type { Feed } from '@/shared/lib/feed';
 import { logFrac } from '@/shared/lib/zoom';
 import { applyFitImmediate, fitTarget } from '@/features/fit-view';
@@ -87,6 +87,8 @@ export const sameReadout = (a: PixelReadout | null, b: PixelReadout | null): boo
 
 /** Glass blur stays off this long after motion ends (no flicker between gesture frames). */
 const MOTION_SETTLE_MS = 150;
+/** The frame meter's text is rewritten at most this often (it is DOM: keep layout work rare). */
+const METER_TEXT_MS = 250;
 
 export interface ChromeApi {
   zoomTo(ns: number, px?: number, py?: number): void;
@@ -100,6 +102,7 @@ export interface ChromeActions {
   onDiveDots(): void;
   onToggleInfo(): void;
   onToggleTelemetry(): void;
+  onToggleSettings(): void;
   onPrev(): void;
   onNext(): void;
   onBack(): void;
@@ -138,7 +141,8 @@ export function ViewerChrome(props: Props): JSX.Element {
     sprites: new ViewerSprites(),
     mainCuller: new BrushCuller(),
     loupeCuller: new BrushCuller(),
-    meter: flags.fps ? new FrameMeter() : null,
+    meter: null as FrameMeter | null,
+    meterAt: -Infinity,
     drawn: 0,
     visible: [] as BrushGeom[],
     cachedTick: -1,
@@ -148,6 +152,7 @@ export function ViewerChrome(props: Props): JSX.Element {
   const propsRef = useRef(props);
   propsRef.current = props;
   const wakeRef = useRef<() => void>(() => undefined);
+  const meterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -482,14 +487,27 @@ export function ViewerChrome(props: Props): JSX.Element {
         dirty = false;
         st.drawn = 0;
         draw();
-        if (st.meter && ctx) {
-          st.meter.frame(now, performance.now() - now);
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          st.meter.draw(ctx, st.meter.label(st.drawn, brushes().length));
-        }
+        if (flags.fps) meterFrame(now);
         syncUI();
         if (moving) reportGaze();
       }
+    }
+
+    function meterFrame(now: number): void {
+      const meter = (st.meter ??= new FrameMeter());
+      meter.frame(now, performance.now() - now);
+      const el = meterRef.current;
+      if (!el || now - st.meterAt < METER_TEXT_MS) return;
+      st.meterAt = now;
+      el.textContent = meter.label(st.drawn, brushes().length);
+    }
+
+    /** Settings changed: repaint now, and show or hide the meter. */
+    function onFlags(): void {
+      dirty = true;
+      st.meterAt = -Infinity;
+      if (meterRef.current) meterRef.current.hidden = !flags.fps;
+      cv.parentElement?.toggleAttribute('data-meter', flags.fps); // overlays below make room
     }
 
     function onWheel(e: WheelEvent): void {
@@ -624,6 +642,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       else if (k === 'p' || k === 'P') a.onDiveDots();
       else if (k === 'i' || k === 'I') a.onToggleInfo();
       else if (k === 't' || k === 'T') a.onToggleTelemetry();
+      else if (k === 's' || k === 'S') a.onToggleSettings();
       else if (k === '[') a.onPrev();
       else if (k === ']') a.onNext();
       else if (k === 'Escape') a.onBack();
@@ -643,6 +662,8 @@ export function ViewerChrome(props: Props): JSX.Element {
     cv.addEventListener('pointerleave', onLeave);
     cv.addEventListener('dblclick', onDbl);
     window.addEventListener('keydown', onKey);
+    const offFlags = subscribeRenderFlags(onFlags);
+    onFlags();
     resize();
     raf = requestAnimationFrame(loop);
     return () => {
@@ -656,7 +677,9 @@ export function ViewerChrome(props: Props): JSX.Element {
       cv.removeEventListener('pointerleave', onLeave);
       cv.removeEventListener('dblclick', onDbl);
       window.removeEventListener('keydown', onKey);
+      offFlags();
       cv.parentElement?.removeAttribute('data-moving');
+      cv.parentElement?.removeAttribute('data-meter');
       ptrs.clear();
       wakeRef.current = () => undefined;
     };
@@ -674,9 +697,12 @@ export function ViewerChrome(props: Props): JSX.Element {
   }, [props.paintTick, props.sink, props.loupe, props.dotThreshold, props.maxZoom]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={`${styles.canvas} ${props.loupe ? styles.cursorCrosshair : styles.cursorGrab}`}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`${styles.canvas} ${props.loupe ? styles.cursorCrosshair : styles.cursorGrab}`}
+      />
+      <div ref={meterRef} className={styles.meter} aria-live="off" hidden />
+    </>
   );
 }

@@ -16,6 +16,7 @@ const KEYS = [
   { a: 'Loupe', k: 'L' },
   { a: 'Pointillist pixels', k: 'P' },
   { a: 'Telemetry', k: 'T' },
+  { a: 'Settings', k: 'S' },
   { a: 'Previous / next', k: '[ ]' },
   { a: 'Back to library', k: 'Esc' },
 ];

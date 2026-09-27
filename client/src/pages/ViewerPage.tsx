@@ -6,6 +6,7 @@ import { ViewerToolbar } from '@/widgets/ViewerToolbar';
 import { ViewerMinimap } from '@/widgets/ViewerMinimap';
 import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
 import { TelemetryPanel } from '@/widgets/TelemetryPanel';
+import { RenderSettingsPanel } from '@/widgets/RenderSettingsPanel';
 import type { TelemetryInput } from '@/entities/telemetry/sections';
 import { ViewerTopBar } from '@/widgets/ViewerTopBar';
 import { LiveStatusPill } from '@/widgets/StatusPill';
@@ -59,8 +60,11 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
     [dims, mp, iw, ih, fitPct, seurat.status, workTag],
   );
 
-  const handleBack = (): void => back(ui.menu, ui.info);
+  const handleBack = (): void => back(ui.menu, ui.info, ui.settings);
   const toggleTelemetry = (): void => patchUi({ telemetry: !ui.telemetry });
+  // Details and settings share the right-hand slot: opening one closes the other.
+  const toggleInfo = (): void => patchUi({ info: !ui.info, settings: false });
+  const toggleSettings = (): void => patchUi({ settings: !ui.settings, info: false });
   const readTelemetry = (): TelemetryInput => ({
     now: performance.now(),
     transport: seurat.client?.activeTransport?.name ?? null,
@@ -90,8 +94,9 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         actions={{
           onToggleLoupe: () => patchUi({ loupe: !ui.loupe }),
           onDiveDots: handleDiveDots,
-          onToggleInfo: () => patchUi({ info: !ui.info }),
+          onToggleInfo: toggleInfo,
           onToggleTelemetry: toggleTelemetry,
+          onToggleSettings: toggleSettings,
           onPrev: () => go(-1),
           onNext: () => go(1),
           onBack: handleBack,
@@ -111,11 +116,13 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         counter={counterLabel(idx, n)}
         infoActive={ui.info}
         telemetryActive={ui.telemetry}
+        settingsActive={ui.settings}
         onBack={handleBack}
         onPrev={() => go(-1)}
         onNext={() => go(1)}
-        onToggleInfo={() => patchUi({ info: !ui.info })}
+        onToggleInfo={toggleInfo}
         onToggleTelemetry={toggleTelemetry}
+        onToggleSettings={toggleSettings}
       />
       {inDots && (
         <div className={styles.pointillistBanner}>
@@ -152,6 +159,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       />
       <ViewerMinimap api={api} feed={feeds.view} iw={iw} ih={ih} ready={ready} sink={seurat.sink} paintTick={seurat.paintTick} />
       {ui.info && <ViewerInfoPanel rows={rows} onClose={() => patchUi({ info: false })} />}
+      {ui.settings && <RenderSettingsPanel onClose={() => patchUi({ settings: false })} />}
       {ui.telemetry && <TelemetryPanel read={readTelemetry} onClose={() => patchUi({ telemetry: false })} />}
     </div>
   );

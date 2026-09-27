@@ -76,8 +76,9 @@ export function useViewerWork(id: string, seurat: SeuratState) {
     if (next) goViewer(next.id);
   };
 
-  const back = (menuOpen: boolean, infoOpen: boolean): void => {
+  const back = (menuOpen: boolean, infoOpen: boolean, settingsOpen = false): void => {
     if (menuOpen) return patchUi({ menu: false });
+    if (settingsOpen) return patchUi({ settings: false });
     if (infoOpen) return patchUi({ info: false });
     goGallery();
   };

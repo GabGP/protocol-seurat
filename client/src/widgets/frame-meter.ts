@@ -1,12 +1,10 @@
 const WINDOW = 120;
 /** Gaps longer than this are idle time between gestures, not frames. */
 const IDLE_GAP_MS = 250;
-const LEFT = 16;
-const TOP = 76;
 
 /**
- * `?render=fps` overlay: frame gaps between consecutive painted frames (what the eye sees),
- * the CPU time of the paint itself, and how many brushes were drawn out of those loaded.
+ * Frame meter (settings → Frame meter, or `?render=fps`): gaps between consecutive painted frames
+ * (what the eye sees), the CPU time of the paint itself, and brushes drawn out of those loaded.
  */
 export class FrameMeter {
   private readonly gaps = new Float64Array(WINDOW);
@@ -26,22 +24,21 @@ export class FrameMeter {
     this.n = Math.min(WINDOW, this.n + 1);
   }
 
+  /**
+   * Readout parts, each kept on one line (non-breaking spaces) so a narrow screen wraps between
+   * parts, never inside one.
+   */
   label(drawn: number, loaded: number): string {
-    if (this.n === 0) return `move to measure · paint ${this.cpu.toFixed(1)} ms · draws ${drawn} · loaded ${loaded}`;
-    const g = Array.from(this.gaps.subarray(0, this.n)).sort((a, b) => a - b);
-    const mean = g.reduce((a, b) => a + b, 0) / g.length;
-    const p95 = g[Math.min(g.length - 1, Math.floor(g.length * 0.95))] ?? mean;
-    return `${(1000 / mean).toFixed(0)} fps · p95 ${p95.toFixed(1)} ms · paint ${this.cpu.toFixed(1)} ms · draws ${drawn} · loaded ${loaded}`;
-  }
-
-  draw(ctx: CanvasRenderingContext2D, text: string): void {
-    ctx.font = '600 12px ui-monospace, monospace';
-    const w = ctx.measureText(text).width + 16;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(LEFT, TOP, w, 22);
-    ctx.fillStyle = '#B8C4FF';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, LEFT + 8, TOP + 11);
+    const parts: string[] = [];
+    if (this.n === 0) {
+      parts.push('move to measure');
+    } else {
+      const g = Array.from(this.gaps.subarray(0, this.n)).sort((a, b) => a - b);
+      const mean = g.reduce((a, b) => a + b, 0) / g.length;
+      const p95 = g[Math.min(g.length - 1, Math.floor(g.length * 0.95))] ?? mean;
+      parts.push(`${(1000 / mean).toFixed(0)} fps`, `p95 ${p95.toFixed(1)} ms`);
+    }
+    parts.push(`paint ${this.cpu.toFixed(1)} ms`, `draws ${drawn}`, `loaded ${loaded}`);
+    return parts.map((p) => p.replace(/ /g, ' ')).join(' · ');
   }
 }

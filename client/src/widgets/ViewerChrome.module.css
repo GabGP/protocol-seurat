@@ -18,3 +18,30 @@
 .cursorCrosshair {
   cursor: crosshair;
 }
+
+/* Frame meter: under the top bar, wraps between readouts on narrow screens. */
+.meter {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  max-width: calc(100% - 32px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--pill);
+  font: 600 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
+
+.meter[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .meter {
+    top: calc(max(10px, env(safe-area-inset-top)) + 50px);
+    left: 10px;
+    max-width: calc(100% - 20px);
+    font-size: 11px;
+  }
+}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { clamp } from '@/shared/lib/clamp';
 import type { Feed } from '@/shared/lib/feed';
-import { renderFlags } from '@/shared/lib/render-flags';
+import { useRenderFlags, type RenderFlags } from '@/shared/lib/render-flags';
 import type { DeliverySink } from '@/app/providers/delivery-sink';
 import { collectBrushes, cullBrushes } from './brush-cull';
 import type { ChromeApi, ViewRect } from './ViewerChrome';
@@ -37,7 +37,8 @@ function sizeOf(iw: number, ih: number): Size {
 }
 
 /** The painted image at minimap scale (sub-pixel tiles culled), or the dotted placeholder. */
-function buildThumb(sink: DeliverySink | null | undefined, iw: number, ih: number, z: Size): HTMLCanvasElement {
+function buildThumb(sink: DeliverySink | null | undefined, iw: number, ih: number, z: Size,
+  flags: Pick<RenderFlags, 'cull' | 'lod'>): HTMLCanvasElement {
   const t = document.createElement('canvas');
   t.width = Math.round(z.w * z.dpr);
   t.height = Math.round(z.h * z.dpr);
@@ -47,7 +48,7 @@ function buildThumb(sink: DeliverySink | null | undefined, iw: number, ih: numbe
   c.fillStyle = '#23242B';
   c.fillRect(0, 0, z.w, z.h);
   const all = sink ? collectBrushes(sink.book.byDelivery.values(), iw, ih) : [];
-  const list = renderFlags.cull ? cullBrushes(all, z.k * z.dpr, iw, ih, renderFlags.lod) : all;
+  const list = flags.cull ? cullBrushes(all, z.k * z.dpr, iw, ih, flags.lod) : all;
   for (const b of list) c.drawImage(b.bmp, b.x * z.k, b.y * z.k, b.w * z.k, b.h * z.k);
   if (list.length === 0) {
     c.fillStyle = 'rgba(197,198,208,0.25)';
@@ -97,6 +98,7 @@ export function ViewerMinimap({ api, feed, iw, ih, ready, sink, paintTick }: Pro
   const thumb = useRef<HTMLCanvasElement | null>(null);
   const builtAt = useRef(-Infinity);
   const repaint = useRef<() => void>(() => undefined);
+  const { cull, lod } = useRenderFlags();
 
   useEffect(() => {
     const m = ref.current;
@@ -124,7 +126,7 @@ export function ViewerMinimap({ api, feed, iw, ih, ready, sink, paintTick }: Pro
     if (!ready) return;
     const build = (): void => {
       builtAt.current = performance.now();
-      thumb.current = buildThumb(sink, iw, ih, sizeOf(iw, ih));
+      thumb.current = buildThumb(sink, iw, ih, sizeOf(iw, ih), { cull, lod });
       repaint.current();
     };
     const wait = builtAt.current + MINIMAP_THUMB_MS - performance.now();
@@ -134,7 +136,7 @@ export function ViewerMinimap({ api, feed, iw, ih, ready, sink, paintTick }: Pro
     }
     const timer = window.setTimeout(build, wait); // trailing edge: the last paint always lands
     return () => window.clearTimeout(timer);
-  }, [sink, paintTick, iw, ih, ready]);
+  }, [sink, paintTick, iw, ih, ready, cull, lod]);
 
   if (!ready) return null;
 

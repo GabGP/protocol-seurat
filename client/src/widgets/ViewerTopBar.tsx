@@ -8,11 +8,13 @@ export interface ViewerTopBarProps {
   counter: string;
   infoActive: boolean;
   telemetryActive: boolean;
+  settingsActive: boolean;
   onBack: () => void;
   onPrev: () => void;
   onNext: () => void;
   onToggleInfo: () => void;
   onToggleTelemetry: () => void;
+  onToggleSettings: () => void;
 }
 
 export function ViewerTopBar({
@@ -22,11 +24,13 @@ export function ViewerTopBar({
   counter,
   infoActive,
   telemetryActive,
+  settingsActive,
   onBack,
   onPrev,
   onNext,
   onToggleInfo,
   onToggleTelemetry,
+  onToggleSettings,
 }: ViewerTopBarProps): JSX.Element {
   return (
     <div className={styles.topBar}>
@@ -73,6 +77,14 @@ export function ViewerTopBar({
           className={`visor-btn-spring ${styles.infoBtn} ${infoActive ? styles.infoBtnActive : ''}`}
         >
           <Icon name="info" size={24} />
+        </button>
+        <button
+          onClick={onToggleSettings}
+          title="Settings (S)"
+          aria-pressed={settingsActive}
+          className={`visor-btn-spring ${styles.infoBtn} ${settingsActive ? styles.infoBtnActive : ''}`}
+        >
+          <Icon name="settings" size={24} />
         </button>
       </div>
     </div>
