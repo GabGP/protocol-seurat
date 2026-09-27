@@ -25,7 +25,8 @@ An asynchronous, server-authoritative protocol and viewer for streaming gigapixe
 ├── scripts/
 │   ├── run-tests.sh            # Compiles & executes backend tests + checks LoC budgets
 │   ├── check-loc.sh            # Validates strict line-of-code budgets
-│   └── clean.sh                # Cleans ephemeral build artifacts without touching runtime data
+│   ├── clean.sh                # Cleans ephemeral build artifacts without touching runtime data
+│   └── smoke-viewer.mjs        # Headless-browser smoke test of the viewer against a running server
 ├── run.sh                      # Bash server builder & launcher (Linux / macOS / WSL)
 ├── run.ps1                     # PowerShell server builder & launcher (Windows)
 ├── seurat.conf                 # Runtime server configuration
@@ -174,6 +175,13 @@ cd client
 pnpm test          # Runs all 67 Vitest unit and integration tests across 12 test suites
 pnpm build         # Validates TypeScript types and generates production bundle
 ```
+
+### Viewer Smoke Test (headless browser)
+With the server running, drive the real viewer in headless Chrome/Edge (Node >= 22, no dependencies, offline):
+```bash
+node scripts/smoke-viewer.mjs --work The_Night_Watch_-_HD   # use a large work (1.6-31 GP)
+```
+It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional.
 
 ### Cleaning Build Artifacts
 To clean build outputs without touching runtime data:
