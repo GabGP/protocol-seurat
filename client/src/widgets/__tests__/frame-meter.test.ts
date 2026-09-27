@@ -16,4 +16,8 @@ describe('FrameMeter', () => {
     m.frame(5000, 1);
     expect(m.label(0, 0)).toContain('move to measure');
   });
+
+  it('names the active renderer first when given', () => {
+    expect(new FrameMeter().label(1, 2, 'webgl2')).toMatch(/^webgl2 · move/);
+  });
 });

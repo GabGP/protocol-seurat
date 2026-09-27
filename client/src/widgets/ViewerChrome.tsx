@@ -114,6 +114,9 @@ export function ViewerChrome(props: Props): JSX.Element {
     loupeDrag: false,
     uiKey: '',
     pixelKey: '',
+    /** The user placed the view; survives canvas remounts (renderer switch, context loss), not a new work. */
+    userMoved: false,
+    work: '',
     meter: null as FrameMeter | null,
     meterAt: -Infinity,
     drawn: 0,
@@ -128,6 +131,7 @@ export function ViewerChrome(props: Props): JSX.Element {
   const badgeRef = useRef<HTMLDivElement>(null);
   /** Bumped to remount the canvas: a canvas keeps its first context type (WebGL2 ↔ Canvas2D). */
   const [canvasGen, setCanvasGen] = useState(0);
+  /** WebGL2 failed or lost its context on this viewer: Canvas2D until the switch is flipped again. */
   const gpuFailed = useRef(false);
 
   useEffect(() => {
@@ -155,9 +159,14 @@ export function ViewerChrome(props: Props): JSX.Element {
     let vel = { x: 0, y: 0 };
     const ptrs = new Map<number, { x: number; y: number }>();
     let pinch: { x: number; y: number; d: number } | null = null;
-    let userMoved = false;
-    const created = createRenderer(cv, flags.gpu && !gpuFailed.current, {
-      onVramFailure: () => undefined,
+    const work = `${props.iw}x${props.ih}#${props.handle}`;
+    if (st.work !== work) {
+      st.work = work;
+      st.userMoved = false;
+    }
+    const wantGpu = flags.gpu && !gpuFailed.current;
+    const created = createRenderer(cv, wantGpu, {
+      onVramFailure: () => P().sink?.reportVramFailure(),
     });
     if (!created) {
       gpuFailed.current = true;
@@ -165,6 +174,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       return;
     }
     const renderer = created;
+    if (wantGpu && renderer.kind !== 'webgl2') gpuFailed.current = true; // no WebGL2 here
 
     const th = (): number => (P().dotThreshold) / 100;
     const maxS = (): number => P().maxZoom;
@@ -178,7 +188,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       cv.width = Math.round(r.width * dpr);
       cv.height = Math.round(r.height * dpr);
       renderer.resize(W, H, dpr);
-      if (!userMoved) doFit(true);
+      if (!st.userMoved) doFit(true);
       dirty = true;
       st.uiKey = '';
     }
@@ -194,14 +204,14 @@ export function ViewerChrome(props: Props): JSX.Element {
         st.v = r.next;
         st.fitS = r.fitS;
       }
-      userMoved = false;
+      st.userMoved = false;
       dirty = true;
     }
 
     function zoomTo(ns: number, px?: number, py?: number): void {
       const v = st.v;
       st.v = zoomTarget(v, ns, px ?? W / 2, py ?? H / 2, minS(), maxS());
-      userMoved = true;
+      st.userMoved = true;
       dirty = true;
     }
 
@@ -211,7 +221,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       panTo: (ix: number, iy: number) => {
         const v = st.v;
         st.v = { ...v, ttx: W / 2 - ix * v.ts, tty: H / 2 - iy * v.ts };
-        userMoved = true;
+        st.userMoved = true;
         dirty = true;
       },
       slideTo: (f: number) => {
@@ -368,11 +378,16 @@ export function ViewerChrome(props: Props): JSX.Element {
       const el = meterRef.current;
       if (!el || now - st.meterAt < METER_TEXT_MS) return;
       st.meterAt = now;
-      el.textContent = meter.label(st.drawn, brushes().length);
+      el.textContent = meter.label(st.drawn, brushes().length, renderer.kind);
     }
 
     /** Settings changed: repaint now, and show or hide the meter. */
     function onFlags(): void {
+      if (!flags.gpu) gpuFailed.current = false; // switching off, then on again, retries WebGL2
+      if ((flags.gpu && !gpuFailed.current) !== wantGpu) {
+        setCanvasGen((g) => g + 1); // renderer change: a canvas keeps its first context type
+        return;
+      }
       dirty = true;
       st.meterAt = -Infinity;
       if (meterRef.current) meterRef.current.hidden = !flags.fps;
@@ -445,7 +460,7 @@ export function ViewerChrome(props: Props): JSX.Element {
           };
           st.v = panBy(v, dx, dy);
           last = { x: e.clientX, y: e.clientY, t: now };
-          userMoved = true;
+          st.userMoved = true;
         }
       }
       dirty = true;
@@ -529,6 +544,15 @@ export function ViewerChrome(props: Props): JSX.Element {
     cv.addEventListener('pointerleave', onLeave);
     cv.addEventListener('dblclick', onDbl);
     window.addEventListener('keydown', onKey);
+    // §5.3: a lost context changes nothing in the protocol. The bitmaps are still held, so the
+    // view goes on in Canvas2D at once (a canvas keeps its context type: remount a fresh one).
+    const onContextLost = (e: Event): void => {
+      e.preventDefault();
+      console.warn('viewer: WebGL context lost, continuing with Canvas2D');
+      gpuFailed.current = true;
+      setCanvasGen((g) => g + 1);
+    };
+    cv.addEventListener('webglcontextlost', onContextLost);
     const offFlags = subscribeRenderFlags(onFlags);
     onFlags();
     resize();
@@ -545,6 +569,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       cv.removeEventListener('dblclick', onDbl);
       window.removeEventListener('keydown', onKey);
       offFlags();
+      cv.removeEventListener('webglcontextlost', onContextLost);
       renderer.dispose();
       cv.parentElement?.removeAttribute('data-moving');
       cv.parentElement?.removeAttribute('data-meter');

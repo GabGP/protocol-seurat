@@ -7,7 +7,7 @@ describe('parseRenderFlags', () => {
   it('defaults to every optimization on, meter off', () => {
     expect(parseRenderFlags('')).toEqual(DEFAULT_RENDER_FLAGS);
     expect(DEFAULT_RENDER_FLAGS).toEqual({
-      grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: false,
+      grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: true,
     });
   });
 

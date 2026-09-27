@@ -350,6 +350,24 @@ describe('DeliverySink', () => {
     sink.dispose();
   });
 
+  it('a failed VRAM reservation evicts a quarter of what is held (SOLTAR 1) even without count pressure', () => {
+    const client = fakeClient();
+    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    for (let bx = 0; bx < 36; bx++) {
+      sink.book.byDelivery.set(bx + 1, {
+        delivery: bx + 1, brushId: makeBrushId(0, bx, 0), stratum: 0,
+        from: 0, through: 4, bytes: 10, epoch: 1, edition: 1, expires: 1e12, rgba: null,
+      });
+    }
+    sink.setView(0, 0, 512, 512, 512, 512);
+    expect(client.sentRelease).toEqual([]); // 36 of 768: no pressure
+    sink.reportVramFailure();
+    expect(client.sentRelease).toEqual([{ handle: 1, reason: 1, ranges: [28, 29, 30, 31, 32, 33, 34, 35, 36] }]);
+    expect(sink.book.byDelivery.size).toBe(27);
+    expect(sink.book.byDelivery.has(1) && sink.book.byDelivery.has(2)).toBe(true);
+    sink.dispose();
+  });
+
   it('a retouch decodes the bands its brush already holds, and children are redone on it', async () => {
     const client = fakeClient();
     const postMessage = vi.fn();

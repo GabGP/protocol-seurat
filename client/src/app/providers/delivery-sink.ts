@@ -576,11 +576,12 @@ export class DeliverySink {
    * time-to-need from the gaze's motion (kinematic Bélády), shortened by attention heat.
    * Whole brushes go, all deliveries at once, with SOLTAR reason 1.
    */
-  private relieve(): boolean {
-    const maxN = this.maxBrushes();
-    const maxB = this.maxKiB() * 1024;
+  private relieve(vramShort = false): boolean {
     const load = (): number => this.book.byDelivery.size + this.book.inFlight.size;
-    if (load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) return false;
+    // A failed VRAM reservation is pressure whatever the counts say: relieve to 75 % of what is held.
+    const maxN = vramShort ? Math.min(this.maxBrushes(), load()) : this.maxBrushes();
+    const maxB = (vramShort ? Math.min(this.maxKiB() * 1024, ownedBytes(this.book)) : this.maxKiB() * 1024);
+    if (!vramShort && load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) return false;
     const sketch = Math.min(SKETCH_MIN, Math.max(0, this.top - 1));
     const nowS = performance.now() / 1000;
     const gaze = this.gaze.state(nowS);
@@ -598,6 +599,14 @@ export class DeliverySink {
     if (released.length > 0) this.heat.prune(new Set(ownedBrushes(this.book).keys()));
     this.release(released, 1);
     return released.length > 0;
+  }
+
+  /**
+   * §5.2.3's third trigger: the renderer could not reserve texture memory for new brushes.
+   * Same eviction as under count/byte pressure (Horizon order, leaves only, SOLTAR 1).
+   */
+  reportVramFailure(): void {
+    if (this.relieve(true)) this.flushReceipt();
   }
 
   /**

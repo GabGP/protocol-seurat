@@ -21,7 +21,7 @@ export interface RenderFlags {
 }
 
 export const DEFAULT_RENDER_FLAGS: Readonly<RenderFlags> = {
-  grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: false,
+  grid: true, shadow: true, dots: true, cull: true, lod: true, blurWhileMoving: false, fps: false, gpu: true,
 };
 
 const STORAGE_KEY = 'seurat.render';

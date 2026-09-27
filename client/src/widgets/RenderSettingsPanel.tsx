@@ -21,6 +21,7 @@ const SECTIONS: Array<{ title: string; options: Option[] }> = [
   {
     title: 'Speed',
     options: [
+      { key: 'gpu', label: 'GPU renderer (WebGL2)', hint: 'Tiles live in GPU memory and draw in one call; off uses the Canvas2D fallback' },
       { key: 'cull', label: 'Skip hidden tiles', hint: 'Draw only the tiles you can actually see' },
       { key: 'lod', label: 'Smooth zoomed-out detail', needs: 'cull',
         hint: 'Below ~50%, draw the coarser level once it is sharp enough (like mipmaps)' },

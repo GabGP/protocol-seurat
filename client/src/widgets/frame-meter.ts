@@ -28,8 +28,8 @@ export class FrameMeter {
    * Readout parts, each kept on one line (non-breaking spaces) so a narrow screen wraps between
    * parts, never inside one.
    */
-  label(drawn: number, loaded: number): string {
-    const parts: string[] = [];
+  label(drawn: number, loaded: number, renderer?: string): string {
+    const parts: string[] = renderer ? [renderer] : [];
     if (this.n === 0) {
       parts.push('move to measure');
     } else {
