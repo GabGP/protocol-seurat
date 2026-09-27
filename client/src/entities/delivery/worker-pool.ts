@@ -63,6 +63,15 @@ export class WorkerPool {
     return this.busy.findIndex((b) => !b);
   }
 
+  isIdle(index: number): boolean {
+    return this.busy[index] === false;
+  }
+
+  /** Workers currently synthesizing (for telemetry). */
+  busyCount(): number {
+    return this.busy.filter((b) => b).length;
+  }
+
   send(index: number, req: SynthRequest, transfer: Transferable[]): void {
     const w = this.workers[index];
     if (w === undefined) throw new Error(`no synthesis worker ${index}`);

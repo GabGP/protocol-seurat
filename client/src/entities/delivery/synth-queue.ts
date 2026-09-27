@@ -7,6 +7,8 @@ export interface ReadyJob {
   epoch: number;
   /** Focus distance in tiles: nearer paints first. */
   distTiles: number;
+  /** May reference the cached parent; false forces a byte transfer (after a miss). */
+  refOk: boolean;
 }
 
 interface Entry {

@@ -4,11 +4,12 @@ import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
 import type { SynthRequest } from '@/workers/protocol';
 
 function req(delivery: number, stratum: number): SynthRequest {
-  return { delivery, synthesisId: delivery, stratum, qY: 4, qC: 6, seed: false, seedWidth: 192, seedHeight: 160, bands: [] };
+  return { delivery, synthesisId: delivery, stratum, qY: 4, qC: 6, seed: false, seedWidth: 192, seedHeight: 160,
+    brush: `${delivery}/1`, edition: 1, bands: [] };
 }
 
 function job(delivery: number, stratum: number, epoch = 1, distTiles = 0): ReadyJob {
-  return { req: req(delivery, stratum), brushId: BigInt(delivery), epoch, distTiles };
+  return { req: req(delivery, stratum), brushId: BigInt(delivery), epoch, distTiles, refOk: true };
 }
 
 class FakeWorker {

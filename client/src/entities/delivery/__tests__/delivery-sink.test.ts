@@ -3,7 +3,7 @@ import { DeliverySink } from '@/app/providers/delivery-sink';
 import { crc32c } from '@/shared/codec/crc32c';
 import { concat, viEncode } from '@/shared/proto/varint';
 import { rangesEncode } from '@/shared/proto/ranges';
-import { makeBrushId } from '@/shared/proto/brush';
+import { makeBrushId, brushKey } from '@/shared/proto/brush';
 import type { SessionClient } from '@/app/providers/session-client';
 
 function fakeClient() {
@@ -353,12 +353,14 @@ describe('DeliverySink', () => {
   it('a retouch decodes the bands its brush already holds, and children are redone on it', async () => {
     const client = fakeClient();
     const postMessage = vi.fn();
-    const worker = { onmessage: null as ((event: MessageEvent) => void) | null };
+    const made: Array<{ onmessage: ((event: MessageEvent) => void) | null }> = [];
     vi.stubGlobal('Worker', class {
-      get onmessage() { return worker.onmessage; }
-      set onmessage(value: ((event: MessageEvent) => void) | null) { worker.onmessage = value; }
+      onmessage: ((event: MessageEvent) => void) | null = null;
       postMessage = postMessage;
       terminate = vi.fn();
+      constructor() {
+        made.push(this);
+      }
     });
     vi.stubGlobal('ImageData', class {
       constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}
@@ -382,13 +384,14 @@ describe('DeliverySink', () => {
     expect(retouch.delivery).toBe(3);
     expect(retouch.bands).toHaveLength(2); // [0,1) from delivery 2 + its own [1,2)
 
-    worker.onmessage?.({ data: { delivery: 3, synthesisId: retouch.synthesisId, ok: true,
+    made[1]?.onmessage?.({ data: { delivery: 3, synthesisId: retouch.synthesisId, ok: true,
       rgba: new ArrayBuffer(4), planes: [new ArrayBuffer(6)], width: 1, height: 1, elapsedMs: 1 } } as MessageEvent);
     await Promise.resolve();
     await Promise.resolve();
-    const redo = postMessage.mock.calls[2]?.[0] as { delivery: number; parentPlanes: ArrayBuffer[] };
+    const redo = postMessage.mock.calls[2]?.[0] as { delivery: number; parentRef?: string; parentPlanes?: ArrayBuffer[] };
     expect(redo.delivery).toBe(4); // hung on the sketch (2), rebuilt on the retouch's planes
-    expect(redo.parentPlanes[0]?.byteLength).toBe(6);
+    expect(redo.parentRef).toBe(brushKey(brush, 1)); // by reference: made[1] just made them
+    expect(redo.parentPlanes).toBeUndefined();
     sink.dispose();
     vi.unstubAllGlobals();
   });

@@ -1,13 +1,13 @@
 import { RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, TILE } from '@/shared/config/constants';
 import { receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
-import { SynthQueue } from '@/entities/delivery/synth-queue';
+import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
 import { WorkerPool, defaultWorker, resolvePoolSize, type WorkerFactory } from '@/entities/delivery/worker-pool';
-import { makeBrushId, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
+import { makeBrushId, brushKey, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape as scrapeMatches } from '@/entities/delivery/scrape';
 import { effectiveExpiry, emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from '@/entities/delivery/store';
-import type { SynthRequest } from '@/workers/protocol';
+import { STALE_PARENT, type SynthRequest } from '@/workers/protocol';
 import type { SessionClient } from './session-client';
 
 /** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
@@ -42,6 +42,10 @@ export class DeliverySink {
   private failed = new Set<number>();
   private nextSynthesisId = 1;
   private activeSynthesis = new Map<number, number>();
+  /** brushKey → worker index holding its planes (ref routing + stickiness). */
+  private origin = new Map<string, number>();
+  /** Sent but unanswered: kept for byte-retry after a cache miss. */
+  private inflight = new Map<number, { req: SynthRequest; brushId: bigint; epoch: number }>();
   private repaint = (): void => undefined;
   private view: { x0: number; y0: number; x1: number; y1: number; focus: number } | null = null;
   private lastFree = -1;
@@ -74,9 +78,9 @@ export class DeliverySink {
   }
 
   /** A synthesis whose parents are done: claim its identity, queue it, run what fits. */
-  private enqueue(req: SynthRequest, brushId: bigint, epoch: number): void {
+  private enqueue(req: SynthRequest, brushId: bigint, epoch: number, refOk = true): void {
     this.activeSynthesis.set(req.delivery, req.synthesisId);
-    this.ready.push({ req, brushId, epoch, distTiles: this.distTiles(brushId) });
+    this.ready.push({ req, brushId, epoch, distTiles: this.distTiles(brushId), refOk });
     this.decode.setWaiting(this.ready.size);
     this.pump();
   }
@@ -86,22 +90,59 @@ export class DeliverySink {
     if (this.ready.size === 0) return;
     const pool = this.ensurePool();
     for (;;) {
-      const index = pool.idleIndex();
-      if (index < 0) break;
+      if (pool.idleIndex() < 0) break;
       const job = this.ready.pop();
       if (!job) break;
       if (!this.book.byDelivery.has(job.req.delivery)) continue;
       if (this.activeSynthesis.get(job.req.delivery) !== job.req.synthesisId) continue;
       try {
+        const index = this.pickWorker(pool, job);
         const transfers = [...job.req.bands];
         if (job.req.parentPlanes) transfers.push(...job.req.parentPlanes);
         pool.send(index, job.req, transfers);
+        this.inflight.set(job.req.delivery, { req: job.req, brushId: job.brushId, epoch: job.epoch });
         this.decode.posted();
       } catch {
+        this.inflight.delete(job.req.delivery);
         this.failSynthesis(job.req.delivery);
       }
     }
     this.decode.setWaiting(this.ready.size);
+  }
+
+  /**
+   * Sticky when the parent's worker is free: its plane cache likely still holds
+   * the parent, so the child goes by reference and skips the transfer. Bytes go
+   * otherwise (and populate that worker's cache under the parent key).
+   */
+  private pickWorker(pool: WorkerPool, job: ReadyJob): number {
+    if (job.refOk && job.req.parentKey !== undefined) {
+      const pref = this.origin.get(job.req.parentKey);
+      if (pref !== undefined && pool.isIdle(pref)) {
+        job.req.parentRef = job.req.parentKey;
+        job.req.parentPlanes = undefined;
+        return pref;
+      }
+    }
+    const idle = pool.idleIndex();
+    if (idle < 0) throw new Error('no idle synthesis worker');
+    return idle;
+  }
+
+  /** The assigned worker had evicted the parent: re-attach bytes and requeue. */
+  private retryWithBytes(req: SynthRequest, brushId: bigint, epoch: number): void {
+    const rec = this.book.byDelivery.get(req.delivery);
+    if (!rec) return;
+    const { stratum, bx, by } = splitBrushId(brushId);
+    const parent = this.parentFor(stratum, bx, by, req.edition, rec.epoch);
+    if (!parent?.planes) {
+      this.failSynthesis(req.delivery);
+      return;
+    }
+    this.linkParent(req.delivery, parent.delivery);
+    req.parentRef = undefined;
+    this.withParent(req, parent, bx, by);
+    this.enqueue(req, brushId, epoch, false);
   }
 
   private distTiles(brushId: bigint): number {
@@ -122,10 +163,18 @@ export class DeliverySink {
     if (this.lastQueue >= COLA_BUSY_MS && this.decode.ms < COLA_BUSY_MS) this.flushReceipt();
     this.pump();
     if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) return;
+    const ctx = this.inflight.get(out.delivery);
+    this.inflight.delete(out.delivery);
     if (!out.ok || !out.rgba) {
+      if (out.error === STALE_PARENT && ctx) {
+        this.retryWithBytes(ctx.req, ctx.brushId, ctx.epoch);
+        return;
+      }
       this.failSynthesis(out.delivery);
       return;
     }
+    const rec0 = this.book.byDelivery.get(out.delivery);
+    if (rec0) this.origin.set(brushKey(rec0.brushId, rec0.edition), index);
     createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba), out.width, out.height))
       .then((bmp) => {
         if (this.activeSynthesis.get(out.delivery) !== out.synthesisId) {
@@ -228,6 +277,8 @@ export class DeliverySink {
       seed: split.stratum === 10,
       seedWidth: this.seedWidth,
       seedHeight: this.seedHeight,
+      brush: brushKey(h.brushId, h.edition),
+      edition: h.edition,
       bands: this.brushBands(rec),
     };
     const parent = this.parentFor(split.stratum, split.bx, split.by, h.edition, h.epoch);
@@ -299,6 +350,7 @@ export class DeliverySink {
 
   private withParent(req: SynthRequest, parent: DeliveryRecord, bx: number, by: number): void {
     const seed = parent.stratum === 10;
+    req.parentKey = brushKey(parent.brushId, parent.edition);
     req.parentPlanes = (parent.planes ?? []).map((plane) => plane.slice(0));
     req.parentPlaneWidth = seed ? this.seedWidth : 256;
     req.parentPlaneHeight = seed ? this.seedHeight : 256;
@@ -344,7 +396,9 @@ export class DeliverySink {
     this.book.pendingReceipt = this.book.pendingReceipt.filter((n) => !removed.has(n));
     for (const n of all) {
       this.pending.delete(n);
+      this.inflight.delete(n);
       const rec = this.book.byDelivery.get(n);
+      if (rec) this.origin.delete(brushKey(rec.brushId, rec.edition));
       rec?.rgba?.close();
       this.book.byDelivery.delete(n);
       this.book.inFlight.delete(n);
@@ -386,6 +440,7 @@ export class DeliverySink {
       const req: SynthRequest = {
         delivery: child.delivery, synthesisId: this.nextSynthesisId++, stratum, qY: child.qY ?? 0, qC: child.qC ?? 0,
         seed: stratum === 10, seedWidth: this.seedWidth, seedHeight: this.seedHeight,
+        brush: brushKey(child.brushId, child.edition), edition: child.edition,
         bands: this.brushBands(child),
       };
       this.withParent(req, parent, bx, by);
@@ -548,6 +603,11 @@ export class DeliverySink {
     return this.decode.ms;
   }
 
+  /** Pool observability for telemetry: size, busy workers, queued jobs. */
+  get synthLoad(): { size: number; busy: number; waiting: number } {
+    return { size: this.pool?.size ?? 0, busy: this.pool?.busyCount() ?? 0, waiting: this.ready.size };
+  }
+
   get avgDeliveryBytes(): number {
     return this.avgDelivery;
   }
@@ -624,6 +684,8 @@ export class DeliverySink {
     this.ready.clear();
     this.pending.clear();
     this.activeSynthesis.clear();
+    this.inflight.clear();
+    this.origin.clear();
     this.failed.clear();
     for (const rec of this.book.byDelivery.values()) rec.rgba?.close();
     this.book = emptyLedger();

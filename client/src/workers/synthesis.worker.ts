@@ -1,4 +1,14 @@
 import type { SynthRequest, SynthResult } from './protocol';
+import { STALE_PARENT, SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL } from './protocol';
+import { ParentPlaneCache, type PlaneSet } from './synth-cache';
+
+/** Parent planes this worker synthesized or received: ref hits skip transfers. */
+const parents = new ParentPlaneCache(SYNTH_CACHE_SMALL, SYNTH_CACHE_MAIN, SYNTH_CACHE_GHOST);
+
+/** Cache identity: same `${brush}/${edition}` the main thread computes. */
+function ownKey(req: SynthRequest): string {
+  return `${req.brush}/${req.edition}`;
+}
 
 function uleb(bytes: Uint8Array, pos: number): { v: number; n: number } {
   let v = 0;
@@ -26,26 +36,60 @@ function deq(i: number, q: number): number {
 }
 
 
+function cropInto(source: Int16Array, width: number, height: number, x0: number, y0: number, target: Int16Array): void {
+  for (let y = 0; y < 128; y++) {
+    for (let x = 0; x < 128; x++) {
+      const sx = Math.min(width - 1, x0 + x);
+      const sy = Math.min(height - 1, y0 + y);
+      target[y * 128 + x] = source[sy * width + sx] ?? 0;
+    }
+  }
+}
+
+function cropGeometry(req: SynthRequest): { width: number; height: number; x0: number; y0: number } {
+  return {
+    width: req.parentPlaneWidth ?? 256,
+    height: req.parentPlaneHeight ?? 256,
+    x0: req.parentX ?? 0,
+    y0: req.parentY ?? 0,
+  };
+}
+
 function loadParentPlanes(req: SynthRequest, parentPlanes: Record<'Y' | 'Co' | 'Cg', Int16Array>): void {
   if (!req.parentPlanes) return;
-  const width = req.parentPlaneWidth ?? 256;
-  const height = req.parentPlaneHeight ?? 256;
-  const x0 = req.parentX ?? 0;
-  const y0 = req.parentY ?? 0;
+  const { width, height, x0, y0 } = cropGeometry(req);
   const names = ['Y', 'Co', 'Cg'] as const;
   for (let c = 0; c < names.length; c++) {
     const name = names[c];
     if (!name) continue;
     const source = new Int16Array(req.parentPlanes[c] ?? new ArrayBuffer(0));
-    const target = parentPlanes[name];
-    for (let y = 0; y < 128; y++) {
-      for (let x = 0; x < 128; x++) {
-        const sx = Math.min(width - 1, x0 + x);
-        const sy = Math.min(height - 1, y0 + y);
-        target[y * 128 + x] = source[sy * width + sx] ?? 0;
-      }
-    }
+    cropInto(source, width, height, x0, y0, parentPlanes[name]);
   }
+}
+
+/** Crop cached full planes with the same geometry the bytes path would use. */
+function loadCachedPlanes(hit: PlaneSet, req: SynthRequest, parentPlanes: Record<'Y' | 'Co' | 'Cg', Int16Array>): void {
+  const { width, height, x0, y0 } = cropGeometry(req);
+  cropInto(hit.Y, width, height, x0, y0, parentPlanes.Y);
+  cropInto(hit.Co, width, height, x0, y0, parentPlanes.Co);
+  cropInto(hit.Cg, width, height, x0, y0, parentPlanes.Cg);
+}
+
+function snapshot(planes: Record<'Y' | 'Co' | 'Cg', Int16Array>): PlaneSet {
+  return { Y: planes.Y.slice(), Co: planes.Co.slice(), Cg: planes.Cg.slice() };
+}
+
+/** Received bytes also populate the cache under their parent key (copied). */
+function cacheBytes(req: SynthRequest): void {
+  if (req.parentKey === undefined || req.parentPlanes === undefined) return;
+  const bufs = req.parentPlanes;
+  if (bufs.length !== 3 || bufs.some((b) => b === undefined || b.byteLength === 0)) return;
+  const views = bufs.map((b) => new Int16Array(b ?? new ArrayBuffer(0)).slice());
+  const Y = views[0];
+  const Co = views[1];
+  const Cg = views[2];
+  if (Y === undefined || Co === undefined || Cg === undefined) return;
+  parents.store(req.parentKey, { Y, Co, Cg });
 }
 
 async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
@@ -78,6 +122,21 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   await w.write(data as unknown as Uint8Array<ArrayBuffer>);
   await w.close();
   return p;
+}
+
+function miss(req: SynthRequest, t0: number): void {
+  const out: SynthResult = {
+    delivery: req.delivery,
+    synthesisId: req.synthesisId,
+    ok: false,
+    error: STALE_PARENT,
+    rgba: null,
+    planes: null,
+    width: 0,
+    height: 0,
+    elapsedMs: performance.now() - t0,
+  };
+  self.postMessage(out);
 }
 
 self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
@@ -114,7 +173,17 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
         Co: new Int16Array(16384),
         Cg: new Int16Array(16384),
       };
-      loadParentPlanes(req, parentPlanes);
+      if (req.parentRef !== undefined) {
+        const hit = parents.fetch(req.parentRef);
+        if (!hit) {
+          miss(req, t0);
+          return;
+        }
+        loadCachedPlanes(hit, req, parentPlanes);
+      } else {
+        loadParentPlanes(req, parentPlanes);
+        cacheBytes(req);
+      }
       const n = 16384;
       const nch = req.qC > 0 ? 3 : 1;
       const chNames = ['Y', 'Co', 'Cg'] as const;
@@ -191,6 +260,9 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
         }
       }
     }
+
+    // Retain a copy for future children: the transferred buffers detach below.
+    parents.store(ownKey(req), snapshot(planes));
 
     const rgba = new Uint8ClampedArray(px * 4);
     for (let i = 0; i < px; i++) {

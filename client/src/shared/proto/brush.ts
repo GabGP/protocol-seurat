@@ -89,3 +89,11 @@ export function sliceBands(bytes: Uint8Array, h: BrushHead): Uint8Array[] {
 export function verifyBand(band: Uint8Array, expect: number): boolean {
   return crc32c(band) === (expect >>> 0);
 }
+
+/**
+ * Cache/family identity: deliveries of one brush + edition share bands and
+ * parents. The worker builds the same `${brush}/${edition}` string on its side.
+ */
+export function brushKey(brushId: bigint, edition: number): string {
+  return `${brushId.toString()}/${edition}`;
+}
