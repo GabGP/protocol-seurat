@@ -1,6 +1,12 @@
-import { RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, TILE } from '@/shared/config/constants';
+import {
+  EVICT_HEADROOM, EVICT_PRESSURE, EVICT_TARGET, RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, SKETCH_MIN, TILE,
+} from '@/shared/config/constants';
 import { receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
+import { AttentionHeat } from '@/entities/delivery/attention-heat';
+import { collectCandidates, inCore, ownedBrushes, type EvictView } from '@/entities/delivery/evict-candidate';
+import { GazeMotion } from '@/entities/delivery/gaze-motion';
+import { rankHorizon } from '@/entities/delivery/horizon-rank';
 import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
 import { WorkerPool, defaultWorker, resolvePoolSize, type WorkerFactory } from '@/entities/delivery/worker-pool';
 import { makeBrushId, brushKey, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
@@ -47,7 +53,11 @@ export class DeliverySink {
   /** Sent but unanswered: kept for byte-retry after a cache miss. */
   private inflight = new Map<number, { req: SynthRequest; brushId: bigint; epoch: number }>();
   private repaint = (): void => undefined;
-  private view: { x0: number; y0: number; x1: number; y1: number; focus: number } | null = null;
+  private view: EvictView | null = null;
+  /** When `view` went on screen (s), so its brushes get the dwell as attention heat. */
+  private viewSince = 0;
+  private readonly gaze = new GazeMotion();
+  private readonly heat = new AttentionHeat();
   private lastFree = -1;
   private lastQueue = 0;
   private lastRenew = 0;
@@ -532,56 +542,54 @@ export class DeliverySink {
    * evictable; if that frees room, a RECIBO tells the server the window reopened.
    */
   setView(x0: number, y0: number, x1: number, y1: number, vw: number, vh: number): void {
-    const ideal = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
+    const nowS = performance.now() / 1000;
+    const zoom = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
+    const ideal = Number.isFinite(zoom) ? zoom : 0;
     const focus = Math.max(0, Math.min(this.top - 1, Math.floor(ideal)));
+    this.warmShown(nowS);
     this.view = { x0, y0, x1, y1, focus };
+    this.viewSince = nowS;
+    this.gaze.observe(nowS, (x0 + x1) / 2, (y0 + y1) / 2, ideal, Math.hypot(x1 - x0, y1 - y0) / 2);
     if (this.relieve()) this.flushReceipt();
+  }
+
+  /** Attention heat: the brushes the outgoing view showed are credited the time it stayed on screen. */
+  private warmShown(nowS: number): void {
+    const v = this.view;
+    if (!v) return;
+    const dwell = nowS - this.viewSince;
+    for (const [key, recs] of ownedBrushes(this.book)) {
+      if (inCore(v, recs[0]!.brushId)) this.heat.warm(key, dwell, nowS);
+    }
   }
 
   /**
    * §5.2.3 voluntary eviction. Under pressure (owned + in flight ≥ max − 8, or bytes > 90 %)
-   * drop leaf brushes — no owned children — until 75 % full: first those outside the cone (finer
-   * than the focus, or beyond the planner's outer ring), then the finest stratum, then the
-   * farthest from the gaze. Never the sketch nor the cone's core (focus and its ancestors over
-   * the view). Whole brushes go, all deliveries at once, with SOLTAR reason 1.
+   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor the cone's
+   * core (see `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted
+   * time-to-need from the gaze's motion (kinematic Bélády), shortened by attention heat.
+   * Whole brushes go, all deliveries at once, with SOLTAR reason 1.
    */
   private relieve(): boolean {
     const maxN = this.maxBrushes();
     const maxB = this.maxKiB() * 1024;
     const load = (): number => this.book.byDelivery.size + this.book.inFlight.size;
-    if (load() < maxN - 8 && ownedBytes(this.book) <= 0.9 * maxB) return false;
-    const sketch = Math.min(7, Math.max(0, this.top - 1));
-    const v = this.view;
-    const cx = v ? (v.x0 + v.x1) / 2 : 0;
-    const cy = v ? (v.y0 + v.y1) / 2 : 0;
+    if (load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) return false;
+    const sketch = Math.min(SKETCH_MIN, Math.max(0, this.top - 1));
+    const nowS = performance.now() / 1000;
+    const gaze = this.gaze.state(nowS);
+    const heatOf = (key: string): number => this.heat.heat(key, nowS);
     const released: number[] = [];
-    const over = (): boolean => load() > 0.75 * maxN || ownedBytes(this.book) > 0.75 * maxB;
+    const over = (): boolean => load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
     while (over()) {
-      const brushes = new Map<string, DeliveryRecord[]>();
-      for (const r of this.book.byDelivery.values()) {
-        const k = r.brushId.toString() + '/' + r.edition;
-        brushes.set(k, [...(brushes.get(k) ?? []), r]);
-      }
-      const ranked: Array<{ recs: DeliveryRecord[]; outside: number; stratum: number; dist: number }> = [];
-      for (const recs of brushes.values()) {
-        const { stratum, bx, by } = splitBrushId(recs[0]!.brushId);
-        const hasKids = recs.some((r) => [...(this.book.childrenOf.get(r.delivery) ?? [])].some((k) => this.book.byDelivery.has(k)));
-        if (stratum >= sketch || hasKids) continue;
-        const side = 256 * 2 ** stratum;
-        const [x0, y0] = [bx * side, by * side];
-        const hits = (m: number): boolean => !!v && stratum >= v.focus
-          && x0 < cx + (v.x1 - cx) * m && x0 + side > cx - (cx - v.x0) * m
-          && y0 < cy + (v.y1 - cy) * m && y0 + side > cy - (cy - v.y0) * m;
-        if (hits(1)) continue; // core: what is on screen now
-        ranked.push({ recs, outside: hits(4) ? 1 : 0, stratum, dist: Math.hypot(x0 + side / 2 - cx, y0 + side / 2 - cy) });
-      }
-      if (ranked.length === 0) break;
-      ranked.sort((a, b) => a.outside - b.outside || a.stratum - b.stratum || b.dist - a.dist);
-      for (const { recs } of ranked) {
+      const candidates = collectCandidates(this.book, this.view, sketch);
+      if (candidates.length === 0) break;
+      for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
         if (!over()) break;
         for (const r of recs) if (this.book.byDelivery.has(r.delivery)) released.push(...this.removeSubtree(r.delivery, 0));
       }
     }
+    if (released.length > 0) this.heat.prune(new Set(ownedBrushes(this.book).keys()));
     this.release(released, 1);
     return released.length > 0;
   }
@@ -651,7 +659,7 @@ export class DeliverySink {
 
   private flushReceipt(): void {
     this.flushRelease();
-    this.relieve(); // §5.2.3: SOLTAR LRU goes out before anything that depends on the count
+    this.relieve(); // §5.2.3: SOLTAR motivo 1 goes out before anything that depends on the count
     const q = this.book.pendingReceipt;
     const free = this.free();
     const queue = Math.round(this.decode.ms);
