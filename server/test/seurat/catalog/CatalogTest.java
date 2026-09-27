@@ -36,6 +36,7 @@ public final class CatalogTest {
         catalog.progress("missing", 1);
         TestKit.check(seen.size() == 5, "unknown id silent");
         testLoadRecovery();
+        testCommaIdRecovery();
         System.out.println("CatalogTest OK");
     }
 
@@ -55,5 +56,26 @@ public final class CatalogTest {
         TestKit.check(loaded.get("r0").store == null, "r0 has no store");
         TestKit.check(loaded.get("w1") != null, "loaded w1");
         TestKit.check(loaded.get("w1.png") == null, "w1.png deduplicated");
+    }
+
+    /** Restart skip: a LISTA id holding a comma must survive meta.json round-trip. */
+    private static void testCommaIdRecovery() throws Exception {
+        Path root = Files.createTempDirectory("catalog-comma-test");
+        String id = "Declaration_of_victory_after_the_Battle_of_Leipzig,_by_Krafft";
+        Catalog catalog = new Catalog(root);
+        WorkMeta m = new WorkMeta(id, id, 1024, 768, 256, 3,
+                ProtoCodes.ST_LISTA, 2, 0, 2);
+        catalog.register(new WorkRecord(m));
+        Path dir = root.resolve(id);
+        Files.writeString(dir.resolve("quant"), "1");
+        Files.write(dir.resolve("semilla.bin"), new byte[]{0, 0, 0, 5, 1, 2, 3, 4});
+        String json = Files.readString(dir.resolve("meta.json"));
+        TestKit.check(MetaJson.read(id, json).id().equals(id), "comma id parses intact");
+
+        Catalog loaded = new Catalog(root);
+        loaded.load();
+        TestKit.check(loaded.get(id) != null && loaded.get(id).meta.id().equals(id),
+                "comma work reloads under its full id");
+        TestKit.check(loaded.isCompleted(id), "comma LISTA work skips re-ingest");
     }
 }
