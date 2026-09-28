@@ -21,7 +21,7 @@ public final class PngReader implements MasterReader {
     private final DataInputStream scanlines;
     private final java.util.zip.Inflater inf;
     private final InputStream rawStream;
-    private final ImageIoReader fallback;
+    private final MasterReader fallback;
     private byte[] curRow;
     private byte[] prevRow;
     private int row;
@@ -48,7 +48,8 @@ public final class PngReader implements MasterReader {
             this.inf = null;
             this.bpp = 0;
             this.colorType = 0;
-            this.fallback = new ImageIoReader(source);
+            MasterReader jpeg = JpegReader.open(source);
+            this.fallback = jpeg != null ? jpeg : new ImageIoReader(source);
             this.width = fallback.width();
             this.height = fallback.height();
         }

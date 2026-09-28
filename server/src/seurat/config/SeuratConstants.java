@@ -61,6 +61,8 @@ public final class SeuratConstants {
     public static final long INGEST_CHUNK_BYTES = 256L * 1024 * 1024;
     /** Row slices per channel when a band is converted or transformed on the ingest fast lane. */
     public static final int INGEST_LANE_SLICES = 8;
+    /** JPEG MCU rows the scan decodes before they are painted in parallel. */
+    public static final int INGEST_JPEG_ROWS_IN_FLIGHT = 8;
     /** Bands the read-ahead producer may hold while workers encode. */
     public static final int INGEST_READAHEAD_BANDS = 2;
     /** Graceful shutdown: per-executor await before forcing stop. */
