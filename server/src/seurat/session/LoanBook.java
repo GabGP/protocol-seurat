@@ -91,6 +91,11 @@ public final class LoanBook {
     /** Session died: unacked grants expire at deadline (spec 8, t_desconexion + L + delta). */
     public synchronized void expireUnacked(long deadlineNs) { leases.expireUnacked(deliveries.keySet(), deadlineNs); }
 
+    /** Session died with these renewed but unacknowledged: vence = t_desconexion + L + delta (spec 8). */
+    public synchronized void expireRenewed(Ranges r, long deadlineNs) {
+        leases.extend(r, deliveries.keySet(), deadlineNs);
+    }
+
     public synchronized Ranges pruneExpired(long nowNs) {
         Ranges.Builder expired = new Ranges.Builder();
         leases.expired(nowNs, expired::add);

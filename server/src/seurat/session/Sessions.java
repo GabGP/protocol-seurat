@@ -67,11 +67,16 @@ public final class Sessions {
         return (SeuratConstants.LEASE_S * 1000 + SeuratConstants.SKEW_MS) * 1_000_000L;
     }
 
-    /** Disconnect: its books live L + delta; unacked grants expire with them (spec 8). */
+    /** Disconnect: its books live L + delta; unacked deliveries and renewals expire with them (spec 8). */
     public void retire(Session session) {
         live.remove(session.id());
         long deadline = System.nanoTime() + bookLifeNs();
-        session.canvases().values().forEach(c -> c.book().expireUnacked(deadline));
+        for (Canvas c : session.canvases().values()) {
+            synchronized (c) {
+                c.book().expireUnacked(deadline);
+                c.orders().pendingRenewals().forEach(r -> c.book().expireRenewed(r, deadline));
+            }
+        }
         resumable.put(session.id(), new Resumable(session.ticket(), session.principal(), session, deadline));
         resumable.replaceAll((id, r) -> r.holder() == session
                 ? new Resumable(r.ticket(), r.principal(), session, deadline) : r);

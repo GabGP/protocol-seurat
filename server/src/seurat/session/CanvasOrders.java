@@ -58,6 +58,11 @@ public final class CanvasOrders {
         renewals.put(order, ranges);
     }
 
+    /** RENOVAR the client has not acknowledged yet (renov_hasta below their orden). */
+    public List<Ranges> pendingRenewals() {
+        return List.copyOf(renewals.values());
+    }
+
     /** renov_hasta: every RENOVAR up to it was applied; hands back their ranges once. */
     public List<Ranges> takeRenewalsThrough(long order) {
         List<Ranges> out = new ArrayList<>();

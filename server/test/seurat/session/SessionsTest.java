@@ -8,6 +8,7 @@ public final class SessionsTest {
         tokenSingleUse();
         resumable();
         idempotentUntilFirstReceipt();
+        renewedAtDisconnect();
         System.out.println("SessionsTest OK");
     }
 
@@ -34,6 +35,29 @@ public final class SessionsTest {
         TestKit.check(sessions.resumable(9, new byte[32], "p") == null, "wrong ticket");
         TestKit.check(sessions.resumable(9, ticket, "q") == null, "another principal");
         TestKit.check(sessions.graves().contains(session), "a grave references its works");
+    }
+
+    /**
+     * Spec 8: at a disconnect, a delivery whose RENOVAR was not acknowledged yet expires at
+     * t_desconexion + L + delta like an unacked one, not at its older t_acuse + L + delta
+     * (the client may have applied that RENOVAR: invariant 3, client within the book).
+     */
+    private static void renewedAtDisconnect() {
+        Sessions sessions = new Sessions();
+        Session session = new Session(4, "p", "anonimo", 128, 0, null, new byte[32]);
+        Canvas canvas = new Canvas(1, "w", null, new seurat.store.WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
+                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        session.canvases().put(1L, canvas);
+        long renewed = canvas.book().log(new seurat.codec.BrushId(0, 0, 0), 0, 2, 100, 1).number();
+        long plain = canvas.book().log(new seurat.codec.BrushId(0, 1, 0), 0, 2, 100, 1).number();
+        long s = 1_000_000_000L;
+        long acked = System.nanoTime() - 100 * s; // acknowledged 100 s ago: vence_srv in ~21 s
+        canvas.book().acknowledge(seurat.proto.Ranges.of(renewed, plain), acked, 120 * s, s);
+        canvas.orders().addRenewal(canvas.orders().next(), seurat.proto.Ranges.of(renewed));
+        sessions.retire(session);
+        seurat.proto.Ranges gone = canvas.book().pruneExpired(System.nanoTime() + 60 * s);
+        TestKit.check(gone.contains(plain), "acknowledged, not renewed: keeps t_acuse + L + delta");
+        TestKit.check(!gone.contains(renewed), "renewed, unacknowledged: t_desconexion + L + delta");
     }
 
     /** A retry after a lost BIENVENIDA gives the same result; the first RECIBO ends that. */

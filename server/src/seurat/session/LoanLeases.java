@@ -35,6 +35,15 @@ final class LoanLeases {
         }
     }
 
+    /** Disconnect with a RENOVAR unacknowledged: the client may hold these until the deadline too. */
+    void extend(Ranges r, Set<Long> held, long deadline) {
+        r.forEach(n -> {
+            if (held.contains(n)) {
+                deadlineNs.merge(n, deadline, Math::max);
+            }
+        });
+    }
+
     void expired(long nowNs, LongConsumer out) {
         for (var e : Map.copyOf(deadlineNs).entrySet()) {
             if (e.getValue() < nowNs) {
