@@ -71,4 +71,18 @@ describe('send-gaze', () => {
     expect(t.control.length).toBe(1);
     s.dispose();
   });
+
+  it('every view a MIRADA describes reaches onLook with its seq, before anything is sent', () => {
+    const t = fakeTransport(true);
+    const seen: [number, number][] = [];
+    const s = new GazeSender(() => t as unknown as SeuratTransport, (m) => seen.push([m.seq, m.x1]));
+    s.motion({ ...base, x1: 100 });
+    expect(seen).toEqual([[1, 100]]);
+    expect(t.datagrams.length).toBe(0);
+    s.still({ ...base, x1: 200 });
+    s.again();
+    expect(seen).toEqual([[1, 100], [2, 200], [3, 200]]);
+    expect(s.lastSeq).toBe(3);
+    s.dispose();
+  });
 });

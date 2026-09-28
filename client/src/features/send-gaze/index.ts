@@ -11,12 +11,17 @@ export class GazeSender {
   private idleTimer = 0;
   private lastSentAt = 0;
 
-  constructor(private transport: () => SeuratTransport | null) {}
+  /**
+   * `onLook` hears every view a MIRADA will describe, with its seq, whoever asked for it: the
+   * delivery book must know the cone the server is painting before anything arrives for it.
+   */
+  constructor(
+    private transport: () => SeuratTransport | null,
+    private onLook: (m: Gaze) => void = () => {},
+  ) {}
 
   motion(m: Omit<Gaze, 'seq'>): void {
-    this.seq += 1;
-    this.pending = { ...m, seq: this.seq };
-    this.last = this.pending;
+    this.record(m);
     if (this.raf === 0) {
       const g = globalThis as { requestAnimationFrame?: (cb: () => void) => number };
       if (typeof g.requestAnimationFrame === 'function') {
@@ -38,19 +43,22 @@ export class GazeSender {
 
   still(m: Omit<Gaze, 'seq'>): void {
     clearTimeout(this.idleTimer);
-    this.seq += 1;
-    this.pending = { ...m, seq: this.seq };
-    this.last = this.pending;
+    this.record(m);
     this.flush(true);
   }
 
   /** After a resume the server has no plan: the current view again, reliably, with a new seq. */
   again(): void {
     if (!this.last) return;
-    this.seq += 1;
-    this.pending = { ...this.last, seq: this.seq };
-    this.last = this.pending;
+    this.record(this.last);
     this.flush(true);
+  }
+
+  private record(m: Omit<Gaze, 'seq'>): void {
+    this.seq += 1;
+    this.pending = { ...m, seq: this.seq };
+    this.last = this.pending;
+    this.onLook(this.pending);
   }
 
   hidden(handle: number): void {

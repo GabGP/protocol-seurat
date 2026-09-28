@@ -245,7 +245,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     const concessionRef: { current: Concession | null } = { current: null };
     const client = new SessionClient(events);
     clientRef.current = client;
-    gazesRef.current = new GazeSender(() => clientRef.current?.activeTransport ?? null);
+    gazesRef.current = new GazeSender(() => clientRef.current?.activeTransport ?? null, (m) => sinkRef.current?.handle === m.handle && sinkRef.current.setView(m.x0, m.y0, m.x1, m.y1, m.vw, m.vh, m.seq));
     client.boot().then(
       () => {
         if (alive) client.requestCatalog();
