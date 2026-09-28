@@ -41,7 +41,7 @@ public final class Easel implements Runnable {
         String reason = "disconnect";
         try {
             session = new SessionHandshake(mapping, entry, ctx).hello();
-            loop(session, new CanvasService(mapping, ctx));
+            loop(session, new CanvasService(mapping, ctx), new LoanHandlers(mapping, ctx));
             reason = "ADIOS"; // the loop only returns on ADIOS
         } catch (java.io.EOFException ex) {
             reason = "disconnect";
@@ -94,7 +94,7 @@ public final class Easel implements Runnable {
         return f;
     }
 
-    private void loop(Session session, CanvasService service) throws Exception {
+    private void loop(Session session, CanvasService service, LoanHandlers loans) throws Exception {
         for (;;) {
             byte[] raw = take();
             Frame f = Wire.parse(0, () -> Frame.decodeExact(raw));
@@ -105,13 +105,13 @@ public final class Easel implements Runnable {
             if (type == FrameType.MIRADA) {
                 service.gaze(session, f);
             } else if (type == FrameType.RECIBO) {
-                service.receipt(session, f);
+                loans.receipt(session, f);
             } else if (type == FrameType.SOLTAR) {
-                service.release(session, f);
+                loans.release(session, f);
             } else if (type == FrameType.RASPADO) {
-                service.scraped(session, f);
+                loans.scraped(session, f);
             } else if (type == FrameType.INVENTARIO) {
-                service.inventory(session, f);
+                loans.inventory(session, f);
             } else if (type == FrameType.ABRIR) {
                 service.open(session, f);
             } else if (type == FrameType.CERRAR) {

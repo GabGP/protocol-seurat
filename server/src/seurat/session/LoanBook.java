@@ -1,11 +1,8 @@
 package seurat.session;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import seurat.codec.BrushId;
-import seurat.config.SeuratConstants;
 import seurat.proto.Ranges;
 
 /**
@@ -14,10 +11,8 @@ import seurat.proto.Ranges;
  * counted per edition: after the ed1 -> ed2 swap the sketch is owed again.
  */
 public final class LoanBook {
-    private record Key(BrushId brush, long edition) {}
-
     private final TreeMap<Long, Delivery> deliveries = new TreeMap<>();
-    private final Map<Key, TreeMap<Integer, Delivery>> byBrush = new HashMap<>();
+    private final BrushHoldings holdings = new BrushHoldings();
     private final LoanLeases leases = new LoanLeases();
     private long last;
     private long edition;
@@ -31,22 +26,14 @@ public final class LoanBook {
 
     /** Bands held contiguously from 0 in the current edition; seed: all or none. */
     public synchronized int bands(BrushId p) {
-        TreeMap<Integer, Delivery> group = byBrush.get(new Key(p, edition));
-        if (group == null || p.stratum() == SeuratConstants.SEED_STRATUM) {
-            return group == null ? 0 : 4;
-        }
-        int have = 0;
-        for (var e = group.firstEntry(); e != null && e.getKey() <= have; e = group.higherEntry(e.getKey())) {
-            have = Math.max(have, e.getValue().through());
-        }
-        return have;
+        return holdings.bands(p, edition);
     }
 
     /** Numbers BEFORE opening the flow. */
     public synchronized Delivery log(BrushId p, int from, int through, int bytes, long epoch) {
         Delivery e = new Delivery(++last, p, from, through, bytes, epoch, edition);
         deliveries.put(e.number(), e);
-        byBrush.computeIfAbsent(new Key(p, edition), k -> new TreeMap<>()).put(from, e);
+        holdings.put(e);
         return e;
     }
 
@@ -58,7 +45,7 @@ public final class LoanBook {
         }
         Delivery s = new Delivery(n, e.brush(), e.from(), through, bytes, e.epoch(), e.edition());
         deliveries.put(n, s);
-        byBrush.get(new Key(e.brush(), e.edition())).put(e.from(), s);
+        holdings.put(s);
         return s;
     }
 
@@ -136,13 +123,6 @@ public final class LoanBook {
             return;
         }
         leases.forget(n);
-        Key key = new Key(e.brush(), e.edition());
-        TreeMap<Integer, Delivery> group = byBrush.get(key);
-        if (group != null) {
-            group.remove(e.from(), e); // a resend from the same band may have replaced it
-            if (group.isEmpty()) {
-                byBrush.remove(key);
-            }
-        }
+        holdings.remove(e);
     }
 }

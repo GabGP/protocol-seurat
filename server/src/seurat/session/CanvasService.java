@@ -1,24 +1,18 @@
 package seurat.session;
 
 import java.nio.ByteBuffer;
-import seurat.config.SeuratConstants;
-import seurat.config.Units;
 import seurat.net.Mapping;
-import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.Buf;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgAudit;
 import seurat.proto.MsgGaze;
 import seurat.proto.MsgHandshake;
-import seurat.proto.MsgLoans;
-import seurat.proto.ProtoCodes;
 import seurat.proto.VarInt;
 import seurat.proto.Wire;
 
-/** Per-frame handlers of an Easel. An unknown handle is ERROR 6 (not fatal) and the frame is skipped. */
+/** Session-side frames of an Easel: MIRADA, ABRIR, CERRAR, CATALOGO and ECO. Loan frames are in {@link LoanHandlers}. */
 final class CanvasService {
     private final Mapping mapping;
     private final EaselContext ctx;
@@ -28,87 +22,12 @@ final class CanvasService {
         this.ctx = ctx;
     }
 
-    private Canvas canvas(Session session, long handle, long type) {
-        Canvas canvas = session.canvases().get(handle);
-        if (canvas == null) {
-            Log.warn(LogTags.SESSION, "s" + session.id() + " invalid handle=" + handle);
-            Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
-                    ProtoCodes.ERR_HANDLE, 0, type, "handle " + handle).encode());
-        }
-        return canvas;
-    }
-
     void gaze(Session session, Frame f) {
         MsgGaze.Gaze gaze = Wire.parse(f.type(), () -> MsgGaze.Gaze.parse(f.payload()));
         session.lastGazeNs = System.nanoTime();
-        Canvas canvas = canvas(session, gaze.handle(), f.type());
+        Canvas canvas = HandleLookup.find(mapping, session, gaze.handle(), f.type());
         if (canvas != null) {
             ctx.gazes().offer(session, canvas, gaze);
-        }
-    }
-
-    void receipt(Session session, Frame f) {
-        MsgLoans.Receipt receipt = Wire.parse(f.type(), () -> MsgLoans.Receipt.parse(f.payload()));
-        Canvas canvas = canvas(session, receipt.handle(), f.type());
-        if (canvas == null) {
-            return;
-        }
-        synchronized (canvas) {
-            long now = System.nanoTime();
-            long leaseNs = SeuratConstants.LEASE_S * Units.NANOS_PER_S;
-            long skewNs = session.roundTrip.deltaNs();
-            canvas.book().acknowledge(receipt.completed(), now, leaseNs, skewNs);
-            canvas.book().settle(receipt.completed());
-            for (var ranges : canvas.orders().takeRenewalsThrough(receipt.renewThrough())) {
-                canvas.book().acknowledge(ranges, now, leaseNs, skewNs); // vence_srv from renov_hasta
-            }
-            canvas.free = receipt.free();
-            session.queue(receipt.queueMs());
-        }
-        ctx.sessions().settled(session);
-        ctx.grants().credit(canvas);
-    }
-
-    void release(Session session, Frame f) {
-        MsgLoans.Release release = Wire.parse(f.type(), () -> MsgLoans.Release.parse(f.payload()));
-        Canvas canvas = canvas(session, release.handle(), f.type());
-        if (canvas == null) {
-            return;
-        }
-        synchronized (canvas) {
-            if (release.reason() == ProtoCodes.SOLTAR_DECODIFICACION || release.reason() == ProtoCodes.SOLTAR_CRC) {
-                release.ranges().forEach(n -> {
-                    Delivery d = canvas.book().get(n);
-                    if (d == null) {
-                        return;
-                    }
-                    if (canvas.retryOnce(d.brush())) {
-                        ctx.grants().resend(canvas, d); // spec 5.3: resent once, then unusable
-                    } else if (release.reason() == ProtoCodes.SOLTAR_CRC) {
-                        AuditLog.alert("s" + session.id() + "/c" + canvas.handle() + " CRC failed twice on "
-                                + d.brush() + ": unusable in this session");
-                    }
-                });
-            }
-            canvas.book().release(release.ranges());
-        }
-        ctx.grants().credit(canvas);
-    }
-
-    void scraped(Session session, Frame f) {
-        MsgLoans.Scraped scraped = Wire.parse(f.type(), () -> MsgLoans.Scraped.parse(f.payload()));
-        Canvas canvas = canvas(session, scraped.handle(), f.type());
-        if (canvas != null) {
-            ctx.grants().confirm(canvas, scraped);
-            ctx.grants().credit(canvas);
-        }
-    }
-
-    void inventory(Session session, Frame f) {
-        MsgAudit.Inventory inventory = Wire.parse(f.type(), () -> MsgAudit.Inventory.parse(f.payload()));
-        Canvas canvas = canvas(session, inventory.handle(), f.type());
-        if (canvas != null) {
-            ctx.grants().audit(canvas, inventory);
         }
     }
 
@@ -126,7 +45,7 @@ final class CanvasService {
         });
         Canvas closed = session.canvases().remove(handle);
         if (closed == null) {
-            canvas(session, handle, f.type());
+            HandleLookup.find(mapping, session, handle, f.type());
             return;
         }
         ctx.grants().drop(closed);

@@ -35,7 +35,7 @@ public final class CanvasServiceTest {
         Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.session(session);
         session.canvases().put(1L, canvas);
-        CanvasService service = new CanvasService(mapping, ctx);
+        LoanHandlers service = new LoanHandlers(mapping, ctx);
         BrushId brush = new BrushId(0, 1, 1);
 
         long first = canvas.book().log(brush, 0, 2, 100, 1).number();

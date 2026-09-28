@@ -1,56 +1,46 @@
 package seurat.catalog;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import seurat.config.Units;
 import seurat.proto.MsgCatalog;
 import seurat.proto.ProtoCodes;
 import seurat.store.BrushStore;
-import seurat.store.StoreFiles;
 
 /** id -> work map + meta.json. Every change is pushed as OBRA to its observers (spec 7.3). */
 public final class Catalog {
-    private final Path worksDir;
+    private final CatalogStore disk;
+    private final CatalogEvents events = new CatalogEvents();
+    private final WorkProgress progress = new WorkProgress();
     private final Map<String, WorkRecord> records = new ConcurrentHashMap<>();
-    private final Map<String, Integer> lastPct = new ConcurrentHashMap<>();
-    private final List<Consumer<MsgCatalog.WorkMessage>> listeners = new CopyOnWriteArrayList<>();
 
     public Catalog(Path worksDir) throws IOException {
-        this.worksDir = worksDir;
-        Files.createDirectories(worksDir);
+        this.disk = new CatalogStore(worksDir);
     }
 
     public void observe(Consumer<MsgCatalog.WorkMessage> listener) {
-        listeners.add(listener);
-    }
-
-    private void emit(MsgCatalog.WorkMessage message) {
-        listeners.forEach(listener -> listener.accept(message));
+        events.observe(listener);
     }
 
     public void register(WorkRecord work) throws IOException {
         WorkRecord previous = records.put(work.meta.id(), work);
-        lastPct.remove(work.meta.id()); // a new pass counts from 0
+        progress.reset(work.meta.id()); // a new pass counts from 0
         if (previous != null) {
             work.ceilings.putAll(previous.ceilings); // a new master keeps the work's policy
         }
-        persist(work);
-        emit(message(work, ProtoCodes.OBRA_ALTA, 0));
+        disk.persist(work);
+        events.emit(work, ProtoCodes.OBRA_ALTA, 0);
     }
 
     public void progress(String id, int pct) {
         WorkRecord work = records.get(id);
-        if (work == null) {
-            return;
-        }
-        Integer previous = lastPct.put(id, pct);
-        if (previous == null || previous != pct) {
-            emit(message(work, ProtoCodes.OBRA_ESTADO, pct));
+        if (work != null && progress.advance(id, pct)) {
+            events.emit(work, ProtoCodes.OBRA_ESTADO, pct);
         }
     }
 
@@ -58,7 +48,7 @@ public final class Catalog {
     public void painting(String id) {
         WorkRecord work = records.get(id);
         if (work != null) {
-            lastPct.put(id, 0);
+            progress.start(id);
             sketch(id, work.store, ProtoCodes.ST_PINTANDO, work.meta.edition());
         }
     }
@@ -69,11 +59,11 @@ public final class Catalog {
             work.store = store;
             work.meta = work.meta.with(state, edition);
             try {
-                persist(work);
+                disk.persist(work);
             } catch (IOException ignored) {
             }
             if (state != ProtoCodes.ST_LISTA) { // LISTA is announced by OBRA(EDICION), see list()
-                emit(message(work, ProtoCodes.OBRA_ESTADO, lastPct.getOrDefault(id, 0)));
+                events.emit(work, ProtoCodes.OBRA_ESTADO, progress.of(id));
             }
         }
     }
@@ -81,30 +71,29 @@ public final class Catalog {
     public void list(String id) {
         WorkRecord work = records.get(id);
         if (work != null) {
-            emit(message(work, ProtoCodes.OBRA_EDICION, 100));
+            events.emit(work, ProtoCodes.OBRA_EDICION, Units.PERCENT);
         }
     }
 
     /** DELETE (spec 7.4): RETIRADA persisted (a restart must not bring it back), then OBRA(BAJA). */
     public void withdraw(String id) {
         WorkRecord work = records.remove(id);
-        lastPct.remove(id);
+        progress.reset(id);
         if (work != null) {
             work.meta = work.meta.with(ProtoCodes.ST_RETIRADA, work.meta.edition());
             try {
-                persist(work);
+                disk.persist(work);
             } catch (IOException ignored) {
             }
-            emit(message(work, ProtoCodes.OBRA_BAJA, 0));
+            events.emit(work, ProtoCodes.OBRA_BAJA, 0);
         }
     }
 
     /** CATALOGO: one OBRA(LISTADO) per work, with its current state and progress. */
-    public java.util.List<MsgCatalog.WorkMessage> listing() {
-        java.util.List<MsgCatalog.WorkMessage> out = new java.util.ArrayList<>();
+    public List<MsgCatalog.WorkMessage> listing() {
+        List<MsgCatalog.WorkMessage> out = new ArrayList<>();
         for (WorkRecord work : records.values()) {
-            int pct = work.meta.state() == ProtoCodes.ST_LISTA ? 100 : lastPct.getOrDefault(work.meta.id(), 0);
-            out.add(message(work, ProtoCodes.OBRA_LISTADO, pct));
+            out.add(CatalogEvents.message(work, ProtoCodes.OBRA_LISTADO, progress.shown(work)));
         }
         return out;
     }
@@ -112,7 +101,7 @@ public final class Catalog {
     /** PUT .../politica: the new ceilings (already valid, see RolePolicy) survive a restart. */
     public void policy(WorkRecord work, Map<String, long[]> ceilings) throws IOException {
         work.ceilings.putAll(ceilings);
-        persist(work);
+        disk.persist(work);
     }
 
     public WorkRecord get(String id) {
@@ -132,18 +121,6 @@ public final class Catalog {
 
     /** Restart recovery: rebuild LISTA stores, truncate to the index. */
     public void load() throws IOException {
-        records.putAll(WorkRecovery.readAll(worksDir));
-    }
-
-    private MsgCatalog.WorkMessage message(WorkRecord work, int event, int progress) {
-        return new MsgCatalog.WorkMessage(event, work.meta.state(), progress,
-                work.meta.edition(), work.meta.width(), work.meta.height(),
-                work.meta.strata(), work.meta.id(), work.meta.name());
-    }
-
-    private void persist(WorkRecord work) throws IOException {
-        Path dir = worksDir.resolve(work.meta.id());
-        Files.createDirectories(dir);
-        Files.writeString(dir.resolve(StoreFiles.META), MetaJson.write(work));
+        records.putAll(WorkRecovery.readAll(disk.worksDir()));
     }
 }
