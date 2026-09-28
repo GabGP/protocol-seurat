@@ -56,7 +56,7 @@ public final class IngestJob implements Runnable {
                     ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2));
             fresh.keepMaster = keepMaster;
             catalog.register(fresh);
-            try (MasterReader reader = new ReadAheadReader(new PngReader(master))) {
+            try (MasterReader reader = new ReadAheadReader(MasterReaders.open(master))) {
                 int w = reader.width();
                 int h = reader.height();
                 int top = topLevels(w, h);

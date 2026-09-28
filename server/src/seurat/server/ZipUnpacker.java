@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 
 /** Unpacks image files from a zip archive into an inbox directory. */
@@ -42,7 +43,7 @@ final class ZipUnpacker {
                 }
                 String base = Path.of(entry.getName()).getFileName().toString();
                 String lower = base.toLowerCase();
-                if (!lower.endsWith(".png") && !lower.endsWith(".jpg") && !lower.endsWith(".tif")) {
+                if (!MasterFormats.isMaster(lower)) {
                     continue;
                 }
                 String workId = base.replaceAll("\\.[^.]+$", "");

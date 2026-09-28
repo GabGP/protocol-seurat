@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.ZipFile;
+import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 
 /** Waits for an inbox file transfer to complete and verifies file integrity. */
@@ -68,7 +69,7 @@ final class FileTransferWaiter {
         if (lower.endsWith(".zip")) return isZipComplete(file, size);
         if (lower.endsWith(".png")) return isPngComplete(file, size);
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return isJpgComplete(file, size);
-        return size > 0;
+        return MasterFormats.isWhole(file, size);
     }
 
     private static boolean isZipComplete(Path file, long size) {

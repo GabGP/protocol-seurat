@@ -9,6 +9,7 @@ import java.nio.file.WatchService;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import seurat.ingest.MasterFormats;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
 
@@ -109,8 +110,6 @@ final class InboxWatcher {
     }
 
     private static boolean isMaster(String lower) {
-        return lower.endsWith(".png") || lower.endsWith(".jpg")
-                || lower.endsWith(".jpeg") || lower.endsWith(".tif")
-                || lower.endsWith(".zip");
+        return MasterFormats.isMaster(lower) || lower.endsWith(".zip");
     }
 }

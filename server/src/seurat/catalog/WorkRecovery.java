@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import seurat.ingest.IngestJob;
+import seurat.ingest.MasterFormats;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
 
@@ -60,7 +61,7 @@ final class WorkRecovery {
     }
 
     private static String normalize(String id) {
-        return id.replaceAll("(?i)\\.(png|jpg|jpeg|tif|tiff)$", "");
+        return MasterFormats.stem(id);
     }
 
     private static void attachStore(Path dir, seurat.store.WorkMeta info, WorkRecord work)
