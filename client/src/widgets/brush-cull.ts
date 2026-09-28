@@ -25,10 +25,19 @@ interface Painted {
   planes?: ArrayBuffer[] | null;
 }
 
-/** Drawable brushes in image space, coarse → fine (paint order). */
+/**
+ * Drawable brushes in image space, coarse → fine (paint order), one per brush: the newest synthesized
+ * delivery, which decodes the bands of every delivery of that brush and is redone on its newest
+ * parent. An older one keeps the image of its own synthesis and would cover it wherever it drew later.
+ */
 export function collectBrushes(records: Iterable<Painted>, iw: number, ih: number): BrushGeom[] {
-  const out: BrushGeom[] = [];
+  const newest = new Map<bigint, Painted>();
   for (const rec of records) {
+    const held = newest.get(rec.brushId);
+    if (rec.rgba && (!held || rec.delivery > held.delivery)) newest.set(rec.brushId, rec);
+  }
+  const out: BrushGeom[] = [];
+  for (const rec of newest.values()) {
     if (!rec.rgba) continue;
     const { stratum, bx, by } = splitBrushId(rec.brushId);
     if (stratum === SKETCH_STRATUM) {

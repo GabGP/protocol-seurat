@@ -97,4 +97,14 @@ describe('collectBrushes', () => {
     const out = collectBrushes(recs, 900, 600);
     expect(out.map((b) => [b.stratum, b.x, b.y, b.w, b.h])).toEqual([[10, 0, 0, 900, 600], [0, 768, 256, 256, 256]]);
   });
+
+  it('draws only the newest synthesized delivery of a brush', () => {
+    const [older, newer] = [bmp(256), bmp(256)];
+    const recs = [
+      { delivery: 4, brushId: makeBrushId(0, 1, 1), rgba: older }, // bands [0,2), its own synthesis
+      { delivery: 9, brushId: makeBrushId(0, 1, 1), rgba: newer }, // bands [2,4): decodes all four
+      { delivery: 12, brushId: makeBrushId(0, 1, 1), rgba: null }, // not synthesized yet
+    ];
+    expect(collectBrushes(recs, 900, 600).map((b) => b.bmp)).toEqual([newer]);
+  });
 });
