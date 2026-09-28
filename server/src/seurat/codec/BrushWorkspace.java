@@ -16,8 +16,13 @@ final class BrushWorkspace {
 
     final int[][][] q = new int[3][3][N];
     final int[] energy = new int[N];
-    final long[] sortPacked = new long[N];
-    final int[] rank = new int[N];
+    final byte[] band = new byte[N];
+    final int[] order = new int[N];
+    final int[] spare = new int[N];
+    final int[] count = new int[1 << BandSplit.DIGIT_BITS];
+    final int[] members = new int[N];
+    final int[] from = new int[5];
+    final int[] fill = new int[5];
     final byte[] rawBuf = new byte[512 * 1024];
     final byte[] compBuf = new byte[512 * 1024];
     final CRC32C crc = new CRC32C();

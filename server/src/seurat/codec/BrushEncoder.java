@@ -51,18 +51,21 @@ public final class BrushEncoder {
             }
         }
 
-        long[] packed = ws.sortPacked;
-        int[] mortonTab = BrushWorkspace.MORTON_16K;
+        byte[] band = ws.band;
+        BandSplit.split(energy, band, ws.order, ws.spare, ws.count);
+        int[] members = ws.members;
+        int[] from = ws.from;
+        java.util.Arrays.fill(from, 0);
         for (int i = 0; i < n; i++) {
-            long high = 0xFFFFFFFFL - (((long) energy[i]) - (long) Integer.MIN_VALUE);
-            long mid = (long) (mortonTab[i] & 0xFFFF);
-            packed[i] = (high << 32) | (mid << 16) | (long) i;
+            from[band[i] + 1]++;
         }
-        Arrays.sort(packed);
-        int[] rank = ws.rank;
-        for (int r = 0; r < n; r++) {
-            int origIdx = (int) (packed[r] & 0xFFFF);
-            rank[origIdx] = r;
+        for (int b = 0; b < 4; b++) {
+            from[b + 1] += from[b];
+        }
+        int[] fill = ws.fill;
+        System.arraycopy(from, 0, fill, 0, fill.length);
+        for (int i = 0; i < n; i++) {
+            members[fill[band[i]]++] = i; // sweep order within each band
         }
 
         byte[][] bands = new byte[4][];
@@ -73,17 +76,11 @@ public final class BrushEncoder {
         var crc = ws.crc;
 
         for (int b = 0; b < 4; b++) {
-            int low = Bands.CUTS[b];
-            int high = Bands.CUTS[b + 1];
             int rawPos = 0;
-
             for (int i = 0; i < n; i += 8) {
                 int by = 0;
                 for (int k = 0; k < 8; k++) {
-                    int rk = rank[i + k];
-                    if (rk >= low && rk < high) {
-                        by |= 1 << k;
-                    }
+                    by |= (band[i + k] == b ? 1 : 0) << k;
                 }
                 raw[rawPos++] = (byte) by;
             }
@@ -91,17 +88,14 @@ public final class BrushEncoder {
             for (int c = 0; c < nch; c++) {
                 for (int dd = 0; dd < 3; dd++) {
                     int[] det = q[c][dd];
-                    for (int i = 0; i < n; i++) {
-                        int rk = rank[i];
-                        if (rk >= low && rk < high) {
-                            int val = det[i];
-                            int zz = (val << 1) ^ (val >> 31);
-                            while ((zz & ~0x7F) != 0) {
-                                raw[rawPos++] = (byte) ((zz & 0x7F) | 0x80);
-                                zz >>>= 7;
-                            }
-                            raw[rawPos++] = (byte) zz;
+                    for (int m = from[b]; m < from[b + 1]; m++) {
+                        int val = det[members[m]];
+                        int zz = (val << 1) ^ (val >> 31);
+                        while ((zz & ~0x7F) != 0) {
+                            raw[rawPos++] = (byte) ((zz & 0x7F) | 0x80);
+                            zz >>>= 7;
                         }
+                        raw[rawPos++] = (byte) zz;
                     }
                 }
             }
