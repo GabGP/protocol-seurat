@@ -7,14 +7,14 @@ import { rgbToYCoCg } from '@/shared/codec/ycocgr';
 import type { SynthWorker, WorkerFactory } from '@/entities/delivery/worker-pool';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
 
-/** A PINCELADA flow carrying one band 0 (bandas 0x01). */
-function flow(handle: number, delivery: number, brushId: bigint, band: Uint8Array): Uint8Array {
+/** A PINCELADA flow carrying one band: 0 by default (bandas 0x01), or `(from << 4) | through`. */
+function flow(handle: number, delivery: number, brushId: bigint, band: Uint8Array, bands = 0x01): Uint8Array {
   const id = new Uint8Array(8);
   new DataView(id.buffer).setBigUint64(0, brushId);
   const crc = new Uint8Array(4);
   new DataView(crc.buffer).setUint32(0, crc32c(band));
   return concat(
-    viEncode(0x01), viEncode(handle), viEncode(delivery), id, [0x01], viEncode(1), [1, 1], viEncode(1),
+    viEncode(0x01), viEncode(handle), viEncode(delivery), id, [bands], viEncode(1), [1, 1], viEncode(1),
     crc, viEncode(band.length), band,
   );
 }
@@ -32,9 +32,11 @@ export function seedDelivery(handle: number, delivery: number, w: number, h: num
   return flow(handle, delivery, makeBrushId(10, 0, 0), deflateRawSync(Uint8Array.from(raw)));
 }
 
-/** A brush whose band 0 carries no detail (all-zero significance mask). */
-export function brushDelivery(handle: number, delivery: number, stratum: number, bx: number, by: number): Uint8Array {
-  return flow(handle, delivery, makeBrushId(stratum, bx, by), deflateRawSync(new Uint8Array(16384 >> 3)));
+/** A brush whose band carries no detail (all-zero significance mask): band 0 unless `bands` says otherwise. */
+export function brushDelivery(
+  handle: number, delivery: number, stratum: number, bx: number, by: number, bands = 0x01,
+): Uint8Array {
+  return flow(handle, delivery, makeBrushId(stratum, bx, by), deflateRawSync(new Uint8Array(16384 >> 3)), bands);
 }
 
 let current: SynthWorker | null = null;

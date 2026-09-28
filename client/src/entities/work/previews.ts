@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { GALLERY_COLUMNS_WIDTH } from '@/shared/config/layout';
 
 export interface WorkPreview {
   rgba: Uint8ClampedArray;
@@ -8,6 +9,7 @@ export interface WorkPreview {
 
 const previewCache = new Map<string, WorkPreview>();
 const listeners = new Set<() => void>();
+let cardWidth = 0;
 
 function notify(): void {
   for (const listener of listeners) {
@@ -31,6 +33,17 @@ export function setWorkPreview(id: string, preview: WorkPreview): void {
 /** The seed behind a thumbnail is a loan: when it is released, the thumbnail goes too. */
 export function dropWorkPreview(id: string): void {
   if (previewCache.delete(id)) notify();
+}
+
+/** The gallery reports its cards' width in device pixels: the resolution a preview asks for. */
+export function notePreviewWidth(px: number): void {
+  if (px > 0) cardWidth = px;
+}
+
+/** The last card width reported; before any card is laid out, the narrowest column at this screen's density. */
+export function previewWidth(): number {
+  const dpr = (globalThis as { devicePixelRatio?: number }).devicePixelRatio || 1;
+  return cardWidth || Math.round(GALLERY_COLUMNS_WIDTH * dpr);
 }
 
 export function clearWorkPreviews(): void {

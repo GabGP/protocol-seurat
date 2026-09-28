@@ -1,10 +1,12 @@
 import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
-import { dropWorkPreview, hasWorkPreview, setWorkPreview } from '@/entities/work/previews';
+import { dropWorkPreview, hasWorkPreview, previewWidth, setWorkPreview } from '@/entities/work/previews';
 import type { WorkerFactory } from '@/entities/delivery/worker-pool';
-import { LEASE_S } from '@/shared/config/constants';
+import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/app/providers/session-client';
-import { PreviewLoan, piecesKib, type PreviewPiece } from './preview-loan';
+import { PreviewLoan } from './preview-loan';
+import { piecesKib, type PreviewPiece } from './preview-piece';
+import { gazeLevel, previewGaze, type PreviewGaze } from './preview-gaze';
 import { PreviewDecoder } from './preview-decoder';
 import { composePreview } from './preview-compose';
 
@@ -15,10 +17,11 @@ const SOLTAR_REEMPLAZADA = 7;
 const OPEN_TIMEOUT_MS = 5000;
 
 /**
- * Catalog thumbnails inside the protocol (spec 3.2): the seed and the brushes of the stratum
- * under it are loans like any other. RECIBO libre = brushes still missing, so the server paints
- * exactly those and no more of the sketch; anything else is released at once. RENOVAR / RASPAR /
- * AUDITAR are answered; CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail.
+ * Catalog thumbnails inside the protocol (spec 3.2): each card is a canvas with its own MIRADA,
+ * the whole work at the card's device pixels, so the server's cone decides how deep it paints
+ * (spec 2.2). Its pieces are loans like any other; anything finer than the card needs is released
+ * at once. RENOVAR / RASPAR / AUDITAR are answered, the MIRADA is repeated inside the inactivity
+ * floor, and CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail.
  */
 export class PreviewManager {
   private queue: string[] = [];
@@ -30,6 +33,8 @@ export class PreviewManager {
   /** Loans being composed, and those that changed meanwhile (composed once more after). */
   private drawing = new Set<PreviewLoan>();
   private stale = new Set<PreviewLoan>();
+  /** MIRADA seq, rising across every card. */
+  private gazeSeq = 0;
 
   constructor(private client: () => SessionClient | null, workers?: WorkerFactory) {
     this.decoder = new PreviewDecoder(workers);
@@ -69,7 +74,10 @@ export class PreviewManager {
       this.client()?.closeHandle(a.handle);
       return;
     }
-    Object.assign(this.loading, { handle: a.handle, seedW: a.seedWidth, seedH: a.seedHeight, top: a.strata - 1 });
+    const loan = Object.assign(this.loading, {
+      handle: a.handle, seedW: a.seedWidth, seedH: a.seedHeight, top: a.strata - 1, workW: a.width, workH: a.height, vw: previewWidth(),
+    });
+    if (loan.top > 0) loan.level = gazeLevel(this.gaze(loan, performance.now()), loan.top);
   }
 
   onDelivery(bytes: Uint8Array): boolean {
@@ -84,17 +92,17 @@ export class PreviewManager {
     const loan = this.loading?.handle === h.handle ? this.loading : this.held.get(h.handle);
     if (!loan) return false;
     const { bx, by } = splitBrushId(h.brushId);
-    if (!loan.wants(h, bx, by)) return this.release(loan, SOLTAR_LRU, [h.delivery]); // not a thumbnail piece
+    if (!loan.wants(h, bx, by)) return this.release(loan, SOLTAR_LRU, [h.delivery]); // finer than the card needs, or held already
     if (bands.some((b, i) => !verifyBand(b, h.crcs[i] ?? 0))) return this.release(loan, SOLTAR_CRC, [h.delivery]);
     const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * 1000 };
     this.release(loan, SOLTAR_REEMPLAZADA, loan.take(piece).map((p) => p.delivery));
-    this.client()?.sendReceipt(loan.handle, [h.delivery], 0, loan.missing(), 0);
+    this.client()?.sendReceipt(loan.handle, [h.delivery], 0, PREVIEW_CREDIT, 0);
     if (loan === this.loading && loan.seed) {
       if (this.timer) clearTimeout(this.timer);
       this.loading = null;
       this.held.set(loan.handle, loan);
     }
-    if (loan.seed && (piece === loan.seed || loan.missing() === 0)) this.draw(loan);
+    if (loan.seed) this.draw(loan);
     return true;
   }
 
@@ -103,7 +111,7 @@ export class PreviewManager {
     if (!loan) return false;
     loan.renew(r.ranges, r.leaseS, performance.now());
     loan.renewThrough = Math.max(loan.renewThrough, r.order);
-    this.client()?.sendReceipt(loan.handle, [], 0, loan.missing(), loan.renewThrough);
+    this.client()?.sendReceipt(loan.handle, [], 0, PREVIEW_CREDIT, loan.renewThrough);
     return true;
   }
 
@@ -124,8 +132,14 @@ export class PreviewManager {
     return true;
   }
 
-  /** Spec 5.2.2: pieces whose lease ran out are released (SOLTAR CADUCADA); without its seed the canvas closes. */
+  /**
+   * Spec 5.2.2: pieces whose lease ran out are released (SOLTAR CADUCADA); without its seed the
+   * canvas closes. Each card still showing looks at its work again before the server floors it.
+   */
   sweep(now: number): void {
+    for (const loan of this.held.values()) {
+      if (loan.top > 0 && now - loan.gazedAt >= PREVIEW_GAZE_KEEPALIVE_MS) this.gaze(loan, now);
+    }
     for (const loan of [...this.held.values()]) {
       const gone = loan.expired(now);
       if (gone.length === 0) continue;
@@ -146,6 +160,13 @@ export class PreviewManager {
   dispose(): void {
     this.pause();
     this.queue = [];
+  }
+
+  private gaze(loan: PreviewLoan, now: number): PreviewGaze {
+    loan.gazedAt = now;
+    const g = previewGaze(loan, loan.workW, loan.workH, ++this.gazeSeq);
+    this.client()?.sendGazeReliable(g);
+    return g;
   }
 
   private release(loan: PreviewLoan, reason: number, numbers: number[]): true {

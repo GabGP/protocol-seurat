@@ -1,27 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreviewManager } from '../model/preview-manager';
-import { clearWorkPreviews, getWorkPreview } from '@/entities/work/previews';
-import { scrapeParamsList, scrapeParamsLowStratum, type WorkOpened } from '@/shared/proto/messages';
-import { LEASE_S } from '@/shared/config/constants';
+import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work/previews';
+import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum, type WorkOpened } from '@/shared/proto/messages';
+import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
 import type { SessionClient } from '@/app/providers/session-client';
 import { brushDelivery, inlineWorkers, seedDelivery, settle } from './preview-fixtures';
 
-/** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it. */
+/** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
 const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): WorkOpened => ({
   handle, width: 76_800, height: 1024, strata, edition: 1, ceilingStratum: 10, ceilingBands: 4, seedWidth, seedHeight,
 });
+const FLAT = [120, 140, 200, 255];
 
 function recorder() {
   const log = {
     opened: [] as string[], closed: [] as number[], receipts: [] as Array<{ completed: number[]; free: number }>,
-    released: [] as Array<{ reason: number; ranges: number[] }>, scraped: [] as number[][], inventory: [] as number[][],
+    released: [] as Array<{ reason: number; ranges: number[] }>, scraped: [] as Array<{ count: number; kept: number[] }>,
+    inventory: [] as number[][], gazes: [] as Array<Record<string, number>>,
   };
   const client = {
     openPreview: (id: string) => log.opened.push(id),
     closeHandle: (h: number) => log.closed.push(h),
+    sendGazeReliable: (g: Record<string, number>) => log.gazes.push(g),
     sendReceipt: (_h: number, completed: number[], _q: number, free: number) => log.receipts.push({ completed, free }),
     sendRelease: (_h: number, reason: number, ranges: number[]) => log.released.push({ reason, ranges }),
-    sendScraped: (...a: unknown[]) => log.scraped.push(a[6] as number[]),
+    sendScraped: (...a: unknown[]) => log.scraped.push({ count: a[4] as number, kept: a[6] as number[] }),
     sendInventory: (...a: unknown[]) => log.inventory.push(a[5] as number[]),
   } as unknown as SessionClient;
   return { log, manager: new PreviewManager(() => client, inlineWorkers) };
@@ -40,69 +43,91 @@ async function fullPreview() {
 }
 
 describe('PreviewManager', () => {
-  beforeEach(() => clearWorkPreviews());
+  beforeEach(() => {
+    clearWorkPreviews();
+    notePreviewWidth(300); // cards 300 device px wide: the cone stops at stratum 8
+  });
   afterEach(() => vi.restoreAllMocks());
 
-  it('shows the seed, then the stratum under it, asking for exactly the missing brushes', async () => {
+  it('asks for the card resolution with a MIRADA and shows each stratum the cone brings', async () => {
+    notePreviewWidth(600);
     const { log, manager } = recorder();
     manager.enqueue(['work-a', 'work-b']);
     manager.onWorkOpened('work-a', opened(101));
+    expect(log.gazes).toEqual([
+      { handle: 101, seq: 1, x0: 0, y0: 0, x1: 76_800, y1: 1024, vw: 600, vh: 8, flags: MFLAGS_STILL },
+    ]);
     expect(manager.onDelivery(seedDelivery(101, 1, 300, 4))).toBe(true);
-    await settle();
-    expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 });
+    await vi.waitFor(() => expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 }));
     expect(log.opened).toEqual(['work-a', 'work-b']);
 
     for (let bx = 0; bx < 3; bx++) manager.onDelivery(brushDelivery(101, 2 + bx, 9, bx, 0));
-    await settle();
+    await vi.waitFor(() => expect(getWorkPreview('work-a')).toMatchObject({ width: 600, height: 8 }));
     const img = getWorkPreview('work-a');
-    expect(img).toMatchObject({ width: 600, height: 8 });
-    expect(Array.from(img?.rgba.subarray(0, 4) ?? [])).toEqual([120, 140, 200, 255]);
-    expect(log.receipts).toEqual([
-      { completed: [1], free: 3 }, { completed: [2], free: 2 }, { completed: [3], free: 1 }, { completed: [4], free: 0 },
-    ]);
+    expect(Array.from(img?.rgba.subarray(0, 4) ?? [])).toEqual(FLAT);
+    expect(log.receipts.map((r) => r.free)).toEqual([PREVIEW_CREDIT, PREVIEW_CREDIT, PREVIEW_CREDIT, PREVIEW_CREDIT]);
 
     manager.dispose();
     expect(log.closed).toContain(101);
     expect(getWorkPreview('work-a')).toBeUndefined();
   });
 
-  it('releases anything that is not the seed or a new brush right under it', async () => {
+  it('keeps the thumbnail at the card width however deep the strata under it go', async () => {
     const { log, manager } = await fullPreview();
-    manager.onDelivery(brushDelivery(101, 5, 8, 0, 0)); // deeper in the sketch
-    manager.onDelivery(brushDelivery(101, 6, 9, 1, 0)); // already held
-    manager.onDelivery(brushDelivery(101, 7, 9, 3, 0)); // outside the seed
-    expect(log.released).toEqual([{ reason: 1, ranges: [5] }, { reason: 1, ranges: [6] }, { reason: 1, ranges: [7] }]);
+    expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 }); // 600 × 8 shrunk to the card
+    for (let bx = 0; bx < 5; bx++) manager.onDelivery(brushDelivery(101, 5 + bx, 8, bx, 0));
+    manager.onDelivery(brushDelivery(101, 10, 8, 0, 0, 0x12)); // a retouch: band 1 on top of band 0
+    await settle();
+    const img = getWorkPreview('work-a');
+    expect(img).toMatchObject({ width: 300, height: 4 });
+    expect(Array.from(img?.rgba.subarray(0, 4) ?? [])).toEqual(FLAT);
+    expect(log.released).toEqual([]);
     manager.dispose();
   });
 
-  it('keeps only the seed when the work has no stratum under it', async () => {
+  it('releases what is finer than the card, already held, or outside the work', async () => {
+    const { log, manager } = await fullPreview();
+    manager.onDelivery(brushDelivery(101, 5, 7, 0, 0)); // finer than the card needs
+    manager.onDelivery(brushDelivery(101, 6, 9, 1, 0)); // band 0 already held
+    manager.onDelivery(brushDelivery(101, 7, 9, 3, 0)); // outside the work
+    manager.onDelivery(brushDelivery(101, 8, 9, 1, 0, 0x12)); // new band: kept
+    manager.onDelivery(brushDelivery(101, 9, 9, 1, 0, 0x12)); // that band again
+    expect(log.released).toEqual([
+      { reason: 1, ranges: [5] }, { reason: 1, ranges: [6] }, { reason: 1, ranges: [7] }, { reason: 1, ranges: [9] },
+    ]);
+    manager.dispose();
+  });
+
+  it('keeps only the seed, without a MIRADA, when the work has no stratum under it', async () => {
     const { log, manager } = recorder();
     manager.enqueue(['tiny']);
     manager.onWorkOpened('tiny', opened(7, 200, 100, 1));
     manager.onDelivery(seedDelivery(7, 1, 200, 100));
     await settle();
     expect(getWorkPreview('tiny')).toMatchObject({ width: 200, height: 100 });
-    expect(log.receipts).toEqual([{ completed: [1], free: 0 }]);
+    expect(log.gazes).toEqual([]);
+    expect(log.receipts).toEqual([{ completed: [1], free: PREVIEW_CREDIT }]);
     manager.dispose();
   });
 
-  it('answers audits and scrapes from every piece it holds', async () => {
+  it('answers audits and scrapes from every piece it holds, with what stood on a scraped one', async () => {
     const { log, manager } = await fullPreview();
+    manager.onDelivery(brushDelivery(101, 5, 8, 2, 0)); // under brush (9, 1, 0), delivery 3
     manager.onAudit({ handle: 101, order: 1, through: 3 });
     expect(log.inventory).toEqual([[1, 2, 3]]);
 
     manager.onScrape({ handle: 101, order: 2, epoch: 1, through: 9, predicate: 4, params: scrapeParamsList([3]) });
-    expect(log.scraped).toEqual([[1, 2, 4]]);
+    expect(log.scraped).toEqual([{ count: 2, kept: [1, 2, 4] }]);
     await settle();
-    expect(getWorkPreview('work-a')).toMatchObject({ width: 600, height: 8 }); // brush 3 predicted from the seed
+    expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 }); // brush 3 predicted from the seed
 
     manager.onScrape({ handle: 101, order: 3, epoch: 1, through: 9, predicate: 1, params: scrapeParamsLowStratum(10) });
-    expect(log.scraped[1]).toEqual([1]);
+    expect(log.scraped[1]).toEqual({ count: 2, kept: [1] });
     await settle();
     expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 });
 
     manager.onScrape({ handle: 101, order: 4, epoch: 1, through: 9, predicate: 5, params: new Uint8Array() });
-    expect(log.scraped[2]).toEqual([]);
+    expect(log.scraped[2]).toEqual({ count: 1, kept: [] });
     expect(getWorkPreview('work-a')).toBeUndefined();
     manager.dispose();
   });
@@ -113,7 +138,7 @@ describe('PreviewManager', () => {
     const later = performance.now() + lease / 2;
     vi.spyOn(performance, 'now').mockReturnValue(later);
     manager.onRenew({ handle: 101, order: 5, leaseS: LEASE_S, ranges: [1, 2] });
-    expect(log.receipts.at(-1)).toEqual({ completed: [], free: 0 });
+    expect(log.receipts.at(-1)).toEqual({ completed: [], free: PREVIEW_CREDIT });
 
     manager.sweep(later + lease - 1); // brushes 3 and 4 were not renewed
     expect(log.released).toEqual([{ reason: 3, ranges: [3, 4] }]);
@@ -123,6 +148,16 @@ describe('PreviewManager', () => {
     expect(log.released[1]).toEqual({ reason: 3, ranges: [1, 2] });
     expect(log.closed).toContain(101);
     expect(getWorkPreview('work-a')).toBeUndefined();
+    manager.dispose();
+  });
+
+  it('repeats a card MIRADA before the server floors it for inactivity', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const { log, manager } = await fullPreview();
+    manager.sweep(1000 + PREVIEW_GAZE_KEEPALIVE_MS - 1);
+    expect(log.gazes.map((g) => g.seq)).toEqual([1]);
+    manager.sweep(1000 + PREVIEW_GAZE_KEEPALIVE_MS);
+    expect(log.gazes.map((g) => [g.handle, g.seq])).toEqual([[101, 1], [101, 2]]);
     manager.dispose();
   });
 
