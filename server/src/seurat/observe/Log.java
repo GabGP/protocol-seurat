@@ -4,13 +4,15 @@ import java.io.PrintStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** Structured console logger with levels, timestamps, tags, and colors. */
+/** Structured console logger with levels, timestamps, tags, and colors (LogStyle, on stdout only). */
 public final class Log {
     public static final int LEVEL_WIDTH = 5;
     public static final int TAG_WIDTH = 10;
 
     private static volatile LogLevel currentLevel = LogLevel.INFO;
     private static volatile PrintStream target = System.out;
+    /** Colours go to the process's own stdout only: a captured stream (tests, audit) stays plain. */
+    private static volatile boolean styled = true;
     private static final Object PRINT_LOCK = new Object();
     /** The sticky progress line is on screen (no newline after it yet); guarded by PRINT_LOCK. */
     private static boolean barShown;
@@ -35,6 +37,7 @@ public final class Log {
     public static void setOutput(PrintStream out) {
         synchronized (PRINT_LOCK) {
             target = out != null ? out : System.out;
+            styled = target == System.out;
             barShown = false;
         }
     }
@@ -78,24 +81,15 @@ public final class Log {
         String ts = LocalDateTime.now().format(FMT);
         String paddedLevel = padRight(level.name(), LEVEL_WIDTH);
         String paddedTag = padRight(tag != null ? tag : "", TAG_WIDTH);
-        StringBuilder sb = new StringBuilder(128);
-        if (COLOR) {
-            sb.append("\u001B[90m").append(ts).append("\u001B[0m ")
-              .append(colorFor(level)).append(paddedLevel).append("\u001B[0m ")
-              .append("\u001B[35m[").append(paddedTag).append("]\u001B[0m ")
-              .append(msg);
-        } else {
-            sb.append(ts).append(" ")
-              .append(paddedLevel).append(" ")
-              .append("[").append(paddedTag).append("] ")
-              .append(msg);
-        }
+        String line = COLOR && styled
+                ? LogStyle.line(level, ts, paddedLevel, paddedTag, msg)
+                : ts + " " + paddedLevel + " [" + paddedTag + "] " + msg;
         synchronized (PRINT_LOCK) {
             PrintStream out = target;
             if (barShown) {
                 out.print(Progress.wipe());
             }
-            out.println(sb);
+            out.println(line);
             if (t != null) {
                 t.printStackTrace(out);
             }
@@ -124,15 +118,5 @@ public final class Log {
     private static String padRight(String s, int width) {
         int pad = width - s.length();
         return pad > 0 ? s + " ".repeat(pad) : s;
-    }
-
-    private static String colorFor(LogLevel level) {
-        return switch (level) {
-            case DEBUG -> "\u001B[36m";
-            case INFO  -> "\u001B[32m";
-            case WARN  -> "\u001B[33m";
-            case ERROR -> "\u001B[31;1m";
-            default    -> "\u001B[0m";
-        };
     }
 }
