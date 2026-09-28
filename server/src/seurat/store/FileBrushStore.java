@@ -119,7 +119,7 @@ public final class FileBrushStore implements BrushStore {
         if (c.getValue() == crc) {
             return true;
         }
-        AuditLog.alert("band corrupta " + p + " band=" + band + ": prefijo valido");
+        AuditLog.alert("brush=" + p + " band=" + band + " corrupt: serving the valid prefix");
         return false;
     }
 
