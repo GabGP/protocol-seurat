@@ -65,14 +65,15 @@ public final class Sessions {
         return live.values();
     }
 
-    private static long bookLifeNs() {
-        return (SeuratConstants.LEASE_S * 1000 + SeuratConstants.SKEW_MS) * 1_000_000L;
+    /** L + delta: how long a dead session's books outlive it (spec 8). */
+    private static long bookLifeNs(Session session) {
+        return SeuratConstants.LEASE_S * 1_000_000_000L + session.roundTrip.deltaNs();
     }
 
     /** Disconnect: its books live L + delta; unacked deliveries and renewals expire with them (spec 8). */
     public void retire(Session session) {
         live.remove(session.id());
-        long deadline = System.nanoTime() + bookLifeNs();
+        long deadline = System.nanoTime() + bookLifeNs(session);
         for (Canvas c : session.canvases().values()) {
             synchronized (c) {
                 c.book().expireUnacked(deadline);

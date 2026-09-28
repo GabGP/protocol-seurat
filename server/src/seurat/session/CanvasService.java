@@ -54,7 +54,7 @@ final class CanvasService {
         synchronized (canvas) {
             long now = System.nanoTime();
             long leaseNs = SeuratConstants.LEASE_S * 1_000_000_000L;
-            long skewNs = SeuratConstants.SKEW_MS * 1_000_000L;
+            long skewNs = session.roundTrip.deltaNs();
             canvas.book().acknowledge(receipt.completed(), now, leaseNs, skewNs);
             canvas.book().settle(receipt.completed());
             for (var ranges : canvas.orders().takeRenewalsThrough(receipt.renewThrough())) {
@@ -132,8 +132,10 @@ final class CanvasService {
     }
 
     void echo(Session session, Frame f) {
-        Wire.parse(f.type(), () -> MsgHandshake.Heartbeat.parse(f.payload()));
-        session.lastEchoNs = System.nanoTime();
+        var echo = Wire.parse(f.type(), () -> MsgHandshake.Heartbeat.parse(f.payload()));
+        long now = System.nanoTime();
+        session.lastEchoNs = now;
+        session.roundTrip.sample(echo.nonce(), now);
     }
 
     void sendCatalog(Session session, Frame f) {

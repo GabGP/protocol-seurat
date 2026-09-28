@@ -29,6 +29,8 @@ public final class Session {
     public volatile double stride;
     public volatile long lastGazeNs;
     public volatile long lastEchoNs = System.nanoTime();
+    /** LATIDO -> ECO, for delta = max(1 s, 2 RTT) (spec 8). */
+    public final RoundTrip roundTrip = new RoundTrip();
     public volatile long queueMs;
     /** Red receiver (cola_ms > 400): nothing new opens until it drops below 150 (spec 6.1). */
     public volatile boolean red;

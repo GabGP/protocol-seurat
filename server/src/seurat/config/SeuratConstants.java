@@ -6,6 +6,7 @@ public final class SeuratConstants {
 
     public static final int HTTP_PORT = 8080;
     public static final long LEASE_S = 120;
+    /** delta's floor: delta = max(1 s, 2 RTT) (spec 8). */
     public static final long SKEW_MS = 1000;
     public static final long HEARTBEAT_S = 15;
     public static final int MAX_IN_FLIGHT = 12;
