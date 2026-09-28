@@ -102,13 +102,13 @@ public final class Progress {
         return "[" + "#".repeat(full) + "-".repeat(cells - full) + "]";
     }
 
-    /** " eta=…" to the whole second once the phase has run long enough to extrapolate, else "". */
+    /** " eta=…" to the whole second once the phase has run long enough to extrapolate; "" when under a second. */
     static String eta(int pct, long elapsedMs) {
         if (pct <= 0 || pct >= 100 || elapsedMs < SeuratConstants.PROGRESS_ETA_MIN_MS) {
             return "";
         }
-        long left = elapsedMs * (100 - pct) / pct;
-        return " eta=" + LogUnits.duration(Math.round(left / 1000.0) * 1000);
+        long seconds = Math.round(elapsedMs * (100 - pct) / pct / 1000.0);
+        return seconds > 0 ? " eta=" + LogUnits.duration(seconds * 1000) : "";
     }
 
     private static boolean live() {
