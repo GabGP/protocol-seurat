@@ -1,6 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { hash3 } from '@/shared/lib/hash3';
-import { notePreviewWidth, useWorkPreview } from '@/entities/work';
+import { notePreviewWidth, previewDpr, useWorkPreview } from '@/entities/work';
 import type { WorkPreview } from '@/entities/work/previews';
 import { drawScaledRgba } from '@/shared/codec/seed';
 import type { Work } from '@/entities/work/types';
@@ -45,7 +45,7 @@ function Thumb({ work }: { work: Work }): JSX.Element {
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
-    notePreviewWidth(Math.round(c.clientWidth * (window.devicePixelRatio || 1)));
+    notePreviewWidth(Math.round(c.clientWidth * previewDpr()));
     if (!preview) {
       shown.current = undefined;
       drawPlaceholder(c, work);
