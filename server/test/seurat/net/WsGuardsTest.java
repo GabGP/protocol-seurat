@@ -1,41 +1,13 @@
 package seurat.net;
 
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
-import seurat.concession.GrantController;
-import seurat.config.SeuratConfig;
-import seurat.ingest.IngestJob;
 import seurat.kit.TestKit;
-import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsFraming;
-import seurat.net.ws.WsMapping;
-import seurat.observe.Metrics;
-import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.Headers;
-import seurat.proto.MsgCatalog;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
-import seurat.proto.Ranges;
-import seurat.regulate.Regulator;
-import seurat.concession.GazeGate;
-import seurat.session.Easel;
-import seurat.session.EaselContext;
-import seurat.session.Sessions;
 
 /** WS guards: foreign or no Origin / no seurat.1 refused (9.2, 3.5); malformed frame fatal (8). */
 public final class WsGuardsTest {
@@ -67,7 +39,7 @@ public final class WsGuardsTest {
             WsClient.readControl(socket.getInputStream());
             WsClient.sendWs(socket.getOutputStream(), 0, WsClient.frame(FrameType.RECIBO, new byte[]{1, 0x41}));
             Frame err = WsClient.readControl(socket.getInputStream());
-            var pe = seurat.proto.MsgHandshake.ProtocolError.parse(err.payload());
+            var pe = seurat.proto.MsgError.ProtocolError.parse(err.payload());
             TestKit.check(err.type() == FrameType.ERROR && pe.code() == 1 && pe.fail() == 1, "ERROR 1 fatal");
             WsFraming.Msg close = WsFraming.read(socket.getInputStream(), Integer.MAX_VALUE);
             TestKit.check(close.opcode() == WsFraming.CLOSE && ((close.data()[0] & 0xFF) << 8

@@ -8,7 +8,7 @@ import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
 
@@ -62,7 +62,7 @@ public final class Easel implements Runnable {
     /** ERROR with fatal = 1 precedes the close (spec 3.3); a protocol failure closes with 1002. */
     private void fail(int code, long refType, String msg) {
         try {
-            send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(code, 1, refType, msg).encode());
+            send(mapping, FrameType.ERROR, new MsgError.ProtocolError(code, 1, refType, msg).encode());
         } catch (RuntimeException ignored) {
         }
         mapping.fail();

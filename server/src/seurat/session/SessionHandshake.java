@@ -10,9 +10,11 @@ import seurat.observe.LogTags;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgHello;
 import seurat.proto.MsgLoans;
+import seurat.proto.MsgWelcome;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
 
@@ -37,7 +39,7 @@ final class SessionHandshake {
         if (f.type() != FrameType.SALUDO) {
             throw new FatalProtocol(ProtoCodes.ERR_PROTOCOLO, f.type(), "missing SALUDO");
         }
-        MsgHandshake.Hello hello = Wire.parse(f.type(), () -> MsgHandshake.Hello.parse(f.payload()));
+        MsgHello.Hello hello = Wire.parse(f.type(), () -> MsgHello.Hello.parse(f.payload()));
         if (hello.maxVersion() < 1 || hello.minVersion() > 1) {
             throw new FatalProtocol(ProtoCodes.ERR_VERSION, f.type(), "VERSION");
         }
@@ -55,7 +57,7 @@ final class SessionHandshake {
             resumed = new ResumeAdopter(ctx).adopt(session, hello.resume());
             if (resumed == null) {
                 Log.warn(LogTags.SESSION, "s" + session.id() + " resume rejected");
-                Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
+                Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
                         ProtoCodes.ERR_REANUDACION, 0, FrameType.SALUDO, "REANUDAR").encode());
             }
         }
@@ -63,7 +65,7 @@ final class SessionHandshake {
         List<Long> handles = resumed == null ? List.of() : resumed.handles();
         Log.info(LogTags.SESSION, "s" + session.id() + " established principal=" + token.principal()
                 + " role=" + token.role() + " mem=" + token.memMib() + " MiB caps=0x" + Long.toHexString(caps));
-        Easel.send(mapping, FrameType.BIENVENIDA, new MsgHandshake.Welcome(1, caps, session.id(),
+        Easel.send(mapping, FrameType.BIENVENIDA, new MsgWelcome.Welcome(1, caps, session.id(),
                 SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S, SeuratConstants.HEARTBEAT_S,
                 SeuratConstants.MAX_IN_FLIGHT, ctx.sessionMax(), session.ticket(), handles).encode());
         for (long h : handles) {

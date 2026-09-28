@@ -3,8 +3,6 @@ package seurat.concession;
 import java.util.List;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
-import seurat.config.SeuratConstants;
-import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.paint.Painter;
@@ -17,7 +15,6 @@ import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.CanvasOrders;
 import seurat.session.Concession;
 import seurat.session.Easel;
 import seurat.session.Session;
@@ -25,35 +22,25 @@ import seurat.session.Sessions;
 
 /** Rights path (spec 2.3, 4.2): CONCESION, RASPAR, plans. Every change holds the canvas lock. */
 public final class GrantController {
-    private final Catalog catalog;
     private final Painter painter;
     final PlanIssuer plans;
+    final WorkPolicy policy;
+    final ScrapeIssuer scrapes = new ScrapeIssuer();
 
     public GrantController(Catalog catalog, Painter painter, Sessions sessions) {
-        this.catalog = catalog;
         this.painter = painter;
         this.plans = new PlanIssuer(painter);
+        this.policy = new WorkPolicy(catalog);
     }
 
     static void send(Session session, long type, byte[] payload) {
         Easel.send(session.mapping(), type, payload);
     }
 
-    /** Ceiling of the canvas's role on its work; a withdrawn work grants only the sketch. */
-    long[] ceiling(Canvas canvas) {
-        WorkRecord work = catalog.get(canvas.workId());
-        return work == null ? new long[]{SeuratConstants.SKETCH_MIN, 4} : work.ceiling(canvas.session().role());
-    }
-
-    boolean lista(Canvas canvas) {
-        WorkRecord work = catalog.get(canvas.workId());
-        return work != null && work.meta.state() == ProtoCodes.ST_LISTA;
-    }
-
     /** ABRIR follow-up (spec 3.4.1): initial concession (floor: sketch only) + sketch plan. */
     public void open(Session session, Canvas canvas) {
         synchronized (canvas) {
-            int[] target = Concessions.target(ceiling(canvas), true, canvas.meta().strata() - 1);
+            int[] target = Concessions.target(policy.ceiling(canvas), true, canvas.meta().strata() - 1);
             Concession c = canvas.concession();
             canvas.setConcession(new Concession(c.epoch(), target[0], target[1], c.reason(),
                     c.maxBrushes(), c.maxKiB(), c.leaseS()));
@@ -76,13 +63,13 @@ public final class GrantController {
             int top = canvas.meta().strata() - 1;
             if ((gaze.flags() & MsgGaze.M_OCULTA) != 0) {
                 canvas.floored = true;
-                apply(canvas, Concessions.target(ceiling(canvas), true, top), ProtoCodes.MOT_OCULTA, false);
+                apply(canvas, Concessions.target(policy.ceiling(canvas), true, top), ProtoCodes.MOT_OCULTA, false);
                 return;
             }
-            canvas.floored = !lista(canvas); // BOCETO / PINTANDO: the floor stays until LISTA (spec 7.3)
-            apply(canvas, Concessions.target(ceiling(canvas), canvas.floored, top), ProtoCodes.MOT_MIRADA, true);
+            canvas.floored = !policy.lista(canvas); // BOCETO / PINTANDO: the floor stays until LISTA (spec 7.3)
+            apply(canvas, Concessions.target(policy.ceiling(canvas), canvas.floored, top), ProtoCodes.MOT_MIRADA, true);
             var planned = ConePlanner.plan(gaze, canvas.concession(), canvas::plannedBands,
-                    canvas.meta(), session.share, session.queueMs);
+                    canvas.meta(), session.share, session.queueMs());
             plans.issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
         }
     }
@@ -113,25 +100,9 @@ public final class GrantController {
             long n = canvas.book().lastNumber();
             Ranges cancelled = painter.purge(canvas, next);
             send(session, FrameType.CONCESION, Concessions.message(canvas).encode());
-            scrape(canvas, n, next.epoch(), cancelled, cuts, then);
+            scrapes.issue(canvas, n, next.epoch(), cancelled, cuts, then);
             Log.info(LogTags.CONCESSION, canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
                     + " epoch=" + next.epoch() + " minStratum=" + next.minStratum() + " maxBands=" + next.maxBands());
-        }
-    }
-
-    void scrape(Canvas canvas, long n, long epoch, Ranges cancelled,
-            List<Concessions.Cut> cuts, Runnable then) {
-        if (!cancelled.isEmpty()) {
-            send(canvas.session(), FrameType.PLAN,
-                    MsgGaze.Plan.cancelled(canvas.handle(), canvas.plan().seq(), cancelled).encode());
-        }
-        long deadline = System.nanoTime() + SeuratConstants.SCRAPE_TIMEOUT_S * Units.NANOS_PER_S;
-        for (int i = 0; i < cuts.size(); i++) {
-            long order = canvas.orders().next();
-            MsgLoans.Scrape wire = cuts.get(i).wire().at(order, n);
-            send(canvas.session(), FrameType.RASPAR, wire.encode());
-            canvas.orders().addScrape(new CanvasOrders.ScrapeOrder(order, n, epoch, cuts.get(i).scrape(),
-                    cancelled, deadline, i == cuts.size() - 1 ? then : null, wire));
         }
     }
 

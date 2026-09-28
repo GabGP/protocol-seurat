@@ -65,11 +65,11 @@ public final class ScrapeGoldensTest {
         Arrays.fill(token, (byte) 0xD5);
         byte[] ticket = new byte[32];
         Arrays.fill(ticket, (byte) 0x7A);
-        var claim = new MsgHandshake.Claim(1,
+        var claim = new MsgHello.Claim(1,
                 Ranges.decode(ByteBuffer.wrap(TestKit.unhex("4150012e2040ff"))));
-        var resumeReq = new MsgHandshake.ResumeRequest(0x3A915E0C77D214B8L, ticket,
+        var resumeReq = new MsgHello.ResumeRequest(0x3A915E0C77D214B8L, ticket,
                 java.util.List.of(claim));
-        var hello = new MsgHandshake.Hello(1, 1, 3, 256, token, resumeReq);
+        var hello = new MsgHello.Hello(1, 1, 3, 256, token, resumeReq);
         byte[] payload = hello.encode();
         TestKit.check(payload.length == 89, "REANUDAR payload 89, got " + payload.length);
         byte[] frame = new Frame(FrameType.SALUDO, payload).encode();
@@ -77,7 +77,7 @@ public final class ScrapeGoldensTest {
                 "SALUDO head 01 4059");
         int at = 1 + 1 + 1 + 2 + 1 + 32;
         TestKit.check(payload[at] == 0x01 && payload[at + 1] == 0x31, "REANUDAR TLV 01 31");
-        var back = MsgHandshake.Hello.parse(payload);
+        var back = MsgHello.Hello.parse(payload);
         TestKit.check(back.resume() != null && back.resume().claims().size() == 1
                 && Arrays.equals(back.resume().ticket(), ticket), "REANUDAR fields");
     }

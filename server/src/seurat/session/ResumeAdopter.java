@@ -9,7 +9,7 @@ import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgHello;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -30,7 +30,7 @@ final class ResumeAdopter {
     }
 
     /** null = rejected (ERROR 12, not fatal: the client empties the canvas and starts over). */
-    Result adopt(Session session, MsgHandshake.ResumeRequest request) {
+    Result adopt(Session session, MsgHello.ResumeRequest request) {
         Sessions.Resumable r = ctx.sessions().resumable(request.previousSession(), request.ticket(),
                 session.principal());
         if (r == null || !valid(r.holder(), request.claims())) {
@@ -69,9 +69,9 @@ final class ResumeAdopter {
         return new Result(handles, reissued);
     }
 
-    private boolean valid(Session holder, List<MsgHandshake.Claim> claims) {
+    private boolean valid(Session holder, List<MsgHello.Claim> claims) {
         long now = System.nanoTime();
-        for (MsgHandshake.Claim claim : claims) {
+        for (MsgHello.Claim claim : claims) {
             Canvas canvas = holder.canvases().get(claim.handle());
             if (canvas == null) {
                 return false;

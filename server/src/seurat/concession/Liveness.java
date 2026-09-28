@@ -6,12 +6,12 @@ import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
+import seurat.plan.ConePlanner;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
-import seurat.plan.ConePlanner;
 import seurat.proto.MsgAudit;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
@@ -65,7 +65,7 @@ public final class Liveness {
             canvas.book().pruneExpired(now);
             if (!canvas.floored && session.lastGazeNs > 0 && now - session.lastGazeNs > SeuratConstants.IDLE_S * Units.NANOS_PER_S) {
                 canvas.floored = true;
-                grants.apply(canvas, Concessions.target(grants.ceiling(canvas), true, canvas.meta().strata() - 1),
+                grants.apply(canvas, Concessions.target(grants.policy.ceiling(canvas), true, canvas.meta().strata() - 1),
                         ProtoCodes.MOT_INACTIVIDAD, false);
             }
             MsgGaze.Gaze gaze = canvas.gaze();
@@ -113,7 +113,7 @@ public final class Liveness {
         if (fail != null) {
             try {
                 GrantController.send(session, FrameType.ERROR,
-                        new MsgHandshake.ProtocolError(fail.code, 1, fail.refType, fail.getMessage()).encode());
+                        new MsgError.ProtocolError(fail.code, 1, fail.refType, fail.getMessage()).encode());
             } catch (RuntimeException ignored) {
             }
         }

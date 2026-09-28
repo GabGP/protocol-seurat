@@ -9,7 +9,7 @@ import seurat.observe.LogUnits;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgHeartbeat;
 import seurat.proto.ProtoCodes;
 import seurat.session.Session;
 import seurat.session.Sessions;
@@ -45,7 +45,7 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
     }
 
     public static void heartbeat(Sessions sessions) {
-        send(sessions, FrameType.LATIDO, new MsgHandshake.Heartbeat(System.nanoTime()).encode());
+        send(sessions, FrameType.LATIDO, new MsgHeartbeat.Heartbeat(System.nanoTime()).encode());
     }
 
     private static void send(Sessions sessions, long type, byte[] payload) {

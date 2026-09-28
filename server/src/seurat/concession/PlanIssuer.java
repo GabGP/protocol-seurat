@@ -50,7 +50,7 @@ final class PlanIssuer {
             return;
         }
         Session s = canvas.session();
-        var planned = ConePlanner.plan(gaze, canvas.concession(), canvas::plannedBands, canvas.meta(), s.share, s.queueMs);
+        var planned = ConePlanner.plan(gaze, canvas.concession(), canvas::plannedBands, canvas.meta(), s.share, s.queueMs());
         issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
     }
 

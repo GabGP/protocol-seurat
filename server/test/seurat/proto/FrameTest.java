@@ -23,7 +23,7 @@ public final class FrameTest {
     }
 
     private static void helloGolden() {
-        var hello = new MsgHandshake.Hello(1, 1, 3, 256, token((byte) 0xAB), null);
+        var hello = new MsgHello.Hello(1, 1, 3, 256, token((byte) 0xAB), null);
         byte[] payload = hello.encode();
         TestKit.check(payload.length == 38, "SALUDO payload 38, got " + payload.length);
         byte[] frame = new Frame(FrameType.SALUDO, payload).encode();
@@ -34,14 +34,14 @@ public final class FrameTest {
         TestKit.check(payload[5] == 0x20, "token_len 32");
         Frame back = Frame.decode(ByteBuffer.wrap(frame));
         TestKit.check(back.type() == FrameType.SALUDO, "type round-trip");
-        var parsed = MsgHandshake.Hello.parse(back.payload());
+        var parsed = MsgHello.Hello.parse(back.payload());
         TestKit.check(parsed.minVersion() == 1 && parsed.maxVersion() == 1
                 && parsed.caps() == 3 && parsed.memMib() == 256
                 && Arrays.equals(parsed.token(), token((byte) 0xAB)), "SALUDO fields");
     }
 
     private static void welcomeGolden() {
-        var welcome = new MsgHandshake.Welcome(1, 3, 0x3A915E0C77D214B8L, 256,
+        var welcome = new MsgWelcome.Welcome(1, 3, 0x3A915E0C77D214B8L, 256,
                 120, 15, 12, 1024, token((byte) 0x7A), java.util.List.of());
         byte[] payload = welcome.encode();
         TestKit.check(payload.length == 52, "BIENVENIDA payload 52, got " + payload.length);
@@ -77,13 +77,13 @@ public final class FrameTest {
     }
 
     private static void tlvSkip() {
-        var hello = new MsgHandshake.Hello(1, 1, 3, 256, token((byte) 1), null);
+        var hello = new MsgHello.Hello(1, 1, 3, 256, token((byte) 1), null);
         byte[] payload = hello.encode();
         byte[] tag = new Tlv(0x77, new byte[]{9, 9}).encode();
         byte[] glued = new byte[payload.length + tag.length];
         System.arraycopy(payload, 0, glued, 0, payload.length);
         System.arraycopy(tag, 0, glued, payload.length, tag.length);
-        var parsed = MsgHandshake.Hello.parse(glued);
+        var parsed = MsgHello.Hello.parse(glued);
         TestKit.check(parsed.memMib() == 256 && parsed.resume() == null, "TLV skipped");
     }
 }

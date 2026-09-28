@@ -2,9 +2,7 @@ package seurat.session;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
 
 /** Per-connection state. Its Easel writes the protocol state; the Painter reads the gates. */
@@ -17,7 +15,7 @@ public final class Session {
     private final Mapping mapping;
     private final Map<Long, Canvas> canvases = new ConcurrentHashMap<>();
     private final AtomicLong nextHandle = new AtomicLong();
-    private final AtomicInteger inFlight = new AtomicInteger();
+    private final SessionSlots slots = new SessionSlots();
     public final SessionRate rate;
     public volatile byte[] ticket;
     /** Session this one resumed; its ticket stays valid until our first RECIBO (spec 8). */
@@ -31,9 +29,6 @@ public final class Session {
     public volatile long lastEchoNs = System.nanoTime();
     /** LATIDO -> ECO, for delta = max(1 s, 2 RTT) (spec 8). */
     public final RoundTrip roundTrip = new RoundTrip();
-    public volatile long queueMs;
-    /** Red receiver (cola_ms > 400): nothing new opens until it drops below 150 (spec 6.1). */
-    public volatile boolean red;
 
     public Session(long id, String principal, String role, long memMib, long caps,
             Mapping mapping, byte[] ticket, long rateBytesPerS) {
@@ -99,41 +94,26 @@ public final class Session {
 
     /** RECIBO.cola_ms: amber halves max_en_vuelo, red stops new flows with hysteresis. */
     public void queue(long ms) {
-        queueMs = ms;
-        if (ms > SeuratConstants.QUEUE_RED_MS) {
-            red = true;
-        } else if (ms < SeuratConstants.QUEUE_AMBER_MS) {
-            red = false;
-        }
+        slots.queue(ms);
     }
 
-    /** max_en_vuelo for this instant: 12, halved while the receiver is amber (spec 6.1). */
-    public int slotLimit() {
-        return queueMs >= SeuratConstants.QUEUE_AMBER_MS ? SeuratConstants.MAX_IN_FLIGHT / 2
-                : SeuratConstants.MAX_IN_FLIGHT;
+    public long queueMs() {
+        return slots.queueMs();
     }
 
     public boolean canOpen() {
-        return !red && inFlight.get() < slotLimit() && rate.ready();
+        return slots.hasRoom() && rate.ready();
     }
 
     public boolean takeSlot() {
-        for (;;) {
-            int n = inFlight.get();
-            if (n >= slotLimit()) {
-                return false;
-            }
-            if (inFlight.compareAndSet(n, n + 1)) {
-                return true;
-            }
-        }
+        return slots.take();
     }
 
     public void releaseSlot() {
-        inFlight.decrementAndGet();
+        slots.release();
     }
 
     public int inFlight() {
-        return inFlight.get();
+        return slots.inFlight();
     }
 }

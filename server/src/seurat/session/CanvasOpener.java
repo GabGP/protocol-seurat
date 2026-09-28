@@ -8,7 +8,7 @@ import seurat.observe.LogTags;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
 
@@ -21,7 +21,7 @@ final class CanvasOpener {
         WorkRecord work = ctx.catalog().get(request.id());
         if (work == null || work.meta.state() == ProtoCodes.ST_RETIRADA) {
             Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id() + ": no such work");
-            Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
+            Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
                     ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
@@ -29,7 +29,7 @@ final class CanvasOpener {
         if (work.store == null || state == ProtoCodes.ST_RECIBIENDO || state == ProtoCodes.ST_FALLIDA) {
             Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id()
                     + ": not ready state=" + ProtoCodes.stateName(state));
-            Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
+            Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
                     ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }

@@ -19,7 +19,7 @@ public final class PolicySync {
             if (canvas.retiring) {
                 return;
             }
-            int[] target = Concessions.target(grants.ceiling(canvas), canvas.floored, canvas.meta().strata() - 1);
+            int[] target = Concessions.target(grants.policy.ceiling(canvas), canvas.floored, canvas.meta().strata() - 1);
             grants.apply(canvas, target, ProtoCodes.MOT_POLITICA, false);
         }
     }

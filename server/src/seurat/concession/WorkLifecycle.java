@@ -7,8 +7,8 @@ import seurat.observe.LogTags;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.proto.FrameType;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -35,7 +35,7 @@ final class WorkLifecycle {
             canvas.setStore(work.store, work.meta);
             boolean seen = canvas.gaze() != null && (canvas.gaze().flags() & MsgGaze.M_OCULTA) == 0;
             canvas.floored = !seen;
-            int[] target = Concessions.target(grants.ceiling(canvas), canvas.floored, work.meta.strata() - 1);
+            int[] target = Concessions.target(grants.policy.ceiling(canvas), canvas.floored, work.meta.strata() - 1);
             Concession next = Concessions.next(canvas.concession(), target, ProtoCodes.MOT_POLITICA);
             List<Concessions.Cut> cuts = Concessions.cuts(canvas.concession(), target, canvas.handle(), next.epoch());
             if (cuts.isEmpty()) {
@@ -45,7 +45,7 @@ final class WorkLifecycle {
                 grants.narrow(canvas, next, cuts, null);
             }
             var cone = seen ? ConePlanner.plan(canvas.gaze(), next, canvas::plannedBands, canvas.meta(),
-                    canvas.session().share, canvas.session().queueMs) : null;
+                    canvas.session().share, canvas.session().queueMs()) : null;
             grants.plans.issue(canvas, seen ? canvas.gaze().seq() : 0,
                     PlanIssuer.merge(grants.sketch(canvas), cone == null ? List.of() : cone.entries()),
                     cone == null ? 0 : cone.throttle());
@@ -63,13 +63,13 @@ final class WorkLifecycle {
             long n = canvas.book().lastNumber();
             Ranges cancelled = painter.purgeAll(canvas);
             long epoch = canvas.concession().epoch();
-            grants.scrape(canvas, n, epoch, cancelled, List.of(new Concessions.Cut(Concessions.all(),
+            grants.scrapes.issue(canvas, n, epoch, cancelled, List.of(new Concessions.Cut(Concessions.all(),
                     MsgLoans.Scrape.all(canvas.handle(), 0, epoch, 0))), () -> retire(session, canvas));
         }
     }
 
     private void retire(Session session, Canvas canvas) {
-        GrantController.send(session, FrameType.ERROR, new MsgHandshake.ProtocolError(
+        GrantController.send(session, FrameType.ERROR, new MsgError.ProtocolError(
                 ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.RASPADO, "handle " + canvas.handle()).encode());
         session.canvases().remove(canvas.handle(), canvas);
         painter.drop(canvas);

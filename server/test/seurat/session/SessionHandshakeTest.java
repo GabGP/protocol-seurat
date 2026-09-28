@@ -17,8 +17,9 @@ import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgHello;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.regulate.Regulator;
@@ -60,11 +61,11 @@ public final class SessionHandshakeTest {
         return ticket;
     }
 
-    private static Session hello(EaselContext ctx, RecordingMapping mapping, MsgHandshake.ResumeRequest resume)
+    private static Session hello(EaselContext ctx, RecordingMapping mapping, MsgHello.ResumeRequest resume)
             throws Exception {
         byte[] token = HexFormat.of().parseHex(ctx.sessions().issueToken("alice", "autenticado", 256, 60000));
         var queue = new LinkedBlockingQueue<byte[]>();
-        queue.add(new Frame(FrameType.SALUDO, new MsgHandshake.Hello(1, 1,
+        queue.add(new Frame(FrameType.SALUDO, new MsgHello.Hello(1, 1,
                 ProtoCodes.CAP_REANUDAR | ProtoCodes.CAP_DATAGRAMAS, 256, token, resume).encode()).encode());
         return new SessionHandshake(mapping, queue, ctx).hello();
     }
@@ -79,7 +80,7 @@ public final class SessionHandshakeTest {
         EaselContext ctx = ctx(sessions, true);
         byte[] ticket = grave(sessions, 300);
         RecordingMapping mapping = new RecordingMapping();
-        Session s = hello(ctx, mapping, new MsgHandshake.ResumeRequest(300, ticket, List.of()));
+        Session s = hello(ctx, mapping, new MsgHello.ResumeRequest(300, ticket, List.of()));
         TestKit.check(s.canvases().isEmpty(), "unclaimed canvas not adopted");
         TestKit.check(mapping.control.size() == 1, "BIENVENIDA only, no CONCESION");
     }
@@ -97,7 +98,7 @@ public final class SessionHandshakeTest {
         Sessions sessions = new Sessions();
         EaselContext ctx = ctx(sessions, true);
         byte[] ticket = grave(sessions, 100);
-        var resume = new MsgHandshake.ResumeRequest(100, ticket, List.of(new MsgHandshake.Claim(1, Ranges.of(1))));
+        var resume = new MsgHello.ResumeRequest(100, ticket, List.of(new MsgHello.Claim(1, Ranges.of(1))));
         RecordingMapping lost = new RecordingMapping();
         Session first = hello(ctx, lost, resume);
         sessions.retire(first); // BIENVENIDA lost: the retry must give the same result
@@ -116,13 +117,13 @@ public final class SessionHandshakeTest {
         EaselContext ctx = ctx(sessions, true);
         byte[] ticket = grave(sessions, 200);
         RecordingMapping mapping = new RecordingMapping();
-        hello(ctx, mapping, new MsgHandshake.ResumeRequest(200, ticket,
-                List.of(new MsgHandshake.Claim(1, Ranges.of(999)))));
+        hello(ctx, mapping, new MsgHello.ResumeRequest(200, ticket,
+                List.of(new MsgHello.Claim(1, Ranges.of(999)))));
         TestKit.check(mapping.control.size() == 2, "sent ERROR 12 then BIENVENIDA");
         Frame f0 = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
         TestKit.check(f0.type() == FrameType.ERROR
-                && MsgHandshake.ProtocolError.parse(f0.payload()).code() == ProtoCodes.ERR_REANUDACION
-                && MsgHandshake.ProtocolError.parse(f0.payload()).fail() == 0, "ERROR 12, not fatal");
+                && MsgError.ProtocolError.parse(f0.payload()).code() == ProtoCodes.ERR_REANUDACION
+                && MsgError.ProtocolError.parse(f0.payload()).fail() == 0, "ERROR 12, not fatal");
     }
 
     /** Spec 7.4: a REANUDAR on a withdrawn work is rejected. */
@@ -131,8 +132,8 @@ public final class SessionHandshakeTest {
         EaselContext ctx = ctx(sessions, false);
         byte[] ticket = grave(sessions, 400);
         RecordingMapping mapping = new RecordingMapping();
-        Session s = hello(ctx, mapping, new MsgHandshake.ResumeRequest(400, ticket,
-                List.of(new MsgHandshake.Claim(1, Ranges.of(1)))));
+        Session s = hello(ctx, mapping, new MsgHello.ResumeRequest(400, ticket,
+                List.of(new MsgHello.Claim(1, Ranges.of(1)))));
         TestKit.check(s.canvases().isEmpty() && type(mapping, 0) == FrameType.ERROR, "withdrawn work: ERROR 12");
     }
 }

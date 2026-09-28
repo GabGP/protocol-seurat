@@ -6,9 +6,9 @@ import java.util.Arrays;
 import java.util.List;
 import seurat.config.SeuratConstants;
 
-/** SALUDO / BIENVENIDA / LATIDO / ECO / ERROR. Factory of records (ADIOS: MsgGoodbye). */
-public final class MsgHandshake {
-    private MsgHandshake() {}
+/** SALUDO: the client hello and its REANUDAR request. Factory of records. */
+public final class MsgHello {
+    private MsgHello() {}
 
     public record Claim(long handle, Ranges ranges) {}
 
@@ -80,63 +80,5 @@ public final class MsgHandshake {
             throw new IllegalArgumentException("REANUDAR: trailing bytes");
         }
         return new ResumeRequest(session, ticket, List.copyOf(rs));
-    }
-
-    public record Welcome(long version, long caps, long sessionId, long side,
-            long leaseS, long heartbeatS, long maxInFlight, long sessionMaxBrushes,
-            byte[] ticket, List<Long> resumed) {
-        public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(256);
-            VarInt.put(b, version);
-            VarInt.put(b, caps);
-            b.putLong(sessionId);
-            VarInt.put(b, side);
-            VarInt.put(b, leaseS);
-            VarInt.put(b, heartbeatS);
-            VarInt.put(b, maxInFlight);
-            VarInt.put(b, sessionMaxBrushes);
-            b.put(new Tlv(Tlv.FICHA, ticket).encode());
-            if (!resumed.isEmpty()) {
-                ByteBuffer r = ByteBuffer.allocate(16 * resumed.size() + 8);
-                VarInt.put(r, resumed.size());
-                resumed.forEach(h -> VarInt.put(r, h));
-                b.put(new Tlv(Tlv.REANUDADA, Arrays.copyOf(r.array(), r.position())).encode());
-            }
-            return Arrays.copyOf(b.array(), b.position());
-        }
-    }
-
-    public record Heartbeat(long nonce) {
-        public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(8);
-            b.putLong(nonce);
-            return b.array();
-        }
-
-        public static Heartbeat parse(byte[] p) {
-            ByteBuffer b = ByteBuffer.wrap(p);
-            Heartbeat h = new Heartbeat(b.getLong());
-            Buf.tail(b);
-            return h;
-        }
-    }
-
-    public record ProtocolError(long code, int fail, long refType, String msg) {
-        public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(64 + msg.length() * 3);
-            VarInt.put(b, code);
-            Buf.u8(b, fail);
-            VarInt.put(b, refType);
-            Buf.viStr(b, msg);
-            return Arrays.copyOf(b.array(), b.position());
-        }
-
-        public static ProtocolError parse(byte[] p) {
-            ByteBuffer b = ByteBuffer.wrap(p);
-            long c = VarInt.get(b);
-            int f = Buf.u8(b);
-            long r = VarInt.get(b);
-            return new ProtocolError(c, f, r, Buf.viStr(b));
-        }
     }
 }

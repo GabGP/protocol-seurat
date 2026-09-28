@@ -2,40 +2,18 @@ package seurat.net;
 
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
-import seurat.concession.GrantController;
-import seurat.config.SeuratConfig;
 import seurat.ingest.IngestJob;
 import seurat.kit.TestKit;
-import seurat.net.http.HttpSurface;
-import seurat.net.ws.WsFraming;
-import seurat.net.ws.WsMapping;
-import seurat.observe.Metrics;
-import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.Headers;
 import seurat.proto.MsgCatalog;
 import seurat.proto.MsgGaze;
 import seurat.proto.MsgLoans;
 import seurat.proto.Ranges;
-import seurat.regulate.Regulator;
-import seurat.concession.GazeGate;
-import seurat.session.Easel;
-import seurat.session.EaselContext;
-import seurat.session.Sessions;
 
 /** Loopback: HTTP + WS handshake + SALUDO..sketch + RECIBO, no internet. */
 public final class WsLoopbackTest {
@@ -97,7 +75,7 @@ public final class WsLoopbackTest {
             do {
                 err = WsClient.readControl(in);
             } while (err.type() != FrameType.ERROR);
-            var pe = seurat.proto.MsgHandshake.ProtocolError.parse(err.payload());
+            var pe = seurat.proto.MsgError.ProtocolError.parse(err.payload());
             TestKit.check(pe.code() == 6 && pe.fail() == 0 && pe.refType() == FrameType.MIRADA,
                     "unknown handle: ERROR 6, ref_tipo = MIRADA");
         }

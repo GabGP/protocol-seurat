@@ -7,8 +7,8 @@ import seurat.net.RecordingMapping;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
@@ -118,7 +118,7 @@ public final class LivenessTest {
                 d -> true, Ranges.empty(), System.nanoTime() - 1, null, null));
         new Liveness(new GrantController(null, null, sessions), sessions).tick();
         Frame err = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
-        var pe = MsgHandshake.ProtocolError.parse(err.payload());
+        var pe = MsgError.ProtocolError.parse(err.payload());
         TestKit.check(err.type() == FrameType.ERROR && pe.code() == ProtoCodes.ERR_LIQUIDACION && pe.fail() == 1,
                 "no RASPADO in 10 s: ERROR 8 fatal");
         TestKit.check(mapping.closed, "then closed");

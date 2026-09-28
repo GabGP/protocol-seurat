@@ -4,7 +4,7 @@ import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.FrameType;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 
 /** Finds the canvas a frame names. An unknown handle is ERROR 6 (not fatal) and the frame is skipped. */
@@ -16,7 +16,7 @@ final class HandleLookup {
         Canvas canvas = session.canvases().get(handle);
         if (canvas == null) {
             Log.warn(LogTags.SESSION, "s" + session.id() + " invalid handle=" + handle);
-            Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
+            Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
                     ProtoCodes.ERR_HANDLE, 0, type, "handle " + handle).encode());
         }
         return canvas;

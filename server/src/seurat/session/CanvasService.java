@@ -8,7 +8,7 @@ import seurat.proto.Buf;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
+import seurat.proto.MsgHeartbeat;
 import seurat.proto.VarInt;
 import seurat.proto.Wire;
 
@@ -53,7 +53,7 @@ final class CanvasService {
     }
 
     void echo(Session session, Frame f) {
-        var echo = Wire.parse(f.type(), () -> MsgHandshake.Heartbeat.parse(f.payload()));
+        var echo = Wire.parse(f.type(), () -> MsgHeartbeat.Heartbeat.parse(f.payload()));
         long now = System.nanoTime();
         session.lastEchoNs = now;
         session.roundTrip.sample(echo.nonce(), now);

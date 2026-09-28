@@ -6,8 +6,8 @@ import seurat.codec.BrushId;
 import seurat.kit.TestKit;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
+import seurat.proto.MsgError;
 import seurat.proto.MsgGaze;
-import seurat.proto.MsgHandshake;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -104,8 +104,8 @@ public final class ConcessionFlowsTest {
         s.grants.confirm(s.canvas, new MsgLoans.Scraped(1, order.order(), order.epoch(), order.through(),
                 256, 3, Ranges.empty()));
         Frame err = first(s, FrameType.ERROR);
-        TestKit.check(err != null && MsgHandshake.ProtocolError.parse(err.payload()).code()
-                == ProtoCodes.ERR_OBRA_INEXISTENTE && MsgHandshake.ProtocolError.parse(err.payload()).fail() == 0,
+        TestKit.check(err != null && MsgError.ProtocolError.parse(err.payload()).code()
+                == ProtoCodes.ERR_OBRA_INEXISTENTE && MsgError.ProtocolError.parse(err.payload()).fail() == 0,
                 "ERROR 4, not fatal");
         TestKit.check(!s.session.canvases().containsKey(1L), "handle invalid after");
     }
