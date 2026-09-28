@@ -18,20 +18,24 @@ public final class YCoCgR {
         return new int[]{b + co, g, b};
     }
 
-    /** Row of packed RGB to planar Y/Co/Cg. */
-    public static void forwardRow(int[] rgb, int off, int[] y, int[] co, int[] cg,
-            int dst, int n) {
+    /** Row of packed RGB to int16 Y/Co/Cg planes; the last pixel repeats up to {@code padded}. */
+    public static void forwardRow(int[] rgb, short[] y, short[] co, short[] cg, int n, int padded) {
         for (int i = 0; i < n; i++) {
-            int p = rgb[off + i];
+            int p = rgb[i];
             int r = (p >> 16) & 0xFF;
             int g = (p >> 8) & 0xFF;
             int b = p & 0xFF;
             int c_o = r - b;
             int t = b + (c_o >> 1);
             int c_g = g - t;
-            y[dst + i] = t + (c_g >> 1);
-            co[dst + i] = c_o;
-            cg[dst + i] = c_g;
+            y[i] = (short) (t + (c_g >> 1));
+            co[i] = (short) c_o;
+            cg[i] = (short) c_g;
+        }
+        for (int i = n; i < padded; i++) {
+            y[i] = y[n - 1];
+            co[i] = co[n - 1];
+            cg[i] = cg[n - 1];
         }
     }
 }

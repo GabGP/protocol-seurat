@@ -59,6 +59,8 @@ public final class SeuratConstants {
     public static final int INGEST_CHUNK_ROWS = 2048;
     /** Cap on one decoded chunk (rows * width * 4 B) for very wide masters. */
     public static final long INGEST_CHUNK_BYTES = 256L * 1024 * 1024;
+    /** Row slices per channel when a band is converted or transformed on the ingest fast lane. */
+    public static final int INGEST_LANE_SLICES = 8;
     /** Bands the read-ahead producer may hold while workers encode. */
     public static final int INGEST_READAHEAD_BANDS = 2;
     /** Graceful shutdown: per-executor await before forcing stop. */

@@ -54,27 +54,14 @@ public final class IngestJob implements Runnable {
                 WorkRecord work = catalog.get(id);
                 work.meta = new WorkMeta(id, name, w, h, 256, top + 1,
                         ProtoCodes.ST_RECIBIENDO, 1, 0, 2);
-                FileBrushStore ed1 = store(top, w, h, 1);
-                Path seed = ed1.dir().resolve("semilla.bin");
-                if (!Files.isRegularFile(seed) || Files.size(seed) <= 4) {
-                    try {
-                        SketchBuilder.build(master, ed1, top);
-                    } catch (Exception sketchEx) {
-                        Log.warn("ingest", "Work '" + id + "' ed1 sketch unavailable ("
-                                + sketchEx.getMessage() + "), continuing full pass");
-                    }
-                }
-                ed1.close();
-                if (Files.isRegularFile(seed) && Files.size(seed) > 4) {
-                    catalog.sketch(id, ed1, ProtoCodes.ST_BOCETO, 1);
-                    Log.info("ingest", "Work '" + id + "' ed1 sketch generated (ST_BOCETO)");
-                } else {
-                    Log.info("ingest", "Work '" + id + "' continuing without ed1 sketch");
-                }
-                work.meta = new WorkMeta(id, name, w, h, 256, top + 1,
-                        ProtoCodes.ST_PINTANDO, 1, 0, 2);
+                SketchPhase sketch = new SketchPhase(id, master, store(top, w, h, 1), top, catalog,
+                        new WorkMeta(id, name, w, h, 256, top + 1, ProtoCodes.ST_PINTANDO, 1, 0, 2));
                 FileBrushStore ed2 = store(top, w, h, 2);
-                new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader);
+                try {
+                    new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader, sketch.done());
+                } finally {
+                    sketch.join(); // BOCETO and PINTANDO land before LISTA or FALLIDA
+                }
                 ed2.close();
                 catalog.sketch(id, ed2, ProtoCodes.ST_LISTA, 2);
                 catalog.list(id);

@@ -13,14 +13,12 @@ final class Accumulator {
         }
     }
 
-    void addRow(int y, int[] yy, int[] co, int[] cg, int w) {
-        for (int x = 0; x < width; x++) {
-            int sx = Math.min(x, w - 1);
-            plane[0][y][x] = (short) yy[sx];
-            plane[1][y][x] = (short) co[sx];
-            plane[2][y][x] = (short) cg[sx];
+    /** Row {@code to} becomes a copy of row {@code from}. */
+    void copyRow(int from, int to) {
+        for (int c = 0; c < 3; c++) {
+            System.arraycopy(plane[c][from], 0, plane[c][to], 0, width);
         }
-        rows = Math.max(rows, y + 1);
+        rows = Math.max(rows, to + 1);
     }
 
     void addRowDirect(int[] yy, int[] co, int[] cg, int srcOff, int w) {

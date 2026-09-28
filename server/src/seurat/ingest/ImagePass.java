@@ -32,7 +32,8 @@ final class ImagePass {
         this.worksDir = worksDir;
     }
 
-    void run(MasterReader reader) throws Exception {
+    /** The pass; until {@code sketch} completes one core stays free for the sketch's own read. */
+    void run(MasterReader reader, java.util.concurrent.CompletionStage<?> sketch) throws Exception {
         if (top == 0) {
             runTopZero(reader);
             return;
@@ -44,40 +45,32 @@ final class ImagePass {
             acc[stratum] = new Accumulator(paddedW >> stratum);
         }
         List<short[][]> seed = new ArrayList<>();
+        int cores = Runtime.getRuntime().availableProcessors();
         // close() waits for queued brushes: a failed pass leaves no threads or writers behind.
-        try (ExecutorService pool = Executors.newFixedThreadPool(
-                Math.max(1, Runtime.getRuntime().availableProcessors() - 1))) {
-            java.util.ArrayDeque<Future<?>> tasks = new java.util.ArrayDeque<>();
-            int[] drainCounts = new int[top];
-            int[][] yuv = new int[3][paddedW];
+        int full = Math.max(1, cores - 1);
+        try (java.util.concurrent.ThreadPoolExecutor pool = (java.util.concurrent.ThreadPoolExecutor)
+                    Executors.newFixedThreadPool(Math.max(1, full - 1));
+                ExecutorService lane = Executors.newFixedThreadPool(cores)) {
+            sketch.thenRun(() -> {
+                pool.setMaximumPoolSize(full);
+                pool.setCorePoolSize(full);
+            });
+            PassContext ctx = new PassContext(top, acc, store, pool, lane,
+                    new java.util.ArrayDeque<>(), seed, new int[top]);
             int row = 0;
             int[][] band;
             while ((band = reader.next()) != null) {
-                for (int[] rgbRow : band) {
-                    YCoCgR.forwardRow(rgbRow, 0, yuv[0], yuv[1], yuv[2], 0, width);
-                    for (int c = 0; c < 3; c++) {
-                        for (int x = width; x < paddedW; x++) {
-                            yuv[c][x] = yuv[c][width - 1];
-                        }
-                    }
-                    row = feed(acc, yuv, paddedW, row, pool, tasks, seed, drainCounts);
-                }
-                catalog.progress(id, (int) (reader.fraction() * 100));
+                row = BandFeeder.feed(ctx, band, row, width);
+                progress(reader);
             }
-            while (row < paddedH) {
-                acc[0].addRow(row % 256, yuv[0], yuv[1], yuv[2], paddedW);
-                row++;
-                if (acc[0].full()) {
-                    new Drain(0, top, acc, store, pool, tasks, seed, drainCounts).drain();
-                }
-            }
+            BandFeeder.pad(ctx, row, paddedH);
             for (int stratum = 0; stratum < top; stratum++) {
                 acc[stratum].replicate();
                 if (acc[stratum].rows > 0) {
-                    new Drain(stratum, top, acc, store, pool, tasks, seed, drainCounts).drain();
+                    new Drain(stratum, ctx).drain();
                 }
             }
-            for (Future<?> task : tasks) {
+            for (Future<?> task : ctx.tasks()) {
                 task.get();
             }
         }
@@ -86,30 +79,24 @@ final class ImagePass {
 
     private void runTopZero(MasterReader reader) throws Exception {
         List<short[][]> seed = new ArrayList<>();
-        int[][] yuv = new int[3][width];
         int[][] band;
         while ((band = reader.next()) != null) {
             for (int[] rgbRow : band) {
-                YCoCgR.forwardRow(rgbRow, 0, yuv[0], yuv[1], yuv[2], 0, width);
                 short[][] r = new short[3][width];
-                for (int c = 0; c < 3; c++) {
-                    for (int x = 0; x < width; x++) r[c][x] = (short) yuv[c][x];
-                }
+                YCoCgR.forwardRow(rgbRow, r[0], r[1], r[2], width, width);
                 seed.add(r);
             }
-            catalog.progress(id, (int) (reader.fraction() * 100));
+            progress(reader);
         }
         writeSeed(seed, width, height);
     }
 
-    private int feed(Accumulator[] acc, int[][] yuv, int paddedW, int row,
-            ExecutorService pool, java.util.Deque<Future<?>> tasks, List<short[][]> seed,
-            int[] drainCounts) {
-        acc[0].addRow(row % 256, yuv[0], yuv[1], yuv[2], paddedW);
-        if (acc[0].full()) {
-            new Drain(0, top, acc, store, pool, tasks, seed, drainCounts).drain();
+    /** PINTANDO's progress (spec 7.1 step 4): while the sketch runs the work is RECIBIENDO and says nothing. */
+    private void progress(MasterReader reader) {
+        seurat.catalog.WorkRecord work = catalog.get(id);
+        if (work != null && work.meta.state() != seurat.proto.ProtoCodes.ST_RECIBIENDO) {
+            catalog.progress(id, (int) (reader.fraction() * 100));
         }
-        return row + 1;
     }
 
     private void writeSeed(List<short[][]> seed, int seedW, int seedH) throws Exception {

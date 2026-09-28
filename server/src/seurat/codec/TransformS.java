@@ -43,11 +43,14 @@ public final class TransformS {
         }
     }
 
-    /** Block forward directly on 2D scanline short planes without flattening. */
-    public static void blockForward(short[][] src, int w, int h,
+    /**
+     * Block forward on 2D scanline short planes, rows [y0, y1) only (both even): output rows are
+     * disjoint, so slices can run in parallel.
+     */
+    public static void blockForward(short[][] src, int w, int y0, int y1,
             int[] ps, int[] pv, int[] ph, int[] pd) {
         int hw = w / 2;
-        for (int y = 0; y < h; y += 2) {
+        for (int y = y0; y < y1; y += 2) {
             short[] r0 = src[y], r1 = src[y + 1];
             int rowOut = (y / 2) * hw;
             for (int x = 0; x < w; x += 2) {
