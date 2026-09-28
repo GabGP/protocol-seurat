@@ -79,6 +79,8 @@ export class SessionClient {
   /** A fatal ERROR (either way) ended the session: no REANUDAR, a fresh start is needed. */
   private fatal = false;
   private pendingOpens: Array<{ id: string; preview: boolean }> = [];
+  /** The current transport is open: set when it connects, cleared when it closes. */
+  private live = false;
   /** Every byte the server sends on this session: the link rate RECIBO.libre is sized from. */
   readonly meter = new RateMeter();
 
@@ -90,6 +92,10 @@ export class SessionClient {
 
   get activeTransport(): SeuratTransport | null {
     return this.transport;
+  }
+
+  get connected(): boolean {
+    return this.live;
   }
 
   get failed(): boolean {
@@ -149,6 +155,7 @@ export class SessionClient {
 
   wire(t: SeuratTransport): void {
     this.transport = t;
+    this.live = true;
     t.onControl = (frame) => {
       this.meter.record(frame.length, performance.now());
       this.events.onIncoming?.();
@@ -161,6 +168,7 @@ export class SessionClient {
     };
     t.onClose = (reason) => {
       if (this.transport !== t) return;
+      this.live = false;
       this.events.onStatus('closed ' + reason);
       if (!this.disposed && !this.fatal) this.events.onDisconnect?.(); // spec 8: POST /sesion + REANUDAR
     };

@@ -69,18 +69,24 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     /** Handle whose book a REANUDAR is claiming, until BIENVENIDA says whether it was adopted. */
     let resuming: number | null = null;
     let retries = 0;
+    /** A POST /sesion + SALUDO is under way: a second trigger (close, pageshow) waits for it. */
+    let reconnecting = false;
     const reconnect = (): void => {
-      if (!alive) return;
+      if (!alive || reconnecting) return;
+      reconnecting = true;
       const sink = sinkRef.current;
+      sink?.checkExpiry(performance.now()); // the claim is what is still held: nothing expired (spec 3.4.4)
       resuming = sink?.handle ?? null;
       previewRef.current?.dispose();
       previewRef.current = new PreviewManager(() => clientRef.current);
       client.boot(sink ? [{ handle: sink.handle, ranges: ownedDeliveries(sink.book) }] : []).then(
         () => {
+          reconnecting = false;
           retries = 0;
           client.requestCatalog();
         },
         () => {
+          reconnecting = false;
           retries += 1;
           window.setTimeout(reconnect, Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** retries));
         },
@@ -249,6 +255,12 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       },
     );
     // pagehide sends nothing (spec 5.3): the book survives L + delta and pageshow resumes it.
+    // Back from the bfcache the connection is gone: REANUDAR claims what has not expired (none
+    // of it after L, and then the canvas starts over from the sketch).
+    const onPageShow = (e: PageTransitionEvent): void => {
+      if (e.persisted && !client.connected && !client.failed) reconnect();
+    };
+    window.addEventListener('pageshow', onPageShow);
     // visibilitychange -> MIRADA OCULTA is sent by the viewer (useViewerWork).
     // The viewer's leases are checked before each paint (ViewerChrome) and on every incoming
     // message (onIncoming). A gallery thumbnail is painted once and stays on screen, so it is
@@ -256,6 +268,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     const sweep = window.setInterval(() => previewRef.current?.sweep(performance.now()), 1000);
     return () => {
       alive = false;
+      window.removeEventListener('pageshow', onPageShow);
       bumpPaint.cancel();
       window.clearInterval(sweep);
       gazesRef.current?.dispose();
