@@ -12,12 +12,18 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import seurat.config.SeuratConstants;
 
-/** ImageIO fallback reader with raster streaming for images exceeding 2^31-1 pixels. */
+/**
+ * ImageIO fallback for the masters no streaming reader takes (progressive JPEG, interlaced PNG,
+ * TIFF variants, GIF, BMP). Pixels are read as stored ({@link RasterSamples}); a JPEG past 2^31-1
+ * pixels streams its YCbCr raster instead, the only format whose raster that conversion fits.
+ */
 final class ImageIoReader implements MasterReader {
+    private static final String JPEG = "jpeg";
     private final ImageReader reader;
     private final ImageInputStream input;
     private final int width;
     private final int height;
+    private final boolean jpeg;
     private final boolean useRaster;
     private final int chunkRows;
     private int row;
@@ -39,7 +45,8 @@ final class ImageIoReader implements MasterReader {
         this.reader.setInput(input);
         this.width = reader.getWidth(0);
         this.height = reader.getHeight(0);
-        this.useRaster = ((long) width * height > Integer.MAX_VALUE - 2) && reader.canReadRaster();
+        this.jpeg = JPEG.equalsIgnoreCase(reader.getFormatName()) && reader.canReadRaster();
+        this.useRaster = jpeg && (long) width * height > Integer.MAX_VALUE - 2;
         int rows = SeuratConstants.INGEST_CHUNK_ROWS;
         while (rows > 256 && (long) rows * width * 4 > SeuratConstants.INGEST_CHUNK_BYTES) {
             rows -= 256;
@@ -79,10 +86,10 @@ final class ImageIoReader implements MasterReader {
             readRasterBand(param, chunk, n);
         } else {
             try {
-                BufferedImage img = reader.read(0, param);
-                for (int y = 0; y < n; y++) img.getRGB(0, y, width, 1, chunk[y], 0, width);
+                RasterSamples img = new RasterSamples(reader.read(0, param));
+                for (int y = 0; y < n; y++) img.row(y, chunk[y]);
             } catch (javax.imageio.IIOException ex) {
-                if (reader.canReadRaster()) {
+                if (jpeg) {
                     readRasterBand(param, chunk, n);
                 } else {
                     throw ex;

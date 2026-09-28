@@ -74,12 +74,13 @@ final class Overview {
         int k = Math.max(1, Math.min(pw / sw, ph / sh)); // decode no finer than needed
         param.setSourceSubsampling(k, k, 0, 0);
         BufferedImage img = reader.read(page, param);
+        RasterSamples samples = new RasterSamples(img);
+        int[] line = new int[img.getWidth()];
         int[][] e = new int[3][sw * sh];
         for (int y = 0; y < sh; y++) {
-            int py = Math.min(img.getHeight() - 1, (int) ((long) y * q * ph / h) / k);
+            samples.row(Math.min(img.getHeight() - 1, (int) ((long) y * q * ph / h) / k), line);
             for (int x = 0; x < sw; x++) {
-                int px = Math.min(img.getWidth() - 1, (int) ((long) x * q * pw / w) / k);
-                int rgb = img.getRGB(px, py);
+                int rgb = line[Math.min(img.getWidth() - 1, (int) ((long) x * q * pw / w) / k)];
                 int[] v = YCoCgR.forward((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
                 for (int c = 0; c < 3; c++) {
                     e[c][y * sw + x] = v[c];
