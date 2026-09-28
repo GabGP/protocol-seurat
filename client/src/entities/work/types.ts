@@ -29,12 +29,18 @@ export function workDims(w: Work): string {
   return w.width.toLocaleString('en-US') + ' × ' + w.height.toLocaleString('en-US');
 }
 
+const KPX_BELOW = 100_000;
+const MP = 1e6;
+const GP_FROM_MP = 1000;
+
+/** Pixel count at one decimal: kpx for tiny works, then MP, then GP from a thousand megapixels. */
 export function workMp(w: Work): string {
   const px = w.width * w.height;
-  if (px < 100_000) {
+  if (px < KPX_BELOW) {
     return (px / 1e3).toFixed(1) + ' kpx';
   }
-  const mp = px / 1e6;
+  const mp = Number((px / MP).toFixed(1));
+  if (mp >= GP_FROM_MP) return (mp / GP_FROM_MP).toFixed(1) + ' GP';
   return (mp < 0.1 ? '< 0.1' : mp.toFixed(1)) + ' MP';
 }
 
