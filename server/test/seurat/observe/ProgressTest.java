@@ -80,7 +80,7 @@ public final class ProgressTest {
         bytes.reset();
         Log.info("test", "hello");
         String out = bytes.toString(StandardCharsets.UTF_8);
-        TestKit.check(out.startsWith(Progress.wipe()), "log line wipes the bar first");
+        TestKit.check(out.startsWith(ProgressRender.wipe()), "log line wipes the bar first");
         TestKit.check(out.endsWith(System.lineSeparator() + line), "then redraws it below the line");
         TestKit.check(out.contains("hello"), "the line itself");
         Progress.done("work=a");
@@ -95,9 +95,9 @@ public final class ProgressTest {
     }
 
     private static void eta() {
-        TestKit.check(Progress.eta(25, 10_000).equals(" eta=0m 30s 0ms"), "25 % in 10 s leaves 30 s");
-        TestKit.check(Progress.eta(50, 500).isEmpty(), "no ETA before the phase ran long enough");
-        TestKit.check(Progress.eta(96, 10_000).isEmpty(), "no ETA that rounds to 0 s (0.4 s left)");
-        TestKit.check(Progress.eta(0, 10_000).isEmpty() && Progress.eta(100, 10_000).isEmpty(), "no ETA at 0 or 100 %");
+        TestKit.check(ProgressRender.eta(25, 10_000).equals(" eta=0m 30s 0ms"), "25 % in 10 s leaves 30 s");
+        TestKit.check(ProgressRender.eta(50, 500).isEmpty(), "no ETA before the phase ran long enough");
+        TestKit.check(ProgressRender.eta(96, 10_000).isEmpty(), "no ETA that rounds to 0 s (0.4 s left)");
+        TestKit.check(ProgressRender.eta(0, 10_000).isEmpty() && ProgressRender.eta(100, 10_000).isEmpty(), "no ETA at 0 or 100 %");
     }
 }

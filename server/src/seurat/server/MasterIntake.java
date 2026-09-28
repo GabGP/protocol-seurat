@@ -3,9 +3,7 @@ package seurat.server;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import seurat.catalog.Catalog;
-import seurat.catalog.WorkRecord;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.ingest.FormatMarkers;
@@ -13,68 +11,32 @@ import seurat.ingest.IngestJob;
 import seurat.ingest.MasterFormats;
 import seurat.ingest.MasterHome;
 import seurat.observe.AuditLog;
-import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
-import seurat.session.Canvas;
-import seurat.session.Session;
 import seurat.session.Sessions;
 
-/** Master intake: inbox watch, zip unpack, single ingest, ed1->ed2 swap. */
+/** Master intake: inbox watch, zip unpack, single ingest (queue in {@link IntakeQueue}, swap in {@link EditionSwap}). */
 public final class MasterIntake implements Closeable {
     private final Catalog catalog;
-    private final Sessions sessions;
-    private final GrantController grants;
     private final SeuratConfig config;
-    private final Executor ingest;
     private final InboxWatcher watcher;
-    private volatile boolean closed;
+    private final IntakeQueue queue;
+    private final EditionSwap swap;
     /** After the swap: ed1/ is deleted once no canvas uses it (DiskReaper). */
     public volatile java.util.function.Consumer<String> onSwapped;
 
     public MasterIntake(Catalog catalog, Sessions sessions, GrantController grants,
             SeuratConfig config, Executor ingest) {
         this.catalog = catalog;
-        this.sessions = sessions;
-        this.grants = grants;
         this.config = config;
-        this.ingest = ingest;
+        this.swap = new EditionSwap(catalog, sessions, grants);
         this.watcher = new InboxWatcher(config.inbox, this::offer);
+        this.queue = new IntakeQueue(catalog::isCompleted, ingest, watcher, this::launch);
     }
 
     public void offer(String id, Path file) {
-        if (closed) {
-            Log.info(LogTags.INGEST, LogTags.work(id) + " offer ignored: shutting down");
-            return;
-        }
-        Thread.ofVirtual().start(() -> {
-            if (!FormatMarkers.isZip(file.toString()) && isLista(id)) {
-                skipped(id);
-                watcher.done(file);
-                return;
-            }
-            if (!FileTransferWaiter.waitForReady(file)) {
-                watcher.done(file);
-                return;
-            }
-            Log.info(LogTags.INGEST, LogTags.work(id) + " ingest queued file=" + file.getFileName());
-            Progress.queue(LogTags.INGEST, LogTags.work(id));
-            try {
-                ingest.execute(() -> {
-                    try {
-                        launch(id, file);
-                    } finally {
-                        Progress.done(LogTags.work(id));
-                        watcher.done(file);
-                    }
-                });
-            } catch (RejectedExecutionException ex) {
-                Log.info(LogTags.INGEST, LogTags.work(id) + " ingest dropped: shutting down");
-                Progress.done(LogTags.work(id));
-                watcher.done(file);
-            }
-        });
+        queue.offer(id, file);
     }
 
     private void launch(String id, Path file) {
@@ -82,7 +44,8 @@ public final class MasterIntake implements Closeable {
             if (FormatMarkers.isZip(file.toString())) {
                 Progress.done(LogTags.work(id)); // the zip's own queued segment: its works take over
                 // a work whose master is already home is resumed from there (watch), not unpacked again
-                ZipIntake.run(file, w -> isLista(w) || MasterHome.find(config.works, w).isPresent(), this::ingest);
+                ZipIntake.run(file, w -> catalog.isCompleted(w) || MasterHome.find(config.works, w).isPresent(),
+                        this::ingest);
                 return;
             }
             ingest(id, MasterFormats.stem(file.getFileName().toString()), file);
@@ -93,35 +56,18 @@ public final class MasterIntake implements Closeable {
 
     /** Spec 1.2: the master moves to obras/<id>/master/ before the one pass reads it. */
     private void ingest(String id, String name, Path file) throws Exception {
-        if (isLista(id)) {
-            skipped(id);
+        if (catalog.isCompleted(id)) {
+            IntakeQueue.skipped(id);
             return;
         }
         Path master = MasterHome.adopt(config.works, id, file);
         new IngestJob(id, name, master, config.works, catalog, () -> substitute(id), config.keepMaster).run();
     }
 
-    private boolean isLista(String id) {
-        return catalog.isCompleted(id);
-    }
-
-    private static void skipped(String id) {
-        Log.info(LogTags.INGEST, LogTags.work(id) + " skipped: already ready");
-    }
-
-    /** Edition swap (spec 7.1 [6], 7.3): every open canvas of the work moves to ed2. */
     private void substitute(String id) {
-        WorkRecord work = catalog.get(id);
-        if (work == null) return;
-        Log.info(LogTags.INGEST, LogTags.work(id) + " edition swap ed=" + work.meta.edition());
-        for (Session session : sessions.all()) {
-            for (Canvas canvas : session.canvases().values()) {
-                if (canvas.workId().equals(id) && canvas.meta().edition() != work.meta.edition()) {
-                    grants.substitute(canvas, work);
-                }
-            }
+        if (swap.substitute(id) && onSwapped != null) {
+            onSwapped.accept(id);
         }
-        if (onSwapped != null) onSwapped.accept(id);
     }
 
     /** Boot: a pass cut short runs again from the master it left (spec 7.2), then the inbox. */
@@ -133,7 +79,7 @@ public final class MasterIntake implements Closeable {
     /** Stops the watcher and rejects new offers; running ingest drains. */
     @Override
     public void close() {
-        closed = true;
+        queue.close();
         watcher.close();
     }
 }

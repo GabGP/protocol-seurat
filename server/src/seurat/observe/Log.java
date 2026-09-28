@@ -93,7 +93,7 @@ public final class Log {
         synchronized (PRINT_LOCK) {
             PrintStream out = target;
             if (barShown) {
-                out.print(Progress.wipe());
+                out.print(ProgressRender.wipe());
             }
             out.println(line);
             if (t != null) {
@@ -108,7 +108,7 @@ public final class Log {
         synchronized (PRINT_LOCK) {
             PrintStream out = target;
             if (barShown) {
-                out.print(Progress.wipe());
+                out.print(ProgressRender.wipe());
             }
             drawBar(out);
         }

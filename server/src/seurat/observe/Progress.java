@@ -25,8 +25,8 @@ public final class Progress {
             if (pct == UNKNOWN) {
                 return key + " " + phase + " " + label + "[~]" + suffix;
             }
-            return key + " " + phase + " " + label + bar(pct) + " " + pct + "%" + suffix
-                    + eta(pct, System.currentTimeMillis() - since);
+            return key + " " + phase + " " + label + ProgressRender.bar(pct) + " " + pct + "%" + suffix
+                    + ProgressRender.eta(pct, System.currentTimeMillis() - since);
         }
     }
 
@@ -104,40 +104,11 @@ public final class Progress {
             all.add(QUEUED + "=" + queued);
         }
         String text = LogNames.cut(all.toString());
-        int cols = columns() - 1;
+        int cols = ProgressRender.columns() - 1;
         return text.length() > cols ? text.substring(0, cols) : text;
-    }
-
-    /** Carriage return, blanks over the widest line() can be, carriage return: no escape codes needed. */
-    static String wipe() {
-        return "\r" + " ".repeat(columns() - 1) + "\r";
-    }
-
-    static String bar(int pct) {
-        int cells = SeuratConstants.PROGRESS_BAR_CELLS;
-        int full = pct * cells / Units.PERCENT;
-        return "[" + "#".repeat(full) + "-".repeat(cells - full) + "]";
-    }
-
-    /** " eta=…" to the whole second once the phase has run long enough to extrapolate; "" when under a second. */
-    static String eta(int pct, long elapsedMs) {
-        if (pct <= 0 || pct >= Units.PERCENT || elapsedMs < SeuratConstants.PROGRESS_ETA_MIN_MS) {
-            return "";
-        }
-        long seconds = Math.round(elapsedMs * (Units.PERCENT - pct) / pct / (double) Units.MS_PER_S);
-        return seconds > 0 ? " eta=" + LogUnits.duration(seconds * Units.MS_PER_S) : "";
     }
 
     private static boolean live() {
         return live && Log.isInfoEnabled();
-    }
-
-    private static int columns() {
-        try {
-            String cols = System.getProperty("seurat.log.columns", System.getenv("COLUMNS"));
-            return Math.max(2, Integer.parseInt(cols));
-        } catch (NumberFormatException ex) {
-            return SeuratConstants.PROGRESS_COLUMNS;
-        }
     }
 }

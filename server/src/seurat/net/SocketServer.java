@@ -3,13 +3,9 @@ package seurat.net;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
@@ -28,7 +24,7 @@ import seurat.observe.LogUnits;
 public final class SocketServer implements Closeable {
     private final SeuratConfig config;
     private final HttpSurface http;
-    private final WsAcceptor acceptor;
+    private final WsUpgrader upgrader;
     private volatile ServerSocket bound;
     private volatile boolean closed;
 
@@ -39,7 +35,7 @@ public final class SocketServer implements Closeable {
     public SocketServer(SeuratConfig config, HttpSurface http, WsAcceptor acceptor) {
         this.config = config;
         this.http = http;
-        this.acceptor = acceptor;
+        this.upgrader = new WsUpgrader(config, acceptor);
     }
 
     public void start() throws Exception {
@@ -80,30 +76,23 @@ public final class SocketServer implements Closeable {
 
     private void handle(Socket socket, String remote) throws Exception {
         InputStream in = socket.getInputStream();
-        String head = SocketIo.readLine(in);
+        HttpRequestReader head = HttpRequestReader.read(in);
         if (head == null) {
             socket.close();
             return;
         }
-        String[] parts = head.split(" ", 3);
-        if (parts.length < 2) {
-            Log.warn(LogTags.HTTP, "remote=" + remote + " bad request line: " + head);
+        if (!head.valid()) {
+            Log.warn(LogTags.HTTP, "remote=" + remote + " bad request line: " + head.line());
             Listeners.refuse(socket, 400);
             return;
         }
-        Map<String, String> headers = new HashMap<>();
-        String line;
-        while ((line = SocketIo.readLine(in)) != null && !line.isEmpty()) {
-            int colon = line.indexOf(':');
-            if (colon > 0) {
-                headers.put(line.substring(0, colon).trim().toLowerCase(), line.substring(colon + 1).trim());
-            }
-        }
+        String[] parts = head.parts();
+        Map<String, String> headers = head.headers();
         if (WsHandshake.isUpgrade(parts, headers)) {
-            upgrade(socket, headers, remote);
+            upgrader.upgrade(socket, headers, remote);
             return;
         }
-        long length = contentLength(headers);
+        long length = head.contentLength();
         String host = headers.getOrDefault("host", "localhost:" + config.httpPort);
         boolean streamed = HttpSurface.streamed(parts[0], parts[1]);
         var request = new HttpSurface.Request(parts[0], parts[1], headers,
@@ -114,30 +103,5 @@ public final class SocketServer implements Closeable {
         Log.info(LogTags.HTTP, "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
                 + " took=" + LogUnits.duration((System.nanoTime() - t0) / Units.NANOS_PER_MS));
         Listeners.respond(socket, response);
-    }
-
-    private static long contentLength(Map<String, String> headers) {
-        try {
-            return Math.max(0, Long.parseLong(headers.getOrDefault("content-length", "0")));
-        } catch (NumberFormatException ex) {
-            return 0;
-        }
-    }
-
-    private void upgrade(Socket socket, Map<String, String> headers, String remote) throws Exception {
-        OutputStream out = socket.getOutputStream();
-        if (!WsHandshake.offersSubprotocol(headers) || !WsHandshake.originAllowed(headers, config.origins)) {
-            Log.warn(LogTags.WS, "remote=" + remote + " upgrade refused: subprotocol or Origin");
-            Listeners.refuse(socket, 403);
-            return;
-        }
-        String accept = WsHandshake.acceptKey(headers.get("sec-websocket-key"));
-        out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                + "Sec-WebSocket-Accept: " + accept + "\r\nSec-WebSocket-Protocol: " + WsHandshake.SUBPROTOCOL
-                + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
-        out.flush();
-        BlockingQueue<byte[]> control = new ArrayBlockingQueue<>(SeuratConstants.INPUT_QUEUE_FRAMES);
-        Log.info(LogTags.WS, "remote=" + remote + " upgraded subprotocol=" + WsHandshake.SUBPROTOCOL);
-        acceptor.accept(new WsMapping(socket, control), control);
     }
 }
