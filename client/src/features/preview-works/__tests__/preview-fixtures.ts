@@ -6,6 +6,7 @@ import { ulebEncode, zigzagEncode } from '@/shared/codec/leb128';
 import { rgbToYCoCg } from '@/shared/codec/ycocgr';
 import type { SynthWorker, WorkerFactory } from '@/entities/delivery/worker-pool';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
+import { PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 
 /** A PINCELADA flow carrying one band: 0 by default (bandas 0x01), or `(from << 4) | through`. */
 function flow(handle: number, delivery: number, brushId: bigint, band: Uint8Array, bands = 0x01): Uint8Array {
@@ -65,5 +66,5 @@ export const inlineWorkers: WorkerFactory = () => {
   return w;
 };
 
-/** Lets queued decodes finish (the inline worker answers on later ticks). */
-export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 50));
+/** Lets queued decodes and a waiting recompose finish (the inline worker answers on later ticks). */
+export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, PREVIEW_RECOMPOSE_GAP_MS + 50));

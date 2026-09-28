@@ -1,5 +1,5 @@
 import { dropWorkPreview, setWorkPreview } from '@/entities/work/previews';
-import { PREVIEW_MEMO_KEEP_MS } from '@/shared/config/constants';
+import { PREVIEW_MEMO_KEEP_MS, PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 import type { PreviewLoan } from './preview-loan';
 import type { PreviewDecoder } from './preview-decoder';
 import { composePreview } from './preview-compose';
@@ -8,7 +8,8 @@ import { PreviewFinisher } from './preview-finisher';
 
 /**
  * Composes each held loan's thumbnail through the decoder and shows it. A loan that changes
- * while it is composed is composed once more after; `live` says whether it is still held,
+ * while it is composed is composed once more, PREVIEW_RECOMPOSE_GAP_MS after (pieces come in
+ * bursts; each compose is a full pass over the card); `live` says whether it is still held,
  * and `idle` is told whenever a compose ends with nothing more to do for its loan. A loan's
  * decoded brushes are kept while its pieces keep coming (PREVIEW_MEMO_KEEP_MS after the last
  * compose), so each compose decodes only what changed; a finished thumbnail keeps none.
@@ -36,20 +37,7 @@ export class PreviewPainter {
       return;
     }
     this.drawing.add(loan);
-    composePreview(loan, this.decoder, this.memo(loan), this.finisher)
-      .then((img) => {
-        if (img && loan.seed && this.live(loan)) setWorkPreview(loan.id, img);
-      })
-      .catch((err: unknown) => {
-        if (this.live(loan)) console.warn('Preview decode error for', loan.id, err);
-      })
-      .finally(() => {
-        this.drawing.delete(loan);
-        if (this.stale.delete(loan) && this.live(loan)) return this.draw(loan);
-        const kept = this.memos.get(loan);
-        if (kept) kept.timer = setTimeout(() => this.forget(loan), PREVIEW_MEMO_KEEP_MS);
-        this.idle();
-      });
+    this.compose(loan);
   }
 
   /** What the loan still holds is shown again: less detail, or nothing once the seed is gone. */
@@ -69,6 +57,28 @@ export class PreviewPainter {
     for (const loan of [...this.memos.keys()]) this.forget(loan);
     this.decoder.dispose();
     this.finisher.dispose();
+  }
+
+  private compose(loan: PreviewLoan): void {
+    composePreview(loan, this.decoder, this.memo(loan), this.finisher)
+      .then((img) => {
+        if (img && loan.seed && this.live(loan)) setWorkPreview(loan.id, img);
+      })
+      .catch((err: unknown) => {
+        if (this.live(loan)) console.warn('Preview decode error for', loan.id, err);
+      })
+      .finally(() => {
+        if (!this.stale.delete(loan)) return this.settle(loan);
+        setTimeout(() => (this.live(loan) ? this.compose(loan) : this.settle(loan)), PREVIEW_RECOMPOSE_GAP_MS);
+      });
+  }
+
+  /** Nothing more to compose for the loan: its brushes are kept a while, then dropped. */
+  private settle(loan: PreviewLoan): void {
+    this.drawing.delete(loan);
+    const kept = this.memos.get(loan);
+    if (kept) kept.timer = setTimeout(() => this.forget(loan), PREVIEW_MEMO_KEEP_MS);
+    this.idle();
   }
 
   /** The loan's kept brushes (new when none are), no longer due to be dropped. */

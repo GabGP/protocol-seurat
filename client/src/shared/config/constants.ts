@@ -31,6 +31,8 @@ export const PREVIEW_DECODERS_MAX = 4;
 export const PREVIEW_DECODE_TIMEOUT_MS = 10_000;
 /** A preview's decoded brushes are kept this long after its last compose, for the next piece to build on. */
 export const PREVIEW_MEMO_KEEP_MS = 2000;
+/** A card whose pieces kept coming while it was composed waits this long before the next compose, so a burst is one. */
+export const PREVIEW_RECOMPOSE_GAP_MS = 150;
 export const SCRAPE_TIMEOUT_MS = 10_000;
 export const LEASE_S = 120;
 /** Reconnect after a lost connection (spec 8: POST /sesion + REANUDAR), backing off up to the max. */
