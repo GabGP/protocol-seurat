@@ -120,18 +120,36 @@ function strata({ sink, concession }: TelemetryInput): TelemetrySection {
   return { title: 'Detail by level', rows };
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
+const RATE_UNITS = ['kbit/s', 'Mbit/s', 'Gbit/s'] as const;
+const KIBI = 1024;
+const KILO = 1000;
+/** A value is shown in the next unit up once it would need a fourth integer digit. */
+const UNIT_CEIL = 1000;
+
+/** Three significant digits (5.70, 79.7, 340), so values keep one width as they change. */
+function sig3(v: number): string {
+  const r = Number(v.toPrecision(3));
+  return r === 0 ? '0' : r.toFixed(r < 10 ? 2 : r < 100 ? 1 : 0);
+}
+
+function scaled(v: number, base: number, units: readonly string[], wholeFirst: boolean): string {
+  let u = 0;
+  while (u < units.length - 1 && Number(v.toPrecision(3)) >= UNIT_CEIL) {
+    v /= base;
+    u += 1;
+  }
+  return `${u === 0 && wholeFirst ? Math.round(v) : sig3(v)} ${units[u]}`;
+}
+
 export function fmtBytes(n: number): string {
-  if (n < 1024) return `${Math.round(n)} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  return scaled(n, KIBI, BYTE_UNITS, true);
 }
 
 export function fmtRate(bytesPerS: number): string {
-  const bits = bytesPerS * 8;
-  const main = bits >= 1e6 ? `${(bits / 1e6).toFixed(1)} Mbit/s` : `${Math.round(bits / 1e3)} kbit/s`;
-  return `${main} · ${fmtBytes(bytesPerS)}/s`;
+  return `${scaled((bytesPerS * 8) / KILO, KILO, RATE_UNITS, false)} · ${fmtBytes(bytesPerS)}/s`;
 }
 
 export function fmtMs(ms: number): string {
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+  return ms >= KILO ? `${sig3(ms / KILO)} s` : `${Math.round(ms)} ms`;
 }

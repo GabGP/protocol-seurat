@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyLedger, type DeliveryRecord } from '@/entities/delivery/store';
 import { ImageTelemetry } from '@/entities/telemetry/image-telemetry';
-import { fmtBytes, fmtRate, telemetrySections } from '@/entities/telemetry/sections';
+import { fmtBytes, fmtMs, fmtRate, telemetrySections } from '@/entities/telemetry/sections';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
 function rec(delivery: number, stratum: number, bytes: number, decoded: boolean): DeliveryRecord {
@@ -56,5 +56,29 @@ describe('telemetry sections', () => {
   it('breaks detail down by level, finest first', () => {
     const keys = Object.keys(rows('Detail by level', sections));
     expect(keys).toEqual(['Level 0 (1:1)', 'Seed', 'Finest allowed']);
+  });
+});
+
+describe('telemetry formats', () => {
+  it('shows bytes at three significant digits, rolling units before a fourth digit', () => {
+    expect(fmtBytes(512)).toBe('512 B');
+    expect(fmtBytes(5_837)).toBe('5.70 KB');
+    expect(fmtBytes(81_613)).toBe('79.7 KB');
+    expect(fmtBytes(348_160)).toBe('340 KB');
+    expect(fmtBytes(1_022_000)).toBe('998 KB');
+    expect(fmtBytes(1_030_000)).toBe('0.98 MB');
+    expect(fmtBytes(46_451_000)).toBe('44.3 MB');
+    expect(fmtBytes(3 * 1024 ** 3)).toBe('3.00 GB');
+  });
+
+  it('shows rates in bits and bytes at the same precision', () => {
+    expect(fmtRate(0)).toBe('0 kbit/s · 0 B/s');
+    expect(fmtRate(95_250)).toBe('762 kbit/s · 93.0 KB/s');
+    expect(fmtRate(262_500)).toBe('2.10 Mbit/s · 256 KB/s');
+  });
+
+  it('shows durations in whole ms, then seconds', () => {
+    expect(fmtMs(12.4)).toBe('12 ms');
+    expect(fmtMs(1_530)).toBe('1.53 s');
   });
 });

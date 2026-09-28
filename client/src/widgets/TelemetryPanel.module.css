@@ -3,7 +3,7 @@
   top: 88px;
   left: 16px;
   bottom: 160px; /* clears the pointer readout (x, y, colour) at bottom: 100px, 48px tall */
-  width: 320px;
+  width: 344px; /* fits the widest rate ("Link peak (10 s)  10.5 Mbit/s · 1.31 MB/s") on one line */
   max-width: calc(100% - 32px);
   overflow: auto;
   scrollbar-width: thin;
@@ -90,6 +90,7 @@
   color: var(--visor-ink);
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* The frame meter (settings) sits under the top bar, where the panel starts: move below it. */
