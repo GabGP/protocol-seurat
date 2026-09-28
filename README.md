@@ -104,7 +104,7 @@ Or drop a multi-image zip archive:
 ```bash
 cp /path/to/archive.zip .seurat/runtime/inbox/
 ```
-The server's background intake watcher will detect the file, unpack zip archives into `.seurat/runtime/inbox/<archive>.d/` caches, construct multi-stratum pyramidal brushes and seed (`semilla.bin`), and register each work in the catalog (`.seurat/runtime/obras/`).
+The server's background intake watcher will detect the file, unpack zip archives into `.seurat/runtime/inbox/<archive>.d/` caches, move each master out of the inbox into `.seurat/runtime/obras/<id>/master/`, construct multi-stratum pyramidal brushes and seed (`semilla.bin`), and register each work in the catalog (`.seurat/runtime/obras/`). A pass cut short by a restart runs again from that master.
 
 ### Option B: HTTP Admin REST API
 Upload an image with the admin token configured in `seurat.conf`:
@@ -165,6 +165,7 @@ Server parameters can be customized in `seurat.conf`:
 | `auth.accounts` | *(none)* | Viewer accounts, `name:key:role` comma-separated (`autenticado` or `privilegiado`). An unknown Bearer key gets `401`. |
 | `session.max_brushes`| `1024` | Maximum concurrent active brush grants per session. |
 | `rate.bytes_per_s` | `25000000` | Global egress bandwidth cap (bytes/sec). |
+| `ingest.keep_master` | `true` | Keep `obras/<id>/master/` after the ingest (`meta.json` `keepMaster`); `false` deletes it once the work is `LISTA`. |
 | `log.level` | `INFO` | Console logging verbosity (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`). |
 
 ---

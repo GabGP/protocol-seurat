@@ -10,6 +10,7 @@ import seurat.catalog.WorkRecord;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.ingest.IngestJob;
+import seurat.ingest.MasterHome;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.session.Canvas;
@@ -73,7 +74,9 @@ public final class MasterIntake implements Closeable {
         try {
             if (file.toString().endsWith(".zip")) {
                 Log.info("ingest", "Unpacking zip archive: " + file.getFileName());
-                List<Path> imgs = ZipUnpacker.unpack(file, this::isLista);
+                // a work whose master is already home is resumed from there (watch), not unpacked again
+                List<Path> imgs = ZipUnpacker.unpack(file,
+                        w -> isLista(w) || MasterHome.find(config.works, w).isPresent());
                 if (imgs.isEmpty()) {
                     Log.info("ingest", "Zip archive " + file.getFileName() + " has no new works to ingest");
                     return;
@@ -82,8 +85,7 @@ public final class MasterIntake implements Closeable {
                 long batchStart = System.currentTimeMillis();
                 for (Path img : imgs) {
                     String name = img.getFileName().toString().replaceAll("\\.[^.]+$", "");
-                    new IngestJob(name, name, img, config.works, catalog,
-                            () -> substitute(name)).run();
+                    ingest(name, name, img);
                 }
                 if (imgs.size() > 1) {
                     long batchElapsed = System.currentTimeMillis() - batchStart;
@@ -92,13 +94,7 @@ public final class MasterIntake implements Closeable {
                 }
                 return;
             }
-            String name = file.getFileName().toString().replaceAll("\\.[^.]+$", "");
-            if (isLista(id)) {
-                Log.info("ingest", "Work already completed, skipping: " + id);
-                return;
-            }
-            new IngestJob(id, name, file, config.works, catalog,
-                    () -> substitute(id)).run();
+            ingest(id, file.getFileName().toString().replaceAll("\\.[^.]+$", ""), file);
         } catch (Throwable ex) {
             Log.error("ingest", "Ingest failed for " + id + ": " + ex.getMessage(), ex);
             try {
@@ -106,6 +102,16 @@ public final class MasterIntake implements Closeable {
             } catch (Throwable ignored) {
             }
         }
+    }
+
+    /** Spec 1.2: the master moves to obras/<id>/master/ before the one pass reads it. */
+    private void ingest(String id, String name, Path file) throws Exception {
+        if (isLista(id)) {
+            Log.info("ingest", "Work already completed, skipping: " + id);
+            return;
+        }
+        Path master = MasterHome.adopt(config.works, id, file);
+        new IngestJob(id, name, master, config.works, catalog, () -> substitute(id), config.keepMaster).run();
     }
 
     private boolean isLista(String id) {
@@ -127,7 +133,9 @@ public final class MasterIntake implements Closeable {
         if (onSwapped != null) onSwapped.accept(id);
     }
 
+    /** Boot: a pass cut short runs again from the master it left (spec 7.2), then the inbox. */
     public void watch() {
+        MasterHome.unfinished(catalog, config.works).forEach(this::offer);
         watcher.start();
     }
 

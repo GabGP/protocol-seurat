@@ -20,6 +20,8 @@ public final class SeuratConfig {
     /** PKCS#12 keystore for TLS (https / wss); absent = plain LAN http / ws. */
     public final Path tlsKeystore;
     public final String tlsPassword;
+    /** Spec 1.2: whether obras/<id>/master/ outlives its ingest (meta.json keepMaster). */
+    public final boolean keepMaster;
     /** Extra Origins accepted on the WS upgrade besides the server's own (spec 9.2, CSWSH). */
     public final List<String> origins;
     /** Viewer accounts behind a Bearer key (spec 3.1); without one, a viewer is anonymous. */
@@ -37,6 +39,7 @@ public final class SeuratConfig {
         String ks = props.getOrDefault("tls.keystore", "");
         tlsKeystore = ks.isBlank() ? null : base.resolve(ks);
         tlsPassword = props.getOrDefault("tls.password", "");
+        keepMaster = Boolean.parseBoolean(props.getOrDefault("ingest.keep_master", "true"));
         origins = List.of(props.getOrDefault("ws.origins", "").split("\\s*,\\s*")).stream()
                 .filter(o -> !o.isBlank()).toList();
         accounts = new ViewerAccounts(props.getOrDefault("auth.accounts", ""));

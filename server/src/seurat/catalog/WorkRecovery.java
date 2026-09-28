@@ -38,6 +38,7 @@ final class WorkRecovery {
                     continue;
                 }
                 WorkRecord work = new WorkRecord(info);
+                work.keepMaster = MetaJson.keepMaster(json);
                 var ceilings = RolePolicy.merge(work.ceilings, MetaJson.ceilings(json));
                 if (ceilings != null) {
                     work.ceilings.putAll(ceilings);

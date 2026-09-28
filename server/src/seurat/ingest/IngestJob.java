@@ -15,7 +15,8 @@ import seurat.store.WorkMeta;
 /**
  * Spec 7.1: RECIBIENDO, the ed1 sketch when the master carries an overview (BOCETO), then the one
  * sequential 256-row-band ed2 pass (PINTANDO -> LISTA). Decode runs on a read-ahead thread while
- * the pool encodes brushes.
+ * the pool encodes brushes. The master is read where MasterHome keeps it and, with
+ * keepMaster=false, deleted once the work is LISTA (spec 1.2).
  */
 public final class IngestJob implements Runnable {
     private final String id;
@@ -24,9 +25,16 @@ public final class IngestJob implements Runnable {
     private final Path worksDir;
     private final Catalog catalog;
     private final Runnable onReady;
+    private final boolean keepMaster;
 
     public IngestJob(String id, String name, Path master, Path worksDir,
             Catalog catalog, Runnable onReady) {
+        this(id, name, master, worksDir, catalog, onReady, true);
+    }
+
+    public IngestJob(String id, String name, Path master, Path worksDir,
+            Catalog catalog, Runnable onReady, boolean keepMaster) {
+        this.keepMaster = keepMaster;
         this.id = id;
         this.name = name;
         this.master = master;
@@ -44,8 +52,10 @@ public final class IngestJob implements Runnable {
             }
             long start = System.currentTimeMillis();
             Log.info("ingest", "Ingest started for '" + id + "' [" + name + "] from " + master.getFileName());
-            catalog.register(new WorkRecord(new WorkMeta(id, name, 0, 0, 256, 0,
-                    ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2)));
+            WorkRecord fresh = new WorkRecord(new WorkMeta(id, name, 0, 0, 256, 0,
+                    ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2));
+            fresh.keepMaster = keepMaster;
+            catalog.register(fresh);
             try (MasterReader reader = new ReadAheadReader(new PngReader(master))) {
                 int w = reader.width();
                 int h = reader.height();
@@ -64,6 +74,9 @@ public final class IngestJob implements Runnable {
                 long elapsed = System.currentTimeMillis() - start;
                 Log.info("ingest", "Work '" + id + "' ed2 pyramid completed, work ready (ST_LISTA)");
                 Log.info("ingest", "Preprocessing for '" + id + "' completed in " + formatDuration(elapsed));
+            }
+            if (!keepMaster) {
+                MasterHome.drop(worksDir, id); // after the reader closed it
             }
             onReady.run();
         } catch (Throwable ex) { // OutOfMemoryError included: never leave a work stuck mid-pass

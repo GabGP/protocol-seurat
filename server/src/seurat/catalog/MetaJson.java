@@ -15,7 +15,13 @@ final class MetaJson {
         return "{\"id\":\"" + esc(m.id()) + "\",\"name\":\"" + esc(m.name())
                 + "\",\"width\":" + m.width() + ",\"height\":" + m.height()
                 + ",\"side\":" + m.side() + ",\"strata\":" + m.strata()
-                + ",\"state\":" + m.state() + ",\"edition\":" + m.edition() + ceilings(work) + "}";
+                + ",\"state\":" + m.state() + ",\"edition\":" + m.edition()
+                + ",\"keepMaster\":" + work.keepMaster + ceilings(work) + "}";
+    }
+
+    /** Absent (older meta.json) means kept: nothing is deleted that was not asked for. */
+    static boolean keepMaster(String json) {
+        return !"false".equals(parse(json).get("keepMaster"));
     }
 
     /** Ceilings per role (spec 8: meta.json holds them), as "techo.<role>":"stratum/bands". */
