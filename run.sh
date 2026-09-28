@@ -21,4 +21,9 @@ javac "${FLAGS[@]}" -d .seurat/build/classes $(find server/src -name '*.java')
 jar -cf .seurat/build/seurat.jar -C .seurat/build/classes .
 # Ingest heap grows with image width (~2.5 GB live at 196,608 px); 6G leaves GC headroom.
 HEAP="${SEURAT_HEAP:--Xmx6G}"
-exec java "${RUN_FLAGS[@]}" $HEAP ${JAVA_OPTS:-} -cp .seurat/build/seurat.jar:.seurat/build/classes seurat.SeuratServer "$@"
+# Colours and the sticky progress bar only on a terminal: a redirected log stays plain text.
+LOG_FLAGS=(-Dseurat.log.tty=false)
+if [ -t 1 ]; then
+  LOG_FLAGS=(-Dseurat.log.tty=true "-Dseurat.log.columns=$(tput cols 2>/dev/null || echo 80)")
+fi
+exec java "${RUN_FLAGS[@]}" $HEAP "${LOG_FLAGS[@]}" ${JAVA_OPTS:-} -cp .seurat/build/seurat.jar:.seurat/build/classes seurat.SeuratServer "$@"

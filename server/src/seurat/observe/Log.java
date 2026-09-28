@@ -17,8 +17,13 @@ public final class Log {
     /** The sticky progress line is on screen (no newline after it yet); guarded by PRINT_LOCK. */
     private static boolean barShown;
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-    private static final boolean COLOR = (System.console() != null
-            || (System.getenv("TERM") != null && !"dumb".equals(System.getenv("TERM"))))
+    /**
+     * stdout is a terminal. run.sh / run.ps1 test it and pass -Dseurat.log.tty (mintty has no Java
+     * console; TERM stays set when output is redirected); a bare java launch falls back to the console.
+     */
+    static final boolean TTY = Boolean.parseBoolean(
+            System.getProperty("seurat.log.tty", String.valueOf(System.console() != null)));
+    private static final boolean COLOR = TTY
             && System.getenv("NO_COLOR") == null
             && !"false".equalsIgnoreCase(System.getProperty("seurat.log.color"));
 

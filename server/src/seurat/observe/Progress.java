@@ -14,7 +14,7 @@ import seurat.config.SeuratConstants;
 public final class Progress {
     private static final int UNKNOWN = -1;
     private static final Map<String, Job> JOBS = new ConcurrentSkipListMap<>();
-    private static volatile boolean live = System.console() != null
+    private static volatile boolean live = Log.TTY
             && !"false".equalsIgnoreCase(System.getProperty("seurat.log.progress"));
 
     /** pct is UNKNOWN while the phase has no total; since is when the phase began (ETA base). */
@@ -30,7 +30,7 @@ public final class Progress {
 
     private Progress() {}
 
-    /** Tests pin the mode; the default follows whether stdout is a console. */
+    /** Tests pin the mode; the default follows whether stdout is a terminal (Log.TTY). */
     static void setLive(boolean on) {
         live = on;
     }
@@ -117,7 +117,8 @@ public final class Progress {
 
     private static int columns() {
         try {
-            return Math.max(2, Integer.parseInt(System.getenv("COLUMNS")));
+            String cols = System.getProperty("seurat.log.columns", System.getenv("COLUMNS"));
+            return Math.max(2, Integer.parseInt(cols));
         } catch (NumberFormatException ex) {
             return SeuratConstants.PROGRESS_COLUMNS;
         }

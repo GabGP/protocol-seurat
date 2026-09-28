@@ -58,5 +58,12 @@ jar -cf .seurat/build/seurat.jar -C .seurat/build/classes .
 # Ingest heap grows with image width (~2.5 GB live at 196,608 px); 6G leaves GC headroom.
 $heap = if ($env:SEURAT_HEAP) { $env:SEURAT_HEAP } else { "-Xmx6G" }
 $javaOpts = if ($env:JAVA_OPTS) { $env:JAVA_OPTS -split '\s+' | Where-Object { $_ } } else { @() }
-& java @runFlags $heap @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
+# Colours and the sticky progress bar only on a terminal: a redirected log stays plain text.
+$logFlags = @("-Dseurat.log.tty=false")
+if (-not [Console]::IsOutputRedirected) {
+    $cols = 80
+    try { $cols = [Console]::WindowWidth } catch {}
+    $logFlags = @("-Dseurat.log.tty=true", "-Dseurat.log.columns=$cols")
+}
+& java @runFlags $heap @logFlags @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
 exit $LASTEXITCODE
