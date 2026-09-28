@@ -14,6 +14,10 @@ export const RECEIPT_EVERY_N = 8;
 export const CREDIT_WINDOW_S = 1;
 /** Never advertise fewer: one delivery arriving while the next is confirmed keeps the link busy. */
 export const CREDIT_MIN = 2;
+/** Spec 2.3: max_kib = 48 × max_pinceladas, the per-brush share before any delivery is measured. */
+export const KIB_PER_BRUSH = 48;
+/** Spec 6.1 max_en_vuelo: flows the server may have open for a session at once. */
+export const WIRE_FLOWS = 12;
 export const RELEASE_BATCH_MS = 100;
 /** RECIBO.libre of a gallery preview: the server's opening window, enough for a card's cone. */
 export const PREVIEW_CREDIT = 8;

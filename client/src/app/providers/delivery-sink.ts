@@ -1,7 +1,7 @@
 import {
   EVICT_HEADROOM, EVICT_PRESSURE, EVICT_TARGET, RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, SKETCH_MIN, TILE,
 } from '@/shared/config/constants';
-import { receiverWindow } from '@/entities/delivery/credit';
+import { byteRoom, coming, receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
 import { AttentionHeat } from '@/entities/delivery/attention-heat';
 import { collectCandidates, inCore, ownedBrushes, type EvictView } from '@/entities/delivery/evict-candidate';
@@ -73,6 +73,8 @@ export class DeliverySink {
   /** Deliveries of an epoch whose CONCESION has not arrived yet (flows can overtake control). */
   private early: Array<() => void> = [];
   private avgDelivery = 0;
+  /** The largest delivery held so far (band bytes): what the byte window reserves per brush. */
+  private largest = 0;
   private linkBps = 0;
   private pending = new Map<number, { req: SynthRequest; parentId: bigint; edition: number }>();
   private failed = new Set<number>();
@@ -320,6 +322,7 @@ export class DeliverySink {
       return;
     }
     this.avgDelivery = this.avgDelivery === 0 ? bytes.length : 0.8 * this.avgDelivery + 0.2 * bytes.length;
+    this.largest = Math.max(this.largest, total);
     const split = splitBrushId(h.brushId);
     const retainedBands = bands.map((band) => band.slice().buffer);
     const rec: DeliveryRecord = {
@@ -765,8 +768,10 @@ export class DeliverySink {
     const over = (): boolean => load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
     // The server opens a flow only while |libro| < max_pinceladas (§4.1 c), so with the book full
     // nothing is on the wire: only the core stays (§5.2.3), and a cone larger than the
-    // concession cannot stall the view with nothing evictable.
-    const painted = this.book.byDelivery.size >= this.maxBrushes() ? []
+    // concession cannot stall the view with nothing evictable. With max_kib spent libre is 0,
+    // so only what was granted before still comes and fits (`free`); the same holds.
+    const full = this.book.byDelivery.size >= this.maxBrushes() || this.bytesLeft() <= this.coming();
+    const painted = full ? []
       : this.cones.views((n) => this.settlement.settledBelow(n, (m) => this.book.byDelivery.has(m)));
     while (over()) {
       const candidates = collectCandidates(this.book, this.view, painted, sketch);
@@ -790,16 +795,26 @@ export class DeliverySink {
   }
 
   /**
-   * RECIBO.libre: the memory window, capped to ~CREDIT_WINDOW_S of deliveries at the link's
+   * RECIBO.libre: the memory window (brushes and max_kib), capped to ~CREDIT_WINDOW_S of deliveries at the link's
    * recent rate, so a slow link never queues more than that ahead of a new MIRADA.
    */
   free(): number {
-    const memory = Math.max(0, this.maxBrushes() - this.book.byDelivery.size);
+    const memory = Math.max(0, Math.min(this.maxBrushes() - this.book.byDelivery.size, this.bytesLeft() - this.coming()));
     const peak = this.client()?.meter?.peak(performance.now()) ?? 0;
     // Only a second that carried at least one brush measures the link; idle keeps the last rate,
     // so the next view starts with a full window instead of re-ramping from CREDIT_MIN.
     if (this.avgDelivery > 0 && peak >= this.avgDelivery) this.linkBps = peak;
     return receiverWindow(memory, this.linkBps, this.avgDelivery);
+  }
+
+  /** Deliveries as large as the largest yet that still fit in max_kib. */
+  private bytesLeft(): number {
+    return byteRoom(this.maxKiB() * 1024 - ownedBytes(this.book), this.largest);
+  }
+
+  /** What may arrive before the server reads the next RECIBO: the wire and the unused grant. */
+  private coming(): number {
+    return coming(Math.max(0, this.lastFree), this.book.pendingReceipt.length);
   }
 
   get queueDepthMs(): number {

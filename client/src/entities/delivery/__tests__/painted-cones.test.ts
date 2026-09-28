@@ -68,27 +68,35 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     sink.dispose();
   });
 
-  it('with the book full nothing is on the wire: ring brushes go, the core stays', () => {
-    const run = (max: number): number[] => {
-      const released: number[] = [];
-      const client = {
-        sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
-        sendReceipt: () => undefined,
-      } as unknown as SessionClient;
-      const sink = new DeliverySink(1, () => client, () => 36864, () => max);
-      const hold = (n: number, stratum: number, bx: number): void => {
-        sink.book.byDelivery.set(n, {
-          delivery: n, brushId: makeBrushId(stratum, bx, 0), stratum,
-          from: 0, through: 4, bytes: 10, epoch: 1, edition: 1, expires: 1e12, rgba: null,
-        });
-      };
-      for (let bx = 0; bx < 20; bx++) hold(bx + 1, 0, bx); // the focus: core
-      for (let bx = 10; bx < 15; bx++) hold(bx + 11, 1, bx); // ring 1 beyond the view: cone, not core
-      sink.setView(0, 0, 20 * 256, 256, 20 * 256, 256, 1);
-      sink.dispose();
-      return released.sort((a, b) => a - b);
+  /** 20 core brushes and 5 ring ones of `kib` each under the given caps: what eviction releases. */
+  const run = (max: number, maxKiB = 36864, kib = 0): number[] => {
+    const released: number[] = [];
+    const client = {
+      sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
+      sendReceipt: () => undefined,
+    } as unknown as SessionClient;
+    const sink = new DeliverySink(1, () => client, () => maxKiB, () => max);
+    const hold = (n: number, stratum: number, bx: number): void => {
+      sink.book.byDelivery.set(n, {
+        delivery: n, brushId: makeBrushId(stratum, bx, 0), stratum,
+        from: 0, through: 4, bytes: kib * 1024 || 10, epoch: 1, edition: 1, expires: 1e12, rgba: null,
+      });
     };
+    for (let bx = 0; bx < 20; bx++) hold(bx + 1, 0, bx); // the focus: core
+    for (let bx = 10; bx < 15; bx++) hold(bx + 11, 1, bx); // ring 1 beyond the view: cone, not core
+    sink.setView(0, 0, 20 * 256, 256, 20 * 256, 256, 1);
+    sink.dispose();
+    return released.sort((a, b) => a - b);
+  };
+
+  it('with the book full nothing is on the wire: ring brushes go, the core stays', () => {
     expect(run(26)).toEqual([]); // not full: the ring's children may be on the wire
     expect(run(25)).toEqual([21, 22, 23, 24, 25]);
+  });
+
+  it('with max_kib spent libre is 0 and what still comes fits: ring brushes go, the core stays', () => {
+    // 6000 KiB held, above 90 %: 650 KiB left still take 13 per-brush shares, more than the wire's 12
+    expect(run(1000, 6650, 240)).toEqual([]);
+    expect(run(1000, 6600, 240)).toEqual([21, 22, 23, 24, 25]);
   });
 });
