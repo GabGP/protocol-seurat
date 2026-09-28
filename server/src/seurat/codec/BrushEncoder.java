@@ -59,7 +59,7 @@ public final class BrushEncoder {
         for (int i = 0; i < n; i++) {
             from[band[i] + 1]++;
         }
-        for (int b = 0; b < 4; b++) {
+        for (int b = 0; b < Bands.NONE; b++) {
             from[b + 1] += from[b];
         }
         int[] fill = ws.fill;
@@ -76,6 +76,10 @@ public final class BrushEncoder {
         var crc = ws.crc;
 
         for (int b = 0; b < 4; b++) {
+            if (from[b] == from[b + 1]) {
+                bands[b] = new byte[0]; // no members: the band costs 0 bytes (spec 7.2), CRC-32C 0
+                continue;
+            }
             int rawPos = 0;
             for (int i = 0; i < n; i += 8) {
                 int by = 0;

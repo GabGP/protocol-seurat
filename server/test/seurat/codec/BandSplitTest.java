@@ -3,7 +3,7 @@ package seurat.codec;
 import java.util.Random;
 import seurat.kit.TestKit;
 
-/** BandSplit: the same bands as ranking every parent with BandsOrder (E desc, Morton asc). */
+/** BandSplit: the same bands as ranking every parent with BandsOrder (E desc, Morton asc); E = 0 in none. */
 public final class BandSplitTest {
     private static final int N = Bands.PARENTS;
 
@@ -31,8 +31,8 @@ public final class BandSplitTest {
         byte[] band = new byte[N];
         BandSplit.split(energy.clone(), band, new int[N], new int[N], new int[1 << BandSplit.DIGIT_BITS]);
         for (int i = 0; i < N; i++) {
-            TestKit.check(band[i] == Bands.bandOf(rank[i]), what + ": parent " + i + " band " + band[i]
-                    + " != " + Bands.bandOf(rank[i]));
+            int want = energy[i] == 0 ? Bands.NONE : Bands.bandOf(rank[i]);
+            TestKit.check(band[i] == want, what + ": parent " + i + " band " + band[i] + " != " + want);
         }
     }
 }

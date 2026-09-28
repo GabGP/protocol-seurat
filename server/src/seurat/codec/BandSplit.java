@@ -4,7 +4,8 @@ package seurat.codec;
  * Band of each parent of a 128x128 brush (spec: E descending, Morton ascending), without a full
  * sort: parents start in Morton order and a stable LSD radix pass per digit of E orders them by
  * energy, so ties keep Morton order. Same bands as ranking with {@link BandsOrder}, a fraction of
- * the cost; a brush whose energies are all zero takes no pass at all.
+ * the cost. Parents with E = 0 rank last and get {@link Bands#NONE}: they are omitted (spec 2.1),
+ * so a brush whose energies are all zero takes no pass and no band at all.
  */
 final class BandSplit {
     private BandSplit() {}
@@ -23,8 +24,10 @@ final class BandSplit {
     static void split(int[] energy, byte[] band, int[] order, int[] spare, int[] count) {
         int n = BrushWorkspace.N;
         int max = 0;
+        int ranked = 0;
         for (int i = 0; i < n; i++) {
             max = Math.max(max, energy[i]);
+            ranked += energy[i] != 0 ? 1 : 0;
         }
         int[] src = order;
         int[] dst = spare;
@@ -49,11 +52,14 @@ final class BandSplit {
             dst = t;
         }
         int b = 0;
-        for (int r = 0; r < n; r++) {
+        for (int r = 0; r < ranked; r++) {
             while (r >= Bands.CUTS[b + 1]) {
                 b++;
             }
             band[src[r]] = (byte) b;
+        }
+        for (int r = ranked; r < n; r++) {
+            band[src[r]] = Bands.NONE;
         }
     }
 }

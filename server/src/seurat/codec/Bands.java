@@ -17,6 +17,8 @@ public final class Bands {
 
     public static final int PARENTS = 16384;
     public static final int[] CUTS = {0, 2048, 4096, 8192, 16384};
+    /** Band of a parent with E = 0: in none, it costs nothing (spec 2.1). */
+    public static final byte NONE = 4;
 
     private static final ThreadLocal<Deflater> DEFLATERS =
             ThreadLocal.withInitial(() -> new Deflater(seurat.config.SeuratConstants.DEFLATE_LEVEL, true));
@@ -89,8 +91,11 @@ public final class Bands {
         return out.toByteArray();
     }
 
-    /** Unpacks into vals (zero-filled first by caller). Returns members bitmap. */
+    /** Unpacks into vals (zero-filled first by caller). Returns members bitmap; 0 bytes = no members. */
     public static int[] unpack(byte[] band, int n, int[][][] vals) {
+        if (band.length == 0) {
+            return new int[n];
+        }
         Inflater inf = new Inflater(true);
         inf.setInput(band);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

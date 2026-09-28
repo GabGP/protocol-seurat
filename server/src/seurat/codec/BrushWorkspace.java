@@ -21,8 +21,9 @@ final class BrushWorkspace {
     final int[] spare = new int[N];
     final int[] count = new int[1 << BandSplit.DIGIT_BITS];
     final int[] members = new int[N];
-    final int[] from = new int[5];
-    final int[] fill = new int[5];
+    /** Start of each band's members, NONE included: bands 0..NONE plus the end. */
+    final int[] from = new int[Bands.NONE + 2];
+    final int[] fill = new int[Bands.NONE + 2];
     final byte[] rawBuf = new byte[512 * 1024];
     final byte[] compBuf = new byte[512 * 1024];
     final CRC32C crc = new CRC32C();
