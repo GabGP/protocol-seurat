@@ -46,5 +46,7 @@ export const HERO_GRID_CELL = 11;
 export const GL_ATLAS_LAYERS = 256;
 /** Tile uploads stop for the frame once they have taken this long (at least one always goes). */
 export const GL_UPLOAD_BUDGET_MS = 3;
+/** A lost WebGL context not restored within this long is given up on: Canvas2D takes over. */
+export const GL_RESTORE_WAIT_MS = 3000;
 /** Frame shadow: canvas shadowBlur is 2σ. */
 export const FRAME_SHADOW_SIGMA = FRAME_SHADOW_BLUR / 2;

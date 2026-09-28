@@ -14,7 +14,7 @@ import { initialView, tickView } from '@/features/zoom-view/model';
 import { viewToRoi } from '@/entities/viewport/math';
 import type { DeliverySink } from '@/app/providers/delivery-sink';
 import type { GazeSender } from '@/features/send-gaze';
-import { LOUPE_MAGNIFICATION, LOUPE_RADIUS, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_OFFSET_Y } from '@/shared/config/render';
+import { GL_RESTORE_WAIT_MS, LOUPE_MAGNIFICATION, LOUPE_RADIUS, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_OFFSET_Y } from '@/shared/config/render';
 import {
   MIN_ZOOM_FIT_RATIO,
   DBLCLICK_ZOOM_IN,
@@ -131,8 +131,10 @@ export function ViewerChrome(props: Props): JSX.Element {
   const badgeRef = useRef<HTMLDivElement>(null);
   /** Bumped to remount the canvas: a canvas keeps its first context type (WebGL2 ↔ Canvas2D). */
   const [canvasGen, setCanvasGen] = useState(0);
-  /** WebGL2 failed or lost its context on this viewer: Canvas2D until the switch is flipped again. */
+  /** WebGL2 failed or lost its context for good on this viewer: Canvas2D until the switch is flipped again. */
   const gpuFailed = useRef(false);
+  /** Bumped when a lost WebGL context is restored: a new renderer on the same canvas and context. */
+  const [glGen, setGlGen] = useState(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -545,15 +547,26 @@ export function ViewerChrome(props: Props): JSX.Element {
     cv.addEventListener('pointerleave', onLeave);
     cv.addEventListener('dblclick', onDbl);
     window.addEventListener('keydown', onKey);
-    // §5.3: a lost context changes nothing in the protocol. The bitmaps are still held, so the
-    // view goes on in Canvas2D at once (a canvas keeps its context type: remount a fresh one).
+    // §5.3: a lost context changes nothing in the protocol: the textures go, what is held stays
+    // in the heap. On webglcontextrestored a new renderer re-uploads every held brush (nothing
+    // is downloaded again). A context not back soon is given up on: Canvas2D on a fresh canvas.
+    let restoreWait = 0;
     const onContextLost = (e: Event): void => {
-      e.preventDefault();
-      console.warn('viewer: WebGL context lost, continuing with Canvas2D');
-      gpuFailed.current = true;
-      setCanvasGen((g) => g + 1);
+      e.preventDefault(); // without it the context is never restored
+      console.warn('viewer: WebGL context lost, waiting for it to be restored');
+      restoreWait = window.setTimeout(() => {
+        console.warn('viewer: WebGL context not restored, continuing with Canvas2D');
+        gpuFailed.current = true;
+        setCanvasGen((g) => g + 1);
+      }, GL_RESTORE_WAIT_MS);
+    };
+    const onContextRestored = (): void => {
+      window.clearTimeout(restoreWait);
+      console.info('viewer: WebGL context restored, re-uploading the held brushes');
+      setGlGen((g) => g + 1);
     };
     cv.addEventListener('webglcontextlost', onContextLost);
+    cv.addEventListener('webglcontextrestored', onContextRestored);
     const offFlags = subscribeRenderFlags(onFlags);
     onFlags();
     resize();
@@ -571,6 +584,8 @@ export function ViewerChrome(props: Props): JSX.Element {
       window.removeEventListener('keydown', onKey);
       offFlags();
       cv.removeEventListener('webglcontextlost', onContextLost);
+      cv.removeEventListener('webglcontextrestored', onContextRestored);
+      window.clearTimeout(restoreWait);
       renderer.dispose();
       cv.parentElement?.removeAttribute('data-moving');
       cv.parentElement?.removeAttribute('data-meter');
@@ -578,7 +593,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       wakeRef.current = () => undefined;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.iw, props.ih, props.handle, canvasGen]);
+  }, [props.iw, props.ih, props.handle, canvasGen, glGen]);
 
   useEffect(() => {
     stateRef.current.iw = props.iw;
