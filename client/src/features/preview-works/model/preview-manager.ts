@@ -1,41 +1,39 @@
-import { decodeSeed } from '@/shared/codec/seed';
-import { parseBrushHead, sliceBands } from '@/shared/proto/brush';
+import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
 import { dropWorkPreview, hasWorkPreview, setWorkPreview } from '@/entities/work/previews';
-import { matchesScrape } from '@/entities/delivery/scrape';
-import { LEASE_S, SEED_STRATUM } from '@/shared/config/constants';
+import type { WorkerFactory } from '@/entities/delivery/worker-pool';
+import { LEASE_S } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/app/providers/session-client';
-
-/** A gallery thumbnail is a held seed: its canvas stays open, with its lease, while it is shown. */
-interface Preview {
-  id: string;
-  handle: number;
-  w: number;
-  h: number;
-  /** Delivery number of the seed once it arrived (0 before). */
-  seed: number;
-  expires: number;
-  renewThrough: number;
-  timer: ReturnType<typeof setTimeout> | null;
-}
+import { PreviewLoan, piecesKib, type PreviewPiece } from './preview-loan';
+import { PreviewDecoder } from './preview-decoder';
+import { composePreview } from './preview-compose';
 
 const SOLTAR_LRU = 1;
 const SOLTAR_CADUCADA = 3;
+const SOLTAR_CRC = 6;
+const SOLTAR_REEMPLAZADA = 7;
 const OPEN_TIMEOUT_MS = 5000;
 
 /**
- * Catalog thumbnails from the seed (spec 3.2), inside the protocol: the seed is a loan
- * like any other. RECIBO libre = 0 keeps the rest of the sketch from being painted;
- * anything else that arrives is released at once. RENOVAR / RASPAR / AUDITAR are
- * answered; CERRAR (leaving the gallery) or an unrenewed lease drops the thumbnail.
+ * Catalog thumbnails inside the protocol (spec 3.2): the seed and the brushes of the stratum
+ * under it are loans like any other. RECIBO libre = brushes still missing, so the server paints
+ * exactly those and no more of the sketch; anything else is released at once. RENOVAR / RASPAR /
+ * AUDITAR are answered; CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail.
  */
 export class PreviewManager {
   private queue: string[] = [];
-  private loading: Preview | null = null;
-  private held = new Map<number, Preview>();
+  private loading: PreviewLoan | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private held = new Map<number, PreviewLoan>();
   private paused = false;
+  private readonly decoder: PreviewDecoder;
+  /** Loans being composed, and those that changed meanwhile (composed once more after). */
+  private drawing = new Set<PreviewLoan>();
+  private stale = new Set<PreviewLoan>();
 
-  constructor(private client: () => SessionClient | null) {}
+  constructor(private client: () => SessionClient | null, workers?: WorkerFactory) {
+    this.decoder = new PreviewDecoder(workers);
+  }
 
   enqueue(ids: string[]): void {
     for (const id of ids) {
@@ -50,11 +48,11 @@ export class PreviewManager {
   pause(): void {
     this.paused = true;
     const all = [...this.held.values(), ...(this.loading ? [this.loading] : [])];
+    for (const l of all) this.close(l);
     this.loading = null;
-    this.held.clear();
-    for (const p of all) this.close(p);
-    // Back in the gallery, the same thumbnails are fetched again (16 KB seeds, not kept meanwhile).
-    this.queue = [...new Set([...all.map((p) => p.id), ...this.queue])];
+    this.decoder.dispose();
+    // Back in the gallery, the same thumbnails are fetched again (not kept meanwhile).
+    this.queue = [...new Set([...all.map((l) => l.id), ...this.queue])];
   }
 
   resume(): void {
@@ -71,102 +69,122 @@ export class PreviewManager {
       this.client()?.closeHandle(a.handle);
       return;
     }
-    this.loading.handle = a.handle;
-    this.loading.w = a.seedWidth;
-    this.loading.h = a.seedHeight;
+    Object.assign(this.loading, { handle: a.handle, seedW: a.seedWidth, seedH: a.seedHeight, top: a.strata - 1 });
   }
 
   onDelivery(bytes: Uint8Array): boolean {
-    let h;
+    let h: BrushHead;
+    let bands: Uint8Array[];
     try {
       h = parseBrushHead(bytes);
+      bands = sliceBands(bytes, h);
     } catch {
       return false;
     }
-    const p = this.loading?.handle === h.handle ? this.loading : this.held.get(h.handle);
-    if (!p) return false;
-    if (p !== this.loading || h.stratum !== SEED_STRATUM) {
-      this.client()?.sendRelease(h.handle, SOLTAR_LRU, [h.delivery]); // not a thumbnail: not kept
-      return true;
+    const loan = this.loading?.handle === h.handle ? this.loading : this.held.get(h.handle);
+    if (!loan) return false;
+    const { bx, by } = splitBrushId(h.brushId);
+    if (!loan.wants(h, bx, by)) return this.release(loan, SOLTAR_LRU, [h.delivery]); // not a thumbnail piece
+    if (bands.some((b, i) => !verifyBand(b, h.crcs[i] ?? 0))) return this.release(loan, SOLTAR_CRC, [h.delivery]);
+    const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * 1000 };
+    this.release(loan, SOLTAR_REEMPLAZADA, loan.take(piece).map((p) => p.delivery));
+    this.client()?.sendReceipt(loan.handle, [h.delivery], 0, loan.missing(), 0);
+    if (loan === this.loading && loan.seed) {
+      if (this.timer) clearTimeout(this.timer);
+      this.loading = null;
+      this.held.set(loan.handle, loan);
     }
-    if (p.timer) clearTimeout(p.timer);
-    p.seed = h.delivery;
-    p.expires = performance.now() + LEASE_S * 1000;
-    this.loading = null;
-    this.held.set(p.handle, p);
-    this.client()?.sendReceipt(p.handle, [h.delivery], 0, 0, 0); // libre = 0: nothing more, please
-    void (async () => {
-      try {
-        const band0 = sliceBands(bytes, h)[0];
-        if (band0 && this.held.get(p.handle) === p) setWorkPreview(p.id, await decodeSeed(band0, p.w, p.h));
-      } catch (err) {
-        console.warn('Preview decode error for', p.id, err);
-      } finally {
-        this.pump();
-      }
-    })();
+    if (loan.seed && (piece === loan.seed || loan.missing() === 0)) this.draw(loan);
     return true;
   }
 
   onRenew(r: Renew): boolean {
-    const p = this.held.get(r.handle);
-    if (!p) return false;
-    if (r.ranges.includes(p.seed)) p.expires = performance.now() + r.leaseS * 1000;
-    p.renewThrough = Math.max(p.renewThrough, r.order);
-    this.client()?.sendReceipt(p.handle, [], 0, 0, p.renewThrough);
+    const loan = this.held.get(r.handle);
+    if (!loan) return false;
+    loan.renew(r.ranges, r.leaseS, performance.now());
+    loan.renewThrough = Math.max(loan.renewThrough, r.order);
+    this.client()?.sendReceipt(loan.handle, [], 0, loan.missing(), loan.renewThrough);
     return true;
   }
 
   onScrape(r: Scrape): boolean {
-    const p = this.held.get(r.handle) ?? (this.loading?.handle === r.handle ? this.loading : undefined);
-    if (!p) return false;
-    const seedRec = { delivery: p.seed, brushId: 10n << 56n, stratum: SEED_STRATUM, from: 0, through: 1,
-      bytes: 0, epoch: 0, edition: 0, expires: 0, rgba: null };
-    const scraped = p.seed > 0 && p.seed <= r.through && matchesScrape(seedRec, r.predicate, r.params);
-    if (scraped) this.forget(p);
-    const kept = p.seed > 0 && p.seed <= r.through && !scraped ? [p.seed] : [];
-    this.client()?.sendScraped(r.handle, r.order, r.epoch, r.through, scraped ? 1 : 0, 0, kept);
+    const loan = this.held.get(r.handle) ?? (this.loading?.handle === r.handle ? this.loading : undefined);
+    if (!loan) return false;
+    const { scraped, kept } = loan.scrape(r);
+    this.client()?.sendScraped(r.handle, r.order, r.epoch, r.through, scraped.length, piecesKib(scraped), kept);
+    if (scraped.length > 0) this.redraw(loan);
     return true;
   }
 
   onAudit(a: Audit): boolean {
-    const p = this.held.get(a.handle);
-    if (!p) return false;
-    const ranges = p.seed > 0 && p.seed <= a.through ? [p.seed] : [];
-    this.client()?.sendInventory(a.handle, a.order, a.through, ranges.length, 0, ranges);
+    const loan = this.held.get(a.handle);
+    if (!loan) return false;
+    const held = loan.pieces().filter((p) => p.delivery <= a.through);
+    this.client()?.sendInventory(a.handle, a.order, a.through, held.length, piecesKib(held), loan.numbersThrough(a.through));
     return true;
   }
 
-  /** Spec 5.2.2: a thumbnail whose lease ran out is dropped and released (SOLTAR CADUCADA). */
+  /** Spec 5.2.2: pieces whose lease ran out are released (SOLTAR CADUCADA); without its seed the canvas closes. */
   sweep(now: number): void {
-    for (const p of [...this.held.values()]) {
-      if (p.seed > 0 && p.expires <= now) {
-        this.client()?.sendRelease(p.handle, SOLTAR_CADUCADA, [p.seed]);
-        this.forget(p);
-        this.close(p);
-      }
+    for (const loan of [...this.held.values()]) {
+      const gone = loan.expired(now);
+      if (gone.length === 0) continue;
+      this.release(loan, SOLTAR_CADUCADA, gone.map((p) => p.delivery));
+      loan.remove(gone);
+      if (loan.seed) this.redraw(loan);
+      else this.close(loan);
     }
   }
 
   onError(id: string): void {
-    if (this.loading?.id === id) {
-      if (this.loading.timer) clearTimeout(this.loading.timer);
-      this.close(this.loading);
-      this.loading = null;
-      this.pump();
+    if (this.loading?.id !== id) return;
+    this.close(this.loading);
+    this.loading = null;
+    this.pump();
+  }
+
+  dispose(): void {
+    this.pause();
+    this.queue = [];
+  }
+
+  private release(loan: PreviewLoan, reason: number, numbers: number[]): true {
+    if (numbers.length > 0) this.client()?.sendRelease(loan.handle, reason, numbers);
+    return true;
+  }
+
+  /** What the loan still holds is shown again: less detail, or nothing once the seed is gone. */
+  private redraw(loan: PreviewLoan): void {
+    if (loan.seed) this.draw(loan);
+    else dropWorkPreview(loan.id);
+  }
+
+  private draw(loan: PreviewLoan): void {
+    if (this.drawing.has(loan)) {
+      this.stale.add(loan);
+      return;
     }
+    this.drawing.add(loan);
+    composePreview(loan, this.decoder)
+      .then((img) => {
+        if (img && loan.seed && this.held.get(loan.handle) === loan) setWorkPreview(loan.id, img);
+      })
+      .catch((err: unknown) => {
+        if (this.held.get(loan.handle) === loan) console.warn('Preview decode error for', loan.id, err);
+      })
+      .finally(() => {
+        this.drawing.delete(loan);
+        if (this.stale.delete(loan) && this.held.get(loan.handle) === loan) this.draw(loan);
+        else this.pump();
+      });
   }
 
-  private forget(p: Preview): void {
-    dropWorkPreview(p.id);
-    p.seed = 0;
-  }
-
-  private close(p: Preview): void {
-    if (p.timer) clearTimeout(p.timer);
-    this.held.delete(p.handle);
-    dropWorkPreview(p.id);
-    if (p.handle > 0) this.client()?.closeHandle(p.handle);
+  private close(loan: PreviewLoan): void {
+    if (loan === this.loading && this.timer) clearTimeout(this.timer);
+    this.held.delete(loan.handle);
+    this.stale.delete(loan);
+    dropWorkPreview(loan.id);
+    if (loan.handle > 0) this.client()?.closeHandle(loan.handle);
   }
 
   private pump(): void {
@@ -177,20 +195,14 @@ export class PreviewManager {
       this.pump();
       return;
     }
-    const p: Preview = { id: nextId, handle: 0, w: 192, h: 160, seed: 0, expires: 0, renewThrough: 0, timer: null };
-    p.timer = setTimeout(() => {
-      if (this.loading === p) {
-        this.close(p);
-        this.loading = null;
-        this.pump();
-      }
+    const loan = new PreviewLoan(nextId);
+    this.timer = setTimeout(() => {
+      if (this.loading !== loan) return;
+      this.close(loan);
+      this.loading = null;
+      this.pump();
     }, OPEN_TIMEOUT_MS);
-    this.loading = p;
+    this.loading = loan;
     this.client()?.openPreview(nextId);
-  }
-
-  dispose(): void {
-    this.pause();
-    this.queue = [];
   }
 }
