@@ -40,9 +40,10 @@ describe('telemetry sections', () => {
     expect(m['In flight']).toBe('1');
   });
 
-  it('shows link bandwidth and the paced receiver window', () => {
+  it('shows the link peak and the paced receiver window (the current rate is the graph caption)', () => {
     const m = rows('Link', sections);
-    expect(m['Current bandwidth']).toBe(fmtRate(link.rate(2000)));
+    expect(m['Current bandwidth']).toBeUndefined();
+    expect(m['Link peak (10 s)']).toBe(fmtRate(link.peak(2000)));
     expect(m['Receiver window']).toBe('3 brushes');
   });
 

@@ -43,7 +43,6 @@ function link({ now, transport, link: meter, sink }: TelemetryInput): TelemetryS
   const rows: TelemetryRow[] = [];
   if (transport) rows.push({ k: 'Transport', v: transport });
   if (meter) {
-    rows.push({ k: 'Current bandwidth', v: fmtRate(meter.rate(now)) });
     rows.push({ k: 'Link peak (10 s)', v: fmtRate(meter.peak(now)) });
     rows.push({ k: 'Received this session', v: fmtBytes(meter.total) });
   }

@@ -2,10 +2,12 @@
   position: absolute;
   top: 88px;
   left: 16px;
-  bottom: 112px;
+  bottom: 160px; /* clears the pointer readout (x, y, colour) at bottom: 100px, 48px tall */
   width: 320px;
   max-width: calc(100% - 32px);
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-line) transparent;
   padding: 24px;
   border-radius: 28px;
   background: var(--surface-panel);
@@ -90,6 +92,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The frame meter (settings) sits under the top bar, where the panel starts: move below it. */
+:global([data-meter]) .panel {
+  top: 120px;
+}
+
 @media (max-width: 640px) {
   .panel {
     top: max(56px, calc(env(safe-area-inset-top) + 52px));
@@ -102,5 +109,7 @@
     border-radius: 24px;
     z-index: 50;
   }
+  :global([data-meter]) .panel {
+    top: calc(max(56px, calc(env(safe-area-inset-top) + 52px)) + 46px);
+  }
 }
-
