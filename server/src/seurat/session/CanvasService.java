@@ -3,6 +3,7 @@ package seurat.session;
 import java.nio.ByteBuffer;
 import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
+import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.proto.Buf;
 import seurat.proto.Frame;
@@ -76,8 +77,14 @@ final class CanvasService {
             if (release.reason() == ProtoCodes.SOLTAR_DECODIFICACION || release.reason() == ProtoCodes.SOLTAR_CRC) {
                 release.ranges().forEach(n -> {
                     Delivery d = canvas.book().get(n);
-                    if (d != null && canvas.retryOnce(d.brush())) {
+                    if (d == null) {
+                        return;
+                    }
+                    if (canvas.retryOnce(d.brush())) {
                         ctx.grants().resend(canvas, d); // spec 5.3: resent once, then unusable
+                    } else if (release.reason() == ProtoCodes.SOLTAR_CRC) {
+                        AuditLog.alert("CRC failed twice on " + d.brush() + " (canvas " + canvas.handle()
+                                + ", session " + session.id() + "): unusable in this session");
                     }
                 });
             }
