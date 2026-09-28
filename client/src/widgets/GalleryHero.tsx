@@ -17,6 +17,8 @@ export function GalleryHero({
 }): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
   const preview = useWorkPreview(featuredWorkId ?? '');
+  // The dots grow in once: a sharper preview repaints them in place rather than replaying the intro.
+  const born = useRef(0);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -24,7 +26,8 @@ export function GalleryHero({
     let raf = 0;
     const ro = new ResizeObserver(() => tick());
     ro.observe(canvas);
-    const start = performance.now();
+    born.current ||= performance.now();
+    const start = born.current;
     const sample = preview
       ? { d: preview.rgba, w: preview.width, h: preview.height }
       : makeSample();
