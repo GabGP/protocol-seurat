@@ -24,6 +24,8 @@ public final class SeuratConfig {
     public final boolean wtEnabled;
     /** Extra Origins accepted on the WS upgrade besides the server's own (spec 9.2, CSWSH). */
     public final List<String> origins;
+    /** Viewer accounts behind a Bearer key (spec 3.1); without one, a viewer is anonymous. */
+    public final ViewerAccounts accounts;
 
     private SeuratConfig(Map<String, String> props, Path base) throws IOException {
         httpPort = intOf(props, "http.port", SeuratConstants.HTTP_PORT);
@@ -40,6 +42,7 @@ public final class SeuratConfig {
         wtEnabled = Boolean.parseBoolean(props.getOrDefault("wt.enabled", "false"));
         origins = List.of(props.getOrDefault("ws.origins", "").split("\\s*,\\s*")).stream()
                 .filter(o -> !o.isBlank()).toList();
+        accounts = new ViewerAccounts(props.getOrDefault("auth.accounts", ""));
     }
 
     public boolean tls() {

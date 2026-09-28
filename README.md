@@ -150,6 +150,7 @@ Server parameters can be customized in `seurat.conf`:
 | `works` | `.seurat/runtime/obras` | Directory containing committed multi-scale work packages. |
 | `coverage` | `.seurat/runtime/cobertura` | Persistent principal coverage tracking (fine strata token buckets). |
 | `admin.token` | `cambia-esto` | Token required for admin REST routes (`X-Admin-Token`). |
+| `auth.accounts` | *(none)* | Viewer accounts, `name:key:role` comma-separated (`autenticado` or `privilegiado`). An unknown Bearer key gets `401`. |
 | `session.max_brushes`| `1024` | Maximum concurrent active brush grants per session. |
 | `rate.bytes_per_s` | `25000000` | Global egress bandwidth cap (bytes/sec). |
 | `log.level` | `INFO` | Console logging verbosity (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`). |

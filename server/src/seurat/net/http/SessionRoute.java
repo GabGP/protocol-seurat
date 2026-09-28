@@ -7,17 +7,21 @@ import java.util.Map;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
+import seurat.config.ViewerAccounts;
 import seurat.observe.Log;
 import seurat.session.Sessions;
 
 /**
- * POST /seurat/v1/sesion (spec 3.1, 3.4.1): authenticates (Bearer, or an anonymous
- * cookie so the brush budget is per viewer) and issues a single-use 32 B token that
- * expires in 120 s, plus the URLs of both mappings. No other state is created.
+ * POST /seurat/v1/sesion (spec 3.1, 3.4.1): authenticates (a Bearer key from
+ * `auth.accounts`, 401 if unknown; without one, an anonymous cookie so the brush budget
+ * is per viewer) and issues a single-use 32 B token that expires in 120 s, plus the URLs
+ * of both mappings, the role (`rol`) and, when signed in, the account (`cuenta`) so the
+ * viewer can say who it is. No other state is created.
  */
 final class SessionRoute {
     static final String ANON_COOKIE = "seurat_anon";
     private static final int ANON_BYTES = 16;
+    private static final String BEARER = "Bearer ";
 
     private final Sessions sessions;
     private final SeuratConfig config;
@@ -32,23 +36,30 @@ final class SessionRoute {
         String body = new String(req.body(), StandardCharsets.UTF_8);
         long memMib = HttpSurface.number(body, "memMiB", SeuratConstants.DEFAULT_MEM_MIB);
         String auth = req.headers().getOrDefault("authorization", "");
-        boolean authed = auth.startsWith("Bearer ") && auth.length() > "Bearer ".length();
-        String anon = anonymousId(req.headers().getOrDefault("cookie", ""));
-        boolean fresh = anon == null;
+        ViewerAccounts.Account account = null;
+        if (!auth.isEmpty()) {
+            account = auth.startsWith(BEARER) ? config.accounts.find(auth.substring(BEARER.length()).trim()) : null;
+            if (account == null || !WorkRecord.ROLES.contains(account.role())) {
+                Log.warn("session", "Session refused: unknown Bearer key");
+                return HttpSurface.json(401, "{\"error\":\"autenticacion\"}");
+            }
+        }
+        String anon = account == null ? anonymousId(req.headers().getOrDefault("cookie", "")) : null;
+        boolean fresh = account == null && anon == null;
         if (fresh) {
             anon = HexFormat.of().formatHex(bytes());
         }
-        String role = authed ? WorkRecord.AUTHENTICATED : WorkRecord.ANONYMOUS;
-        String principal = authed ? "bearer-" + auth.substring(7, Math.min(15, auth.length()))
-                .replaceAll("[^A-Za-z0-9_-]", "_") : "anon-" + anon; // it names a coverage directory
+        String role = account != null ? account.role() : WorkRecord.ANONYMOUS;
+        String principal = account != null ? "user-" + account.name() : "anon-" + anon; // names a coverage directory
         String token = sessions.issueToken(principal, role, memMib, SeuratConstants.TOKEN_TTL_S * 1000);
         Log.info("session", "Issued session token for principal=" + principal + " (role=" + role + ")");
         String host = req.host();
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
         String wt = "https://" + host + "/seurat/v1/lienzo";
         String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + (config.wtEnabled ? wt : ws)
-                + "\",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE + "}";
-        Map<String, String> headers = fresh && !authed
+                + "\",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE
+                + ",\"rol\":\"" + role + "\"" + (account != null ? ",\"cuenta\":\"" + account.name() + "\"" : "") + "}";
+        Map<String, String> headers = fresh
                 ? Map.of("Set-Cookie", ANON_COOKIE + "=" + anon + "; Path=/; HttpOnly; SameSite=Strict")
                 : Map.of();
         return new HttpSurface.Response(201, "application/json", json.getBytes(StandardCharsets.UTF_8), headers);

@@ -47,7 +47,7 @@ final class WsClient {
     static int serve(Path root, Catalog catalog) throws Exception {
         int port = freePort();
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=" + port + "\nadmin.token=t\n");
+        Files.writeString(conf, "http.port=" + port + "\nadmin.token=t\nauth.accounts=loop:loopback:autenticado\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Painter painter = new Painter(new Regulator(),
