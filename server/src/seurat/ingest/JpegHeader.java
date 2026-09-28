@@ -5,9 +5,10 @@ import java.io.IOException;
 
 /**
  * Markers from SOI to the first SOS of a JPEG this reader can stream: one baseline or extended
- * Huffman scan (SOF0/SOF1), 8-bit, 1 or 3 full-resolution components, all in that scan. Anything
- * else (subsampled chroma, progressive, lossless, arithmetic, 12-bit, CMYK, several scans) is left
- * to ImageIO.
+ * Huffman scan (SOF0/SOF1), 8-bit, 1 or 3 components, all in that scan, each sampled at an integral
+ * fraction of the largest factor (4:4:4, 4:2:2, 4:2:0, 4:4:0, 4:1:1...). Anything else
+ * (progressive, lossless, arithmetic, 12-bit, CMYK, fractional sampling, several scans) is left to
+ * ImageIO.
  */
 final class JpegHeader {
     private static final int SOI = 0xD8;
@@ -18,6 +19,7 @@ final class JpegHeader {
     private static final int DRI = 0xDD;
     private static final int SOS = 0xDA;
     private static final int APP14 = 0xEE;
+    private static final int MAX_SAMPLING = 4;
 
     int width;
     int height;
@@ -91,9 +93,12 @@ final class JpegHeader {
             h[c] = n == 1 ? 1 : hv >> 4; // one component: sampling factors do not apply
             v[c] = n == 1 ? 1 : hv & 15;
             tq[c] = in.readUnsignedByte() & 3;
-            if (h[c] != h[0] || v[c] != v[0]) return false; // subsampled chroma: libjpeg's fancy upsampling is ImageIO's
+            if (h[c] < 1 || h[c] > MAX_SAMPLING || v[c] < 1 || v[c] > MAX_SAMPLING) return false;
             hMax = Math.max(hMax, h[c]);
             vMax = Math.max(vMax, v[c]);
+        }
+        for (int c = 0; c < n; c++) {
+            if (hMax % h[c] != 0 || vMax % v[c] != 0) return false; // libjpeg upsamples integral ratios only
         }
         return true;
     }

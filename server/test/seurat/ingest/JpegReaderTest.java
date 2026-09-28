@@ -16,9 +16,9 @@ import org.w3c.dom.NodeList;
 import seurat.kit.TestKit;
 
 /**
- * Streaming JPEG decoder against the ImageIO path it replaces: identical RGB for 4:4:4 (same islow
- * IDCT and color tables), restart markers honored, gray equal to the stored samples, and
- * subsampled or progressive files left to ImageIO.
+ * Streaming JPEG decoder against the ImageIO path it replaces: identical RGB (same islow IDCT,
+ * fancy upsampling and color tables) for 4:4:4 and every subsampling, restart markers honored,
+ * gray equal to the stored samples, and progressive files left to ImageIO.
  */
 public final class JpegReaderTest {
     private static final int W = 301;
@@ -27,12 +27,16 @@ public final class JpegReaderTest {
     public static void main(String[] args) throws Exception {
         Path dir = Files.createTempDirectory("jpeg-reader");
         BufferedImage rgb = picture(BufferedImage.TYPE_INT_RGB);
-        same("4:4:4", write(dir.resolve("a.jpg"), rgb, true, 0, false));
-        same("4:4:4 with restart markers", write(dir.resolve("b.jpg"), rgb, true, 7, false));
-        gray(write(dir.resolve("c.jpg"), picture(BufferedImage.TYPE_BYTE_GRAY), false, 0, false));
-        TestKit.check(JpegReader.open(write(dir.resolve("d.jpg"), rgb, false, 0, false)) == null,
-                "4:2:0 JPEG is left to ImageIO (its fancy upsampling)");
-        TestKit.check(JpegReader.open(write(dir.resolve("e.jpg"), rgb, false, 0, true)) == null,
+        same("4:4:4", write(dir.resolve("a.jpg"), rgb, 1, 1, 0, false));
+        same("4:4:4 with restart markers", write(dir.resolve("b.jpg"), rgb, 1, 1, 7, false));
+        gray(write(dir.resolve("c.jpg"), picture(BufferedImage.TYPE_BYTE_GRAY), 1, 1, 0, false));
+        same("4:2:0", write(dir.resolve("d.jpg"), rgb, 2, 2, 0, false));
+        same("4:2:0 with restart markers", write(dir.resolve("g.jpg"), rgb, 2, 2, 5, false));
+        same("4:2:2", write(dir.resolve("h.jpg"), rgb, 2, 1, 0, false));
+        same("4:4:0", write(dir.resolve("i.jpg"), rgb, 1, 2, 0, false));
+        same("4:1:1", write(dir.resolve("k.jpg"), rgb, 4, 1, 0, false));
+        same("luma 2x4", write(dir.resolve("l.jpg"), rgb, 2, 4, 3, false));
+        TestKit.check(JpegReader.open(write(dir.resolve("e.jpg"), rgb, 2, 2, 0, true)) == null,
                 "progressive JPEG is left to ImageIO");
         TestKit.check(JpegReader.open(Files.write(dir.resolve("f.jpg"), new byte[] {1, 2, 3})) == null,
                 "not a JPEG");
@@ -54,7 +58,8 @@ public final class JpegReaderTest {
         return img;
     }
 
-    private static Path write(Path file, BufferedImage img, boolean full, int restart, boolean progressive)
+    /** Luma sampled {@code h} x {@code v}, chroma 1 x 1. */
+    private static Path write(Path file, BufferedImage img, int h, int v, int restart, boolean progressive)
             throws Exception {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
         ImageWriteParam param = writer.getDefaultWriteParam();
@@ -64,12 +69,10 @@ public final class JpegReaderTest {
         IIOMetadata meta = writer.getDefaultImageMetadata(new ImageTypeSpecifier(img), param);
         String format = "javax_imageio_jpeg_image_1.0";
         Element root = (Element) meta.getAsTree(format);
-        if (full) {
-            NodeList specs = root.getElementsByTagName("componentSpec");
-            for (int i = 0; i < specs.getLength(); i++) {
-                ((Element) specs.item(i)).setAttribute("HsamplingFactor", "1");
-                ((Element) specs.item(i)).setAttribute("VsamplingFactor", "1");
-            }
+        NodeList specs = root.getElementsByTagName("componentSpec");
+        for (int i = 0; i < specs.getLength(); i++) {
+            ((Element) specs.item(i)).setAttribute("HsamplingFactor", Integer.toString(i == 0 ? h : 1));
+            ((Element) specs.item(i)).setAttribute("VsamplingFactor", Integer.toString(i == 0 ? v : 1));
         }
         if (restart > 0) {
             Element dri = new javax.imageio.metadata.IIOMetadataNode("dri");

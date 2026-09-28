@@ -6,36 +6,49 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.stream.IntStream;
 import seurat.config.SeuratConstants;
 
 /**
- * Streaming baseline JPEG master: one pass over the entropy-coded data, a few MCU rows (8 or 16
+ * Streaming baseline JPEG master: one pass over the entropy-coded data, a few MCU rows (8 to 32
  * image rows each) at a time, so memory is a few rows and the decode is linear. ImageIO can only
  * restart from the top for each region past 2^31 px, which made big JPEG ingests quadratic. The
- * scan decodes a group of MCU rows in order while the previous group is painted in parallel.
+ * scan decodes the next group of MCU rows in order while the previous group goes through the IDCT
+ * and is emitted in parallel. Emitting lags the IDCT by one MCU row, because the 2:1 vertical
+ * chroma filter reads a row of the MCU row below.
  */
 final class JpegReader implements MasterReader {
     private static final int HEADER_BUFFER = 1 << 16;
+    private static final int BAND = 256;
 
     private final InputStream stream;
     private final JpegHeader j;
     private final JpegScan scan;
-    /** Two groups: the scan fills one while the other is painted. */
-    private final JpegMcuRow[][] rows = new JpegMcuRow[2][SeuratConstants.INGEST_JPEG_ROWS_IN_FLIGHT];
-    private int[][] bandBuffer;
+    /** MCU row m lives in {@code slots[m % slots.length]}: one group scanned while the other is painted. */
+    private final JpegMcuRow[] slots;
+    private final int per;
+    private final int mcuHeight;
+    private final int mcuRows;
+    /** Consecutive bands alternate, so rows emitted ahead of a band never overwrite the one returned. */
+    private int[][][] bands;
+    private int scanned;
+    private int idcted;
+    private int emitted;
     private int row;
 
     private JpegReader(InputStream stream, JpegHeader j) {
         this.stream = stream;
         this.j = j;
         this.scan = new JpegScan(j, stream);
-        for (JpegMcuRow[] group : rows) {
-            for (int i = 0; i < group.length; i++) {
-                group[i] = new JpegMcuRow(j, scan.blocksPerRow);
-            }
+        this.mcuHeight = 8 * j.vMax;
+        this.mcuRows = (j.height + mcuHeight - 1) / mcuHeight;
+        this.per = Math.min(SeuratConstants.INGEST_JPEG_ROWS_IN_FLIGHT, BAND / mcuHeight);
+        this.slots = new JpegMcuRow[2 * per];
+        for (int i = 0; i < slots.length; i++) {
+            slots[i] = new JpegMcuRow(j, scan.blocksPerRow);
         }
     }
 
@@ -63,34 +76,52 @@ final class JpegReader implements MasterReader {
     @Override
     public int[][] next() throws IOException {
         if (row >= j.height) return null;
-        int n = Math.min(256, j.height - row);
-        if (bandBuffer == null) bandBuffer = new int[256][j.width];
-        int[][] band = n == 256 ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
-        int mcuRows = 8 * j.vMax;
-        int per = rows[0].length;
-        int groups = (n + per * mcuRows - 1) / (per * mcuRows);
-        decode(rows[0], Math.min(per, (n + mcuRows - 1) / mcuRows));
-        for (int k = 0; k < groups; k++) {
-            int first = k * per * mcuRows;
-            JpegMcuRow[] group = rows[k & 1];
-            int g = Math.min(per, (n - first + mcuRows - 1) / mcuRows);
-            ForkJoinTask<?> painting = ForkJoinPool.commonPool().submit(() -> IntStream.range(0, g).parallel()
-                    .forEach(i -> group[i].paint(band, first + i * mcuRows, Math.min(mcuRows, n - first - i * mcuRows))));
-            if (k + 1 < groups) {
-                int next = first + per * mcuRows;
-                decode(rows[(k + 1) & 1], Math.min(per, (n - next + mcuRows - 1) / mcuRows));
-            }
-            painting.join();
+        int n = Math.min(BAND, j.height - row);
+        if (bands == null) bands = new int[2][BAND][j.width];
+        int until = Math.min(mcuRows, (row + n + mcuHeight - 1) / mcuHeight);
+        while (emitted < until) {
+            step();
         }
+        int[][] band = bands[(row / BAND) & 1];
         row += n;
-        return band;
+        return n == BAND ? band : Arrays.copyOf(band, n);
     }
 
-    private void decode(JpegMcuRow[] group, int g) throws IOException {
+    /** IDCT and emit the scanned group while the scan decodes the next one. */
+    private void step() throws IOException {
+        if (scanned == idcted) scan();
+        int i0 = idcted;
+        int i1 = scanned;
+        int e0 = emitted;
+        int e1 = i1 == mcuRows ? i1 : i1 - 1;
+        ForkJoinTask<?> paint = ForkJoinPool.commonPool().submit(() -> {
+            IntStream.range(i0, i1).parallel().forEach(m -> slot(m).idct());
+            IntStream.range(e0, e1).parallel().forEach(this::emit);
+        });
+        if (i1 < mcuRows) scan();
+        paint.join();
+        idcted = i1;
+        emitted = e1;
+    }
+
+    private void scan() throws IOException {
+        int g = Math.min(per, mcuRows - scanned);
         for (int i = 0; i < g; i++) {
-            scan.decode(group[i].coef);
+            scan.decode(slot(scanned++).coef);
         }
     }
+
+    private void emit(int m) {
+        JpegMcuRow prev = m > 0 ? slot(m - 1) : null;
+        JpegMcuRow next = m + 1 < mcuRows ? slot(m + 1) : null;
+        int top = m * mcuHeight;
+        for (int y = 0; y < mcuHeight && top + y < j.height; y++) {
+            int at = top + y;
+            slot(m).emit(m, y, bands[(at / BAND) & 1][at % BAND], prev, next);
+        }
+    }
+
+    private JpegMcuRow slot(int m) { return slots[m % slots.length]; }
 
     @Override
     public double fraction() { return (double) row / Math.max(1, j.height); }
