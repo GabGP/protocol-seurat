@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseOpenHash } from '@/features/open-work';
 import { filterWorks, fixtureWorks, sortWorks } from '@/entities/work/store';
-import type { Work } from '@/entities/work/types';
+import { isOpenable, type Work } from '@/entities/work/types';
 import { buildPresets } from '@/widgets/ZoomMenu';
 import { counterLabel, stepIndex } from '@/features/navigate-work';
 import { fmtPct, logFrac, logUnfrac } from '@/shared/lib/zoom';
@@ -47,6 +47,17 @@ describe('Work filtering & fixtures', () => {
     ];
     const sorted = sortWorks(unordered);
     expect(sorted.map((w) => w.name || w.id)).toEqual(['a', 'b', 'Plate 1', 'Plate 2', 'Plate 10']);
+  });
+
+  it('opens LISTA, or BOCETO/PINTANDO only with a sketch (spec 7.3)', () => {
+    const w = (state: Work['state'], edition: number): Work =>
+      ({ id: 'x', name: '', width: 1, height: 1, strata: 1, state, edition, progress: 0 });
+    expect(isOpenable(w(3, 2))).toBe(true);
+    expect(isOpenable(w(1, 1))).toBe(true);
+    expect(isOpenable(w(2, 1))).toBe(true);
+    expect(isOpenable(w(2, 0))).toBe(false); // no overview: nothing to show until LISTA
+    expect(isOpenable(w(0, 0))).toBe(false);
+    expect(isOpenable(w(4, 1))).toBe(false);
   });
 });
 

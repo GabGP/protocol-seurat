@@ -4,14 +4,14 @@ import type { ViewSync } from '@/widgets/ViewerChrome';
 import { goGallery, goViewer } from '@/app/router';
 import { patchUi } from '@/app/store';
 import { stepIndex } from '@/features/navigate-work';
-import { workDims, workMp, workTitle } from '@/entities/work/types';
+import { isOpenable, workDims, workMp, workTitle } from '@/entities/work/types';
 import { DEFAULT_WORK_WIDTH, DEFAULT_WORK_HEIGHT } from '@/shared/config/view';
 
 export function useViewerWork(id: string, seurat: SeuratState) {
   const [attempt, setAttempt] = useState(0);
   const gazeInit = useRef(false);
 
-  const viewable = seurat.works.filter((w) => w.state === 1 || w.state === 3);
+  const viewable = seurat.works.filter(isOpenable);
   const list = viewable.length > 0 ? viewable : seurat.works;
   const idx = Math.max(0, list.findIndex((w) => w.id === id));
   const work = seurat.works.find((w) => w.id === id) ?? list[idx] ?? seurat.works[0];

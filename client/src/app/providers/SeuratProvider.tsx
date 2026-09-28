@@ -9,7 +9,7 @@ import { T } from '@/shared/proto/messages';
 import { clearResume } from '@/entities/session/store';
 import type { Account } from '@/entities/session/access-key';
 import { applyWork, sortWorks } from '@/entities/work/store';
-import type { Work } from '@/entities/work/types';
+import { isOpenable, type Work } from '@/entities/work/types';
 import type { WorkOpened, Welcome, Concession, PlanMsg, ProtocolError } from '@/shared/proto/messages';
 import { GazeSender } from '@/features/send-gaze';
 import { PreviewManager } from '@/features/preview-works';
@@ -111,9 +111,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         const list = sortWorks([...worksRef.current.values()]);
         if (alive) {
           setWorks(list);
-          const readyIds = list
-            .filter((w) => w.state === 1 || w.state === 3)
-            .map((w) => w.id);
+          const readyIds = list.filter(isOpenable).map((w) => w.id);
           previewRef.current?.enqueue(readyIds);
         }
       },

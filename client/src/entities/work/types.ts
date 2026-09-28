@@ -13,6 +13,14 @@ export interface Work {
   tag?: string;
 }
 
+/**
+ * ABRIR succeeds (spec 7.3): LISTA, or BOCETO/PINTANDO with the sketch (edition 1) to show. A work
+ * whose master carries no overview has no edition until LISTA.
+ */
+export function isOpenable(w: Work): boolean {
+  return w.state === 3 || ((w.state === 1 || w.state === 2) && w.edition === 1);
+}
+
 export function orientOf(w: Work): Orient {
   return w.width >= w.height ? 'landscape' : 'portrait';
 }
