@@ -53,7 +53,8 @@ public final class SeuratConstants {
     public static final double ROLE_WEIGHT = 1.0;
     public static final int SEED_STRATUM = 10;
     public static final int SKETCH_MIN = 7;
-    public static final int DEFLATE_LEVEL = 6;
+    /** Band deflate level: 4 halves level 6's encode time for ~1.5% larger bands (measured on 31 GP). */
+    public static final int DEFLATE_LEVEL = 4;
     /** Source rows per ImageIO decode: fewer rescan restarts on JPEG MCU streams. */
     public static final int INGEST_CHUNK_ROWS = 2048;
     /** Cap on one decoded chunk (rows * width * 4 B) for very wide masters. */
