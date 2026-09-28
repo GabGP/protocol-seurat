@@ -41,10 +41,10 @@
   display: none;
 }
 
-/* Frame meter: under the top bar, wraps between readouts on narrow screens. */
+/* Frame meter: 12px under the top bar (like the telemetry panel), wraps between readouts on narrow screens. */
 .meter {
   position: absolute;
-  top: 76px;
+  top: 88px;
   left: 16px;
   max-width: calc(100% - 32px);
   padding: 4px 8px;

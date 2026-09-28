@@ -43,7 +43,7 @@
 
 /* The frame meter (settings) sits under the top bar: the banner moves below it. */
 .container[data-meter] .pointillistBanner {
-  top: 128px;
+  top: 130px;
 }
 
 @media (max-width: 640px) {

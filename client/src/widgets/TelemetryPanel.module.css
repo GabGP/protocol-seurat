@@ -94,7 +94,7 @@
 
 /* The frame meter (settings) sits under the top bar, where the panel starts: move below it. */
 :global([data-meter]) .panel {
-  top: 120px;
+  top: 126px; /* the meter (88px, ~26px tall) plus the same 12px gap */
 }
 
 @media (max-width: 640px) {
