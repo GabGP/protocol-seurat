@@ -12,6 +12,8 @@ public final class Log {
     private static volatile LogLevel currentLevel = LogLevel.INFO;
     private static volatile PrintStream target = System.out;
     private static final Object PRINT_LOCK = new Object();
+    /** The sticky progress line is on screen (no newline after it yet); guarded by PRINT_LOCK. */
+    private static boolean barShown;
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
     private static final boolean COLOR = (System.console() != null
             || (System.getenv("TERM") != null && !"dumb".equals(System.getenv("TERM"))))
@@ -31,7 +33,10 @@ public final class Log {
     }
 
     public static void setOutput(PrintStream out) {
-        target = out != null ? out : System.out;
+        synchronized (PRINT_LOCK) {
+            target = out != null ? out : System.out;
+            barShown = false;
+        }
     }
 
     public static boolean isDebugEnabled() {
@@ -87,12 +92,33 @@ public final class Log {
         }
         synchronized (PRINT_LOCK) {
             PrintStream out = target;
+            if (barShown) {
+                out.print(Progress.wipe());
+            }
             out.println(sb);
             if (t != null) {
                 t.printStackTrace(out);
             }
-            out.flush();
+            drawBar(out);
         }
+    }
+
+    /** Progress changed: repaint the sticky line in place (wiped when no job is left). */
+    static void redraw() {
+        synchronized (PRINT_LOCK) {
+            PrintStream out = target;
+            if (barShown) {
+                out.print(Progress.wipe());
+            }
+            drawBar(out);
+        }
+    }
+
+    private static void drawBar(PrintStream out) {
+        String bar = Progress.line();
+        out.print(bar);
+        barShown = !bar.isEmpty();
+        out.flush();
     }
 
     private static String padRight(String s, int width) {

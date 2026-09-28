@@ -72,5 +72,13 @@ public final class SeuratConstants {
     public static final long SHUTDOWN_POLL_MS = 50;
     /** Static files under assets/ carry their content hash in the name: cached for a year, never revalidated. */
     public static final long ASSET_MAX_AGE_S = 365L * 24 * 60 * 60;
+    /** Operator alerts AuditLog keeps for dump(); older ones only survive in the console log. */
+    public static final int AUDIT_KEEP = 1024;
+    /** Progress without a terminal: one INFO line per this many percent (every percent goes to DEBUG). */
+    public static final int PROGRESS_STEP_PCT = 10;
+    /** Cells in a progress bar, sticky line and step lines alike. */
+    public static final int PROGRESS_BAR_CELLS = 10;
+    /** Sticky bar width when COLUMNS is unset: a wrapped bar cannot be wiped in place. */
+    public static final int PROGRESS_COLUMNS = 80;
 }
 
