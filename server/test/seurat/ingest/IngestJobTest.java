@@ -36,7 +36,7 @@ public final class IngestJobTest {
         }
         TestKit.check(ready[0], "onReady fires");
         String logs = baos.toString(StandardCharsets.UTF_8);
-        TestKit.check(logs.matches("(?s).*work=tiny ready ed=2 took=\\d+m \\d+s \\d+ms.*"),
+        TestKit.check(logs.matches("(?s).*work=tiny\\s+ready ed=2 took=\\d+m \\d+s \\d+ms.*"),
                 "one ready line with took=");
         var work = catalog.get("tiny");
         TestKit.check(work != null && work.meta.state() == ProtoCodes.ST_LISTA
