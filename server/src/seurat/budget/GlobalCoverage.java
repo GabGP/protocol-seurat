@@ -12,16 +12,16 @@ import seurat.codec.BrushId;
 final class GlobalCoverage {
     private static final class Window {
         final BitSet brushes = new BitSet();
-        long startMs = System.currentTimeMillis();
+        long startNs = System.nanoTime();
     }
 
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
     private Window window(String key) {
         Window w = windows.computeIfAbsent(key, k -> new Window());
-        if (System.currentTimeMillis() - w.startMs > BudgetPolicy.GLOBAL_WINDOW_MS) {
+        if (System.nanoTime() - w.startNs > BudgetPolicy.GLOBAL_WINDOW_MS * 1_000_000L) {
             w.brushes.clear();
-            w.startMs = System.currentTimeMillis();
+            w.startNs = System.nanoTime();
         }
         return w;
     }
