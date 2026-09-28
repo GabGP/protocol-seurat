@@ -1,16 +1,15 @@
 package seurat.codec;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 import java.util.zip.CRC32C;
 import seurat.proto.Leb128;
 
 /** Seed (E10, lossless): DPCM left-neighbor + zigzag + LEB128 + deflate-raw. */
 public final class SeedCodec {
+    private static final int SCRATCH_BYTES = 8192;
+
     private SeedCodec() {}
 
     public static byte[] encode(int[][] planos, int w, int h) {
@@ -27,15 +26,8 @@ public final class SeedCodec {
         }
         byte[] raw = Arrays.copyOf(b.array(), b.position());
         Deflater d = new Deflater(Deflater.BEST_COMPRESSION, true);
-        d.setInput(raw);
-        d.finish();
-        ByteArrayOutputStream out = new ByteArrayOutputStream(raw.length);
-        byte[] tmp = new byte[8192];
-        while (!d.finished()) {
-            out.write(tmp, 0, d.deflate(tmp));
-        }
+        byte[] comp = Deflate.compress(d, raw, raw.length, new byte[SCRATCH_BYTES]);
         d.end();
-        byte[] comp = out.toByteArray();
         CRC32C crc = new CRC32C();
         crc.update(comp);
         ByteBuffer f = ByteBuffer.allocate(4 + comp.length);
@@ -54,24 +46,7 @@ public final class SeedCodec {
         if (c.getValue() != crc) {
             throw new IllegalArgumentException("seed CRC");
         }
-        Inflater inf = new Inflater(true);
-        inf.setInput(comp);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] tmp = new byte[8192];
-        try {
-            while (!inf.finished()) {
-                int k = inf.inflate(tmp);
-                if (k == 0) {
-                    break;
-                }
-                out.write(tmp, 0, k);
-            }
-        } catch (DataFormatException ex) {
-            throw new IllegalArgumentException("seed deflate", ex);
-        } finally {
-            inf.end();
-        }
-        ByteBuffer b = ByteBuffer.wrap(out.toByteArray());
+        ByteBuffer b = ByteBuffer.wrap(Deflate.inflate(comp, "seed deflate"));
         int[][] planos = new int[3][w * h];
         for (int[] pl : planos) {
             for (int y = 0; y < h; y++) {

@@ -16,7 +16,7 @@ final class BandSplit {
 
     static {
         for (int i = 0; i < BrushWorkspace.N; i++) {
-            BY_MORTON[BrushWorkspace.MORTON_16K[i]] = i;
+            BY_MORTON[Morton.PARENTS_16K[i]] = i;
         }
     }
 

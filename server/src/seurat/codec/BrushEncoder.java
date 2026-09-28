@@ -1,6 +1,7 @@
 package seurat.codec;
 
 import java.util.Arrays;
+import seurat.proto.Leb128;
 
 /**
  * One brush, 128x128 parents: S+P predict, quantize, energy order, band pack.
@@ -55,7 +56,7 @@ public final class BrushEncoder {
         BandSplit.split(energy, band, ws.order, ws.spare, ws.count);
         int[] members = ws.members;
         int[] from = ws.from;
-        java.util.Arrays.fill(from, 0);
+        Arrays.fill(from, 0);
         for (int i = 0; i < n; i++) {
             from[band[i] + 1]++;
         }
@@ -93,22 +94,12 @@ public final class BrushEncoder {
                 for (int dd = 0; dd < 3; dd++) {
                     int[] det = q[c][dd];
                     for (int m = from[b]; m < from[b + 1]; m++) {
-                        int val = det[members[m]];
-                        int zz = (val << 1) ^ (val >> 31);
-                        while ((zz & ~0x7F) != 0) {
-                            raw[rawPos++] = (byte) ((zz & 0x7F) | 0x80);
-                            zz >>>= 7;
-                        }
-                        raw[rawPos++] = (byte) zz;
+                        rawPos = Leb128.putU(raw, rawPos, Leb128.zigzagEncode(det[members[m]]));
                     }
                 }
             }
 
-            deflater.reset();
-            deflater.setInput(raw, 0, rawPos);
-            deflater.finish();
-            int compLen = deflater.deflate(comp);
-            byte[] bandBytes = Arrays.copyOf(comp, compLen);
+            byte[] bandBytes = Deflate.compress(deflater, raw, rawPos, comp);
             bands[b] = bandBytes;
 
             crc.reset();

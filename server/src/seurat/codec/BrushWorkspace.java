@@ -6,13 +6,6 @@ import java.util.zip.Deflater;
 /** Reusable thread-local workspace for zero-allocation brush encoding. */
 final class BrushWorkspace {
     static final int N = Geometry.PARENTS;
-    static final int[] MORTON_16K = new int[N];
-
-    static {
-        for (int i = 0; i < N; i++) {
-            MORTON_16K[i] = (int) Morton.encode(i % Geometry.HALF, i / Geometry.HALF);
-        }
-    }
 
     final int[][][] q = new int[3][3][N];
     final int[] energy = new int[N];

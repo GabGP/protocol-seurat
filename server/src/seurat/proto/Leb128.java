@@ -22,6 +22,16 @@ public final class Leb128 {
         b.put((byte) v);
     }
 
+    /** Writes v as unsigned LEB128 at raw[pos]; returns the position after it. */
+    public static int putU(byte[] raw, int pos, int v) {
+        while ((v & ~0x7F) != 0) {
+            raw[pos++] = (byte) ((v & 0x7F) | 0x80);
+            v >>>= 7;
+        }
+        raw[pos++] = (byte) v;
+        return pos;
+    }
+
     public static int getU(ByteBuffer b) {
         int v = 0;
         int shift = 0;

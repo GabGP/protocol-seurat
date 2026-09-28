@@ -1,11 +1,7 @@
 package seurat.codec;
 
-import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 import seurat.proto.Leb128;
 
 /**
@@ -62,32 +58,12 @@ public final class Bands {
             for (int[] det : ch) {
                 for (int i = 0; i < n; i++) {
                     if (members[i] != 0) {
-                        int v = (det[i] << 1) ^ (det[i] >> 31);
-                        while ((v & ~0x7F) != 0) {
-                            raw[pos++] = (byte) ((v & 0x7F) | 0x80);
-                            v >>>= 7;
-                        }
-                        raw[pos++] = (byte) v;
+                        pos = Leb128.putU(raw, pos, Leb128.zigzagEncode(det[i]));
                     }
                 }
             }
         }
-        Deflater d = DEFLATERS.get();
-        d.reset();
-        d.setInput(raw, 0, pos);
-        d.finish();
-        byte[] comp = COMP_BUFS.get();
-        int len = d.deflate(comp);
-        if (d.finished()) {
-            return Arrays.copyOf(comp, len);
-        }
-        ByteArrayOutputStream out = new ByteArrayOutputStream(pos);
-        out.write(comp, 0, len);
-        byte[] tmp = new byte[8192];
-        while (!d.finished()) {
-            out.write(tmp, 0, d.deflate(tmp));
-        }
-        return out.toByteArray();
+        return Deflate.compress(DEFLATERS.get(), raw, pos, COMP_BUFS.get());
     }
 
     /** Unpacks into vals (zero-filled first by caller). Returns members bitmap; 0 bytes = no members. */
@@ -95,24 +71,7 @@ public final class Bands {
         if (band.length == 0) {
             return new int[n];
         }
-        Inflater inf = new Inflater(true);
-        inf.setInput(band);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] tmp = new byte[8192];
-        try {
-            while (!inf.finished()) {
-                int k = inf.inflate(tmp);
-                if (k == 0) {
-                    break;
-                }
-                out.write(tmp, 0, k);
-            }
-        } catch (DataFormatException ex) {
-            throw new IllegalArgumentException("corrupt deflate-raw", ex);
-        } finally {
-            inf.end();
-        }
-        ByteBuffer b = ByteBuffer.wrap(out.toByteArray());
+        ByteBuffer b = ByteBuffer.wrap(Deflate.inflate(band, "corrupt deflate-raw"));
         int[] members = new int[n];
         for (int i = 0; i < n; i += 8) {
             int by = Byte.toUnsignedInt(b.get());

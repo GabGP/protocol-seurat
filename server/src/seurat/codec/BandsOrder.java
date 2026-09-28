@@ -9,20 +9,12 @@ import java.util.Arrays;
 public final class BandsOrder {
     private BandsOrder() {}
 
-    private static final int[] MORTON_16K = new int[Geometry.PARENTS];
-
-    static {
-        for (int i = 0; i < Geometry.PARENTS; i++) {
-            MORTON_16K[i] = (int) Morton.encode(i % Geometry.HALF, i / Geometry.HALF);
-        }
-    }
-
     public static int[] order(int[] energy, int n) {
         long[] packed = new long[n];
         boolean is16k = (n == Geometry.PARENTS);
         int side = is16k ? Geometry.HALF : (int) Math.sqrt(n);
         for (int i = 0; i < n; i++) {
-            int morton = is16k ? MORTON_16K[i] : (int) Morton.encode(i % side, i / side);
+            int morton = is16k ? Morton.PARENTS_16K[i] : (int) Morton.encode(i % side, i / side);
             // ~E is descending for every int; an offset key sets bit 63 for E < 0 and sorts it first.
             packed[i] = ((long) ~energy[i] << 32) | ((long) (morton & 0xFFFF) << 16) | (i & 0xFFFF);
         }
