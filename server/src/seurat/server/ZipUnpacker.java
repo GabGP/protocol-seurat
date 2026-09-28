@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import seurat.config.Units;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
@@ -20,7 +21,7 @@ import seurat.observe.Progress;
 
 /** Unpacks image files from a zip archive into an inbox directory. */
 final class ZipUnpacker {
-    private static final int BUFFER_SIZE = 1024 * 1024;
+    private static final int BUFFER_SIZE = Units.BYTES_PER_MIB;
     private static final int EXTRACT_ATTEMPTS = 2;
 
     private ZipUnpacker() {}
@@ -125,7 +126,7 @@ final class ZipUnpacker {
                 os.write(buf, 0, read);
                 written += read;
                 if (size > 0) {
-                    Progress.update("ingest", key, "unzipping", (int) (written * 100 / size),
+                    Progress.update("ingest", key, "unzipping", (int) (written * Units.PERCENT / size),
                             " rate=" + LogUnits.rate(written, System.currentTimeMillis() - start));
                 }
             }

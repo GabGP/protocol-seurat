@@ -1,5 +1,6 @@
 package seurat.paint;
 
+import seurat.config.Units;
 import seurat.plan.PlanEntry;
 import seurat.session.Canvas;
 
@@ -20,7 +21,7 @@ public record Pending(Canvas canvas, PlanEntry entry, long queuedNs, long editio
 
     /** Spec 6.2: class = stratum, aged by one per 500 ms waiting, capped at 10 (the sketch). */
     public int effectiveClass(long nowNs) {
-        long waitMs = (nowNs - queuedNs) / 1_000_000;
+        long waitMs = (nowNs - queuedNs) / Units.NANOS_PER_MS;
         return (int) Math.min(10, entry.brush().stratum() + waitMs / AGING_MS);
     }
 

@@ -2,6 +2,7 @@ package seurat.session;
 
 import java.nio.ByteBuffer;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.net.Mapping;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
@@ -53,7 +54,7 @@ final class CanvasService {
         }
         synchronized (canvas) {
             long now = System.nanoTime();
-            long leaseNs = SeuratConstants.LEASE_S * 1_000_000_000L;
+            long leaseNs = SeuratConstants.LEASE_S * Units.NANOS_PER_S;
             long skewNs = session.roundTrip.deltaNs();
             canvas.book().acknowledge(receipt.completed(), now, leaseNs, skewNs);
             canvas.book().settle(receipt.completed());

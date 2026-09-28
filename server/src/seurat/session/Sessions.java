@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 
 /**
  * Session registry: live sessions, single-use tokens, and resumable books (spec 8).
@@ -44,7 +45,7 @@ public final class Sessions {
         String hex = Hex.hex(t);
         long now = System.nanoTime();
         tokens.values().removeIf(old -> old.expiresNs() < now); // unused tokens do not pile up
-        tokens.put(hex, new Token(principal, role, memMib, now + ttlMs * 1_000_000L));
+        tokens.put(hex, new Token(principal, role, memMib, now + ttlMs * Units.NANOS_PER_MS));
         return hex;
     }
 
@@ -67,7 +68,7 @@ public final class Sessions {
 
     /** L + delta: how long a dead session's books outlive it (spec 8). */
     private static long bookLifeNs(Session session) {
-        return SeuratConstants.LEASE_S * 1_000_000_000L + session.roundTrip.deltaNs();
+        return SeuratConstants.LEASE_S * Units.NANOS_PER_S + session.roundTrip.deltaNs();
     }
 
     /** Disconnect: its books live L + delta; unacked deliveries and renewals expire with them (spec 8). */

@@ -9,6 +9,7 @@ import java.util.concurrent.Future;
 import seurat.catalog.Catalog;
 import seurat.codec.SeedCodec;
 import seurat.codec.YCoCgR;
+import seurat.config.Units;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
 import seurat.store.FileBrushStore;
@@ -92,8 +93,8 @@ final class ImagePass {
     /** PINTANDO's progress (spec 7.1 step 4): OBRA(ESTADO) on every whole percent, and the console bar. */
     private void progress(MasterReader reader) {
         double fraction = reader.fraction();
-        catalog.progress(id, (int) (fraction * 100));
-        Progress.update("ingest", "work=" + id, "painting", (int) (fraction * 100), " rate="
+        catalog.progress(id, (int) (fraction * Units.PERCENT));
+        Progress.update("ingest", "work=" + id, "painting", (int) (fraction * Units.PERCENT), " rate="
                 + LogUnits.pixelRate((long) (fraction * height) * width, System.currentTimeMillis() - start));
     }
 

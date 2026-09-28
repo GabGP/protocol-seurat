@@ -5,10 +5,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.CRC32;
+import seurat.config.Units;
 
 /** CRC-32 of a file read back from disk, to compare with the checksum a zip entry declares. */
 final class FileCrc {
-    private static final int BUFFER_SIZE = 1024 * 1024;
+    private static final int BUFFER_SIZE = Units.BYTES_PER_MIB;
 
     private FileCrc() {}
 

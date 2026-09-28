@@ -13,6 +13,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
@@ -110,7 +111,7 @@ public final class SocketServer implements Closeable {
         long t0 = System.nanoTime();
         var response = http.route(request);
         Log.info("http", "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
-                + " took=" + LogUnits.duration((System.nanoTime() - t0) / 1_000_000L));
+                + " took=" + LogUnits.duration((System.nanoTime() - t0) / Units.NANOS_PER_MS));
         Listeners.respond(socket, response);
     }
 

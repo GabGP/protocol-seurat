@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
 import seurat.proto.MsgGaze;
@@ -75,7 +76,7 @@ public final class GazeGate {
 
     private static MsgGaze.Gaze take(State s, Canvas canvas) {
         long now = System.nanoTime();
-        s.tokens = Math.min(SeuratConstants.GAZE_BURST, s.tokens + (now - s.refillNs) / 1e9 * SeuratConstants.GAZE_PER_S);
+        s.tokens = Math.min(SeuratConstants.GAZE_BURST, s.tokens + (now - s.refillNs) / (double) Units.NANOS_PER_S * SeuratConstants.GAZE_PER_S);
         s.refillNs = now;
         if (s.tokens < 1) {
             return null;
@@ -86,7 +87,7 @@ public final class GazeGate {
 
     private static void count(State s) {
         long now = System.nanoTime();
-        if (now - s.secondNs >= 1_000_000_000L) {
+        if (now - s.secondNs >= Units.NANOS_PER_S) {
             s.abusiveSeconds = s.thisSecond > SeuratConstants.GAZE_ABUSE_PER_S ? s.abusiveSeconds + 1 : 0;
             s.thisSecond = 0;
             s.secondNs = now;

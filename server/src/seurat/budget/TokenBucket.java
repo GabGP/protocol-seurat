@@ -1,5 +1,7 @@
 package seurat.budget;
 
+import seurat.config.Units;
+
 /** Token bucket: capacity bands, refill per second. */
 final class TokenBucket {
     private final long capacity;
@@ -16,7 +18,7 @@ final class TokenBucket {
 
     private void refill() {
         long now = System.nanoTime();
-        balance = Math.min(capacity, balance + (now - updatedNs) / 1e9 * rate);
+        balance = Math.min(capacity, balance + (now - updatedNs) / (double) Units.NANOS_PER_S * rate);
         updatedNs = now;
     }
 

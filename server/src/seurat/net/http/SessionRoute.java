@@ -7,6 +7,7 @@ import java.util.Map;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.config.ViewerAccounts;
 import seurat.observe.Log;
 import seurat.session.Sessions;
@@ -52,7 +53,7 @@ final class SessionRoute {
         }
         String role = account != null ? account.role() : WorkRecord.ANONYMOUS;
         String principal = account != null ? "user-" + account.name() : "anon-" + anon; // names a coverage directory
-        String token = sessions.issueToken(principal, role, memMib, SeuratConstants.TOKEN_TTL_S * 1000);
+        String token = sessions.issueToken(principal, role, memMib, SeuratConstants.TOKEN_TTL_S * Units.MS_PER_S);
         Log.info("session", "token issued principal=" + principal + " role=" + role);
         String host = req.host();
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";

@@ -2,6 +2,7 @@ package seurat.concession;
 
 import java.util.function.Predicate;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
@@ -20,7 +21,6 @@ import seurat.session.Sessions;
 
 /** 1 s tick (spec 4.2, 8): scrape deadlines, expiry, inactivity floor, RENOVAR, AUDITAR, heartbeat. */
 public final class Liveness {
-    private static final long S = 1_000_000_000L;
     private final GrantController grants;
     private final Sessions sessions;
 
@@ -32,7 +32,7 @@ public final class Liveness {
     public void tick() {
         long now = System.nanoTime();
         for (Session session : sessions.all()) {
-            if (now - session.lastEchoNs > SeuratConstants.HEARTBEAT_MISSES * SeuratConstants.HEARTBEAT_S * S) {
+            if (now - session.lastEchoNs > SeuratConstants.HEARTBEAT_MISSES * SeuratConstants.HEARTBEAT_S * Units.NANOS_PER_S) {
                 Log.warn("liveness", "s" + session.id() + " closing: no ECO for "
                         + SeuratConstants.HEARTBEAT_MISSES + " LATIDO");
                 close(session, null);
@@ -62,7 +62,7 @@ public final class Liveness {
                 }
             }
             canvas.book().pruneExpired(now);
-            if (!canvas.floored && session.lastGazeNs > 0 && now - session.lastGazeNs > SeuratConstants.IDLE_S * S) {
+            if (!canvas.floored && session.lastGazeNs > 0 && now - session.lastGazeNs > SeuratConstants.IDLE_S * Units.NANOS_PER_S) {
                 canvas.floored = true;
                 grants.apply(canvas, Concessions.target(grants.ceiling(canvas), true, canvas.meta().strata() - 1),
                         ProtoCodes.MOT_INACTIVIDAD, false);
@@ -72,13 +72,13 @@ public final class Liveness {
             if (!canvas.retiring && !hidden && canvas.plan().stale(ConePlanner.rung(session.share))) {
                 grants.plans.replan(canvas, grants.sketch(canvas)); // spec 6.3, 8
             }
-            if (now - canvas.renewNs > SeuratConstants.RENEW_S * S) {
+            if (now - canvas.renewNs > SeuratConstants.RENEW_S * Units.NANOS_PER_S) {
                 canvas.renewNs = now;
                 renew(session, canvas);
             }
             long done = canvas.book().settledThrough();
             if (canvas.orders().pendingScrapes().isEmpty() && done > 0
-                    && (now - canvas.auditNs > SeuratConstants.AUDIT_S * S
+                    && (now - canvas.auditNs > SeuratConstants.AUDIT_S * Units.NANOS_PER_S
                     || done - canvas.auditBase > SeuratConstants.AUDIT_EVERY_N)) {
                 canvas.auditNs = now;
                 canvas.auditBase = done;

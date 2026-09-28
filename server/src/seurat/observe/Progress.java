@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentSkipListMap;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 
 /**
  * Long jobs (inbox copy, unzip, ingest), each in a named phase ("unzipping", "painting"...). On a
@@ -38,7 +39,7 @@ public final class Progress {
 
     /** key is the line's subject ("work=venus"); suffix trails the percent (" rate=85.2 MiB/s" or ""). */
     public static void update(String tag, String key, String phase, int pct, String suffix) {
-        track(tag, key, phase, Math.max(0, Math.min(100, pct)), suffix);
+        track(tag, key, phase, Math.max(0, Math.min(Units.PERCENT, pct)), suffix);
     }
 
     /** A phase with no total yet ("waiting", "sketching"): an open-ended [~] segment. */
@@ -114,17 +115,17 @@ public final class Progress {
 
     static String bar(int pct) {
         int cells = SeuratConstants.PROGRESS_BAR_CELLS;
-        int full = pct * cells / 100;
+        int full = pct * cells / Units.PERCENT;
         return "[" + "#".repeat(full) + "-".repeat(cells - full) + "]";
     }
 
     /** " eta=…" to the whole second once the phase has run long enough to extrapolate; "" when under a second. */
     static String eta(int pct, long elapsedMs) {
-        if (pct <= 0 || pct >= 100 || elapsedMs < SeuratConstants.PROGRESS_ETA_MIN_MS) {
+        if (pct <= 0 || pct >= Units.PERCENT || elapsedMs < SeuratConstants.PROGRESS_ETA_MIN_MS) {
             return "";
         }
-        long seconds = Math.round(elapsedMs * (100 - pct) / pct / 1000.0);
-        return seconds > 0 ? " eta=" + LogUnits.duration(seconds * 1000) : "";
+        long seconds = Math.round(elapsedMs * (Units.PERCENT - pct) / pct / (double) Units.MS_PER_S);
+        return seconds > 0 ? " eta=" + LogUnits.duration(seconds * Units.MS_PER_S) : "";
     }
 
     private static boolean live() {

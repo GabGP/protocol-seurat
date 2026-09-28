@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.proto.MsgHandshake;
 import seurat.proto.MsgLoans;
@@ -53,7 +54,7 @@ final class ResumeAdopter {
                 canvas.renewNs = now;
                 canvas.auditNs = now;
                 reissued.put(canvas.handle(), canvas.orders().reissue(
-                        now + SeuratConstants.SCRAPE_TIMEOUT_S * 1_000_000_000L));
+                        now + SeuratConstants.SCRAPE_TIMEOUT_S * Units.NANOS_PER_S));
                 session.canvases().put(canvas.handle(), canvas);
                 handles.add(canvas.handle());
             }

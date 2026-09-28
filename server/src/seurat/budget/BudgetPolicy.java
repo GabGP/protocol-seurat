@@ -2,6 +2,7 @@ package seurat.budget;
 
 import seurat.catalog.WorkRecord;
 import seurat.concession.Concessions;
+import seurat.config.Units;
 import seurat.store.WorkMeta;
 
 /**
@@ -21,7 +22,7 @@ public final class BudgetPolicy {
     public static final Rule ANONYMOUS = new Rule(1_000, 1, 0.25);
     /** Global cap per (work, role) summed over all principals, per window (spec 9.2: 30 % in 24 h). */
     public static final double GLOBAL_CAP = 0.30;
-    public static final long GLOBAL_WINDOW_MS = 24L * 60 * 60 * 1000;
+    public static final long GLOBAL_WINDOW_MS = 24L * 60 * 60 * Units.MS_PER_S;
 
     /** The sketch strata are never budgeted: on tiny works they reach s <= 1. */
     public static Rule rule(String role, int stratum, int finest, WorkMeta meta) {

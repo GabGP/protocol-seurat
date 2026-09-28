@@ -4,6 +4,7 @@ import java.util.BitSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import seurat.codec.BrushId;
+import seurat.config.Units;
 
 /**
  * Global cap per (work, role, stratum) across principals (spec 9.2, collusion of
@@ -19,7 +20,7 @@ final class GlobalCoverage {
 
     private Window window(String key) {
         Window w = windows.computeIfAbsent(key, k -> new Window());
-        if (System.nanoTime() - w.startNs > BudgetPolicy.GLOBAL_WINDOW_MS * 1_000_000L) {
+        if (System.nanoTime() - w.startNs > BudgetPolicy.GLOBAL_WINDOW_MS * Units.NANOS_PER_MS) {
             w.brushes.clear();
             w.startNs = System.nanoTime();
         }

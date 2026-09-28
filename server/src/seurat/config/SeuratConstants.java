@@ -15,7 +15,7 @@ public final class SeuratConstants {
     public static final int GLOBAL_SLOTS = 512;
     public static final long CODEL_TARGET_NS = 25_000_000L;
     public static final long CODEL_TICK_MS = 250;
-    public static final int FRAME_MAX = 64 * 1024;
+    public static final int FRAME_MAX = 64 * Units.BYTES_PER_KIB;
     public static final int DATAGRAM_MAX = 1200;
     public static final int TOKEN_BYTES = 32;
     /** mem_mib when the client declares none (spec 5.1: no deviceMemory API). */
@@ -59,7 +59,7 @@ public final class SeuratConstants {
     /** Source rows per ImageIO decode: fewer rescan restarts on JPEG MCU streams. */
     public static final int INGEST_CHUNK_ROWS = 2048;
     /** Cap on one decoded chunk (rows * width * 4 B) for very wide masters. */
-    public static final long INGEST_CHUNK_BYTES = 256L * 1024 * 1024;
+    public static final long INGEST_CHUNK_BYTES = 256L * Units.BYTES_PER_MIB;
     /** Row slices per channel when a band is converted or transformed on the ingest fast lane. */
     public static final int INGEST_LANE_SLICES = 8;
     /** JPEG MCU rows the scan decodes before they are painted in parallel. */

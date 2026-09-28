@@ -4,6 +4,7 @@ import java.util.List;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.observe.Log;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
@@ -127,7 +128,7 @@ public final class GrantController {
             send(canvas.session(), FrameType.PLAN,
                     MsgGaze.Plan.cancelled(canvas.handle(), canvas.plan().seq(), cancelled).encode());
         }
-        long deadline = System.nanoTime() + SeuratConstants.SCRAPE_TIMEOUT_S * 1_000_000_000L;
+        long deadline = System.nanoTime() + SeuratConstants.SCRAPE_TIMEOUT_S * Units.NANOS_PER_S;
         for (int i = 0; i < cuts.size(); i++) {
             long order = canvas.orders().next();
             MsgLoans.Scrape wire = cuts.get(i).wire().at(order, n);

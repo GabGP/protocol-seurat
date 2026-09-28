@@ -1,5 +1,7 @@
 package seurat.session;
 
+import seurat.config.Units;
+
 /**
  * Per-session byte rate (spec 6.1, e.g. 25 MB/s): a token bucket one second deep that
  * may go into debt by one delivery; nothing new opens while it is in debt.
@@ -16,7 +18,7 @@ public final class SessionRate {
 
     private void refill() {
         long now = System.nanoTime();
-        balance = Math.min(bytesPerS, balance + (now - updatedNs) / 1e9 * bytesPerS);
+        balance = Math.min(bytesPerS, balance + (now - updatedNs) / (double) Units.NANOS_PER_S * bytesPerS);
         updatedNs = now;
     }
 
