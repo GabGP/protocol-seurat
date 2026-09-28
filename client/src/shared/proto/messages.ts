@@ -214,6 +214,10 @@ export function openedDecode(payload: Uint8Array): WorkOpened {
   return { handle, width, height, strata, edition, ceilingStratum, ceilingBands, seedWidth, seedHeight };
 }
 
+/** MIRADA mflags (spec 3.3): bit 0 OCULTA, bit 1 QUIETA. */
+export const MFLAGS_HIDDEN = 0x01;
+export const MFLAGS_STILL = 0x02;
+
 export interface Gaze {
   handle: number; seq: number; x0: number; y0: number; x1: number; y1: number;
   vw: number; vh: number; flags: number;

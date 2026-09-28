@@ -1,10 +1,7 @@
 import { GAZE_QUIET_IDLE_MS } from '@/shared/config/constants';
-import { gazeCore, T, type Gaze } from '@/shared/proto/messages';
+import { gazeCore, MFLAGS_HIDDEN, MFLAGS_STILL, T, type Gaze } from '@/shared/proto/messages';
 import { concat, viEncode } from '@/shared/proto/varint';
 import type { SeuratTransport } from '@/shared/api/transport';
-
-export const MFLAGS_HIDDEN = 0x01;
-export const MFLAGS_STILL = 0x02;
 
 export class GazeSender {
   private seq = 0;
