@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { hash3 } from '@/shared/lib/hash3';
 import { notePreviewWidth, useWorkPreview } from '@/entities/work';
+import type { WorkPreview } from '@/entities/work/previews';
 import { drawScaledRgba } from '@/shared/codec/seed';
 import type { Work } from '@/entities/work/types';
 import { workDims, workTitle } from '@/entities/work/types';
@@ -37,6 +38,8 @@ function drawPlaceholder(c: HTMLCanvasElement, work: Work): void {
 
 function Thumb({ work }: { work: Work }): JSX.Element {
   const ref = useRef<HTMLCanvasElement>(null);
+  /** The preview the canvas shows: a finer one is drawn even when the card keeps its size. */
+  const shown = useRef<WorkPreview>();
   const preview = useWorkPreview(work.id);
 
   useEffect(() => {
@@ -44,15 +47,17 @@ function Thumb({ work }: { work: Work }): JSX.Element {
     if (!c) return;
     notePreviewWidth(Math.round(c.clientWidth * (window.devicePixelRatio || 1)));
     if (!preview) {
+      shown.current = undefined;
       drawPlaceholder(c, work);
       return;
     }
-    // One resample from the seed straight to device pixels: the browser does not stretch it again.
+    // One resample from the preview straight to device pixels: the browser does not stretch it again.
     const draw = (): void => {
       const dpr = window.devicePixelRatio || 1; // client size: the card's press scale is not a resize
       const w = Math.round(c.clientWidth * dpr) || preview.width;
       const h = Math.round(c.clientHeight * dpr) || preview.height;
-      if (c.width === w && c.height === h) return;
+      if (c.width === w && c.height === h && shown.current === preview) return;
+      shown.current = preview;
       c.width = w;
       c.height = h;
       const ctx = c.getContext('2d');
