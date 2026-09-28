@@ -1,5 +1,6 @@
 import { ulebDecode, zigzagDecode } from './leb128';
 import { yCoCgToRgb } from './ycocgr';
+import { IMAGE_SMOOTHING_THRESHOLD } from '@/shared/config/render';
 
 export async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream('deflate-raw');
@@ -71,6 +72,22 @@ export async function decodeSeed(
   return { rgba, width, height };
 }
 
+/** Two canvases reused by every draw; WebKit caps canvas memory and frees a dropped one only on GC. */
+const scratch: HTMLCanvasElement[] = [];
+
+function scratchCanvas(i: number, w: number, h: number): CanvasRenderingContext2D | null {
+  if (typeof document === 'undefined') return null;
+  const c = (scratch[i] ??= document.createElement('canvas'));
+  c.width = w;
+  c.height = h;
+  return c.getContext('2d');
+}
+
+/**
+ * Draws an image at another size. When it is enlarged IMAGE_SMOOTHING_THRESHOLD times or
+ * more, each sample first becomes a sharp block (as the viewer shows it), and only the
+ * fraction left over is smoothed: a small image is not blurred into a smear.
+ */
 export function drawScaledRgba(
   targetCtx: CanvasRenderingContext2D,
   rgba: Uint8ClampedArray,
@@ -79,19 +96,19 @@ export function drawScaledRgba(
   dstW: number,
   dstH: number,
 ): void {
-  let off: OffscreenCanvas | HTMLCanvasElement | null = null;
-  if (typeof OffscreenCanvas !== 'undefined') {
-    off = new OffscreenCanvas(srcW, srcH);
-  } else if (typeof document !== 'undefined') {
-    off = document.createElement('canvas');
-    off.width = srcW;
-    off.height = srcH;
+  const src = scratchCanvas(0, srcW, srcH);
+  if (!src) return;
+  src.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer as ArrayBuffer), srcW, srcH), 0, 0);
+  let from: CanvasRenderingContext2D = src;
+  const k = Math.floor(Math.min(dstW / srcW, dstH / srcH));
+  const blocks = k >= IMAGE_SMOOTHING_THRESHOLD ? scratchCanvas(1, srcW * k, srcH * k) : null;
+  if (blocks) {
+    blocks.imageSmoothingEnabled = false;
+    blocks.drawImage(src.canvas, 0, 0, srcW * k, srcH * k);
+    from = blocks;
   }
-  if (!off) return;
-  const octx = off.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
-  if (!octx) return;
-  octx.putImageData(new ImageData(new Uint8ClampedArray(rgba.buffer as ArrayBuffer), srcW, srcH), 0, 0);
   targetCtx.imageSmoothingEnabled = true;
   targetCtx.imageSmoothingQuality = 'high';
-  targetCtx.drawImage(off as CanvasImageSource, 0, 0, dstW, dstH);
+  targetCtx.drawImage(from.canvas, 0, 0, dstW, dstH);
+  for (const c of scratch) c.width = c.height = 0;
 }
