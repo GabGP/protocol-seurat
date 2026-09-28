@@ -36,6 +36,7 @@ public final class BrushBudget {
             int through, String role, int finest, WorkMeta meta) {
         BudgetPolicy.Rule rule = BudgetPolicy.rule(role, p.stratum(), finest, meta);
         if (rule == null) {
+            record(principal, work, p, through, meta);
             return true;
         }
         try {
@@ -56,6 +57,21 @@ public final class BrushBudget {
         } catch (IOException ex) {
             Log.warn("budget", "coverage unavailable for " + work + ": " + ex);
             return false;
+        }
+    }
+
+    /** Spec 8 invariant 5: an unbudgeted s <= 1 delivery still enters the coverage map, free of charge. */
+    private void record(String principal, String work, BrushId p, int through, WorkMeta meta) {
+        if (p.stratum() > 1) {
+            return;
+        }
+        try {
+            Coverage seen = coverage(principal, work, meta);
+            if (through > seen.get(p)) {
+                seen.set(p, through);
+            }
+        } catch (IOException ex) {
+            Log.warn("budget", "coverage unavailable for " + work + ": " + ex);
         }
     }
 

@@ -29,6 +29,8 @@ public final class BrushBudgetTest {
         TestKit.check(budget.consume("u", "w", p, 0, 2, WorkRecord.AUTHENTICATED, 0, meta()), "redelivery free");
         TestKit.check(budget.consume("u", "w", new BrushId(1, 0, 0), 0, 4, WorkRecord.AUTHENTICATED, 0, meta()),
                 "authenticated s1 is not budgeted");
+        TestKit.check(new Coverage(root.resolve("a/u/w.bits"), meta()).get(new BrushId(1, 0, 0)) == 4,
+                "but it is in the coverage map (spec 8 invariant 5)");
         TestKit.check(new BrushBudget(root.resolve("a"))
                 .consume("u", "w", p, 0, 2, WorkRecord.AUTHENTICATED, 0, meta()), "coverage persists");
     }
