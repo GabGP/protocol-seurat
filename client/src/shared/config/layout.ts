@@ -16,3 +16,6 @@ export const SLIDER_HEIGHT = 48;
 
 export const GALLERY_COLUMNS_WIDTH = 300;
 export const GALLERY_MAX_WIDTH = 1440;
+/** Long and minimum side of a gallery card's noise placeholder (the seed itself draws at card size). */
+export const GALLERY_PLACEHOLDER_PX = 144;
+export const GALLERY_PLACEHOLDER_MIN_PX = 32;
