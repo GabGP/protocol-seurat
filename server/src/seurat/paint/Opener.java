@@ -85,8 +85,9 @@ final class Opener {
     /** (d) for s <= 1: charge, or substitute the s + 1 version (recorte de entrega, PRESUPUESTO). */
     private PlanEntry budgeted(Canvas canvas, PlanEntry e) {
         Session s = canvas.session();
+        int finest = canvas.concession().minStratum();
         if (e.brush().stratum() > 1 || budget.consume(s.principal(), canvas.workId(), e.brush(),
-                e.from(), e.through(), s.role(), canvas.meta())) {
+                e.from(), e.through(), s.role(), finest, canvas.meta())) {
             return e;
         }
         canvas.plan().defer(ProtoCodes.REG_PRESUPUESTO);
@@ -95,7 +96,7 @@ final class Opener {
         if (parent.stratum() >= SeuratConstants.SEED_STRATUM || have >= e.through()
                 || !permitted(canvas, parent, e.through())
                 || !budget.consume(s.principal(), canvas.workId(), parent, have, e.through(),
-                        s.role(), canvas.meta())) {
+                        s.role(), finest, canvas.meta())) {
             return null;
         }
         return new PlanEntry(parent, have, e.through(), e.pass());

@@ -66,7 +66,8 @@ public final class Painter implements Runnable {
     /** Plan time, nothing charged: PLAN INICIO's PRESUPUESTO bit when the budget will cut. */
     public int budgetFlags(Canvas canvas, List<PlanEntry> entries) {
         Session s = canvas.session();
-        return budget.wouldCut(s.principal(), canvas.workId(), s.role(), canvas.meta(), entries)
+        return budget.wouldCut(s.principal(), canvas.workId(), s.role(),
+                canvas.concession().minStratum(), canvas.meta(), entries)
                 ? ProtoCodes.REG_PRESUPUESTO : 0;
     }
 

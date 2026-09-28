@@ -28,10 +28,13 @@ public final class BrushBudget {
         Files.createDirectories(base);
     }
 
-    /** Painter check (d), at open: charges the new bands or refuses (the caller serves s + 1). */
+    /**
+     * Painter check (d), at open: charges the new bands or refuses (the caller serves s + 1).
+     * `finest` is the role's finest stratum on the work (the concession's estrato_min).
+     */
     public synchronized boolean consume(String principal, String work, BrushId p, int from,
-            int through, String role, WorkMeta meta) {
-        BudgetPolicy.Rule rule = BudgetPolicy.rule(role, p.stratum(), meta);
+            int through, String role, int finest, WorkMeta meta) {
+        BudgetPolicy.Rule rule = BudgetPolicy.rule(role, p.stratum(), finest, meta);
         if (rule == null) {
             return true;
         }
@@ -57,12 +60,12 @@ public final class BrushBudget {
     }
 
     /** Plan time, nothing charged: would any entry be cut? Sets PLAN INICIO's PRESUPUESTO bit. */
-    public synchronized boolean wouldCut(String principal, String work, String role, WorkMeta meta,
-            List<PlanEntry> entries) {
+    public synchronized boolean wouldCut(String principal, String work, String role, int finest,
+            WorkMeta meta, List<PlanEntry> entries) {
         Map<Integer, Long> demand = new HashMap<>();
         try {
             for (PlanEntry e : entries) {
-                BudgetPolicy.Rule rule = BudgetPolicy.rule(role, e.brush().stratum(), meta);
+                BudgetPolicy.Rule rule = BudgetPolicy.rule(role, e.brush().stratum(), finest, meta);
                 if (rule == null) {
                     continue;
                 }
