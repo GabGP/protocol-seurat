@@ -10,6 +10,8 @@ export interface SynthWorker {
   postMessage(req: SynthRequest, options: { transfer: Transferable[] }): void;
   terminate(): void;
   onmessage: ((ev: MessageEvent) => void) | null;
+  onerror?: ((ev: ErrorEvent) => void) | null;
+  onmessageerror?: ((ev: MessageEvent) => void) | null;
 }
 
 /** Builds one synthesis worker; injectable so tests can pass fakes. */

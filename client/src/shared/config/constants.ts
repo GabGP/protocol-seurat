@@ -19,6 +19,12 @@ export const RELEASE_BATCH_MS = 100;
 export const PREVIEW_CREDIT = 8;
 /** A visible gallery repeats its previews' MIRADA well inside the server's 60 s inactivity floor (spec 2.3). */
 export const PREVIEW_GAZE_KEEPALIVE_MS = 30_000;
+/** Gallery previews: works opened at once, and how long one may take to bring its seed. */
+export const PREVIEW_OPENS = 3;
+export const PREVIEW_OPEN_TIMEOUT_MS = 5000;
+/** Decode workers for previews (never more than the synthesis pool), and a decode's deadline before its worker is replaced. */
+export const PREVIEW_DECODERS_MAX = 4;
+export const PREVIEW_DECODE_TIMEOUT_MS = 10_000;
 export const SCRAPE_TIMEOUT_MS = 10_000;
 export const LEASE_S = 120;
 /** Reconnect after a lost connection (spec 8: POST /sesion + REANUDAR), backing off up to the max. */

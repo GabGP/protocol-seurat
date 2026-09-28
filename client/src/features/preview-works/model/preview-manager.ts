@@ -1,63 +1,55 @@
 import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
-import { dropWorkPreview, hasWorkPreview, previewWidth, setWorkPreview } from '@/entities/work/previews';
+import { dropWorkPreview, previewWidth } from '@/entities/work/previews';
 import type { WorkerFactory } from '@/entities/delivery/worker-pool';
-import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
+import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/app/providers/session-client';
-import { PreviewLoan } from './preview-loan';
+import type { PreviewLoan } from './preview-loan';
 import { piecesKib, type PreviewPiece } from './preview-piece';
 import { gazeLevel, previewGaze, type PreviewGaze } from './preview-gaze';
 import { PreviewDecoder } from './preview-decoder';
-import { composePreview } from './preview-compose';
+import { PreviewOpens } from './preview-opens';
+import { PreviewPainter } from './preview-painter';
 
 const SOLTAR_LRU = 1;
 const SOLTAR_CADUCADA = 3;
 const SOLTAR_CRC = 6;
 const SOLTAR_REEMPLAZADA = 7;
-const OPEN_TIMEOUT_MS = 5000;
 
 /**
  * Catalog thumbnails inside the protocol (spec 3.2): each card is a canvas with its own MIRADA,
  * the whole work at the card's device pixels, so the server's cone decides how deep it paints
  * (spec 2.2). Its pieces are loans like any other; anything finer than the card needs is released
  * at once. RENOVAR / RASPAR / AUDITAR are answered, the MIRADA is repeated inside the inactivity
- * floor, and CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail.
+ * floor, and CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail. A few works
+ * are opened and composed at once (PREVIEW_OPENS), in the gallery's order.
  */
 export class PreviewManager {
-  private queue: string[] = [];
-  private loading: PreviewLoan | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly opens = new PreviewOpens((loan) => this.giveUp(loan));
   private held = new Map<number, PreviewLoan>();
   private paused = false;
-  private readonly decoder: PreviewDecoder;
-  /** Loans being composed, and those that changed meanwhile (composed once more after). */
-  private drawing = new Set<PreviewLoan>();
-  private stale = new Set<PreviewLoan>();
+  private readonly painter: PreviewPainter;
   /** MIRADA seq, rising across every card. */
   private gazeSeq = 0;
 
   constructor(private client: () => SessionClient | null, workers?: WorkerFactory) {
-    this.decoder = new PreviewDecoder(workers);
+    const live = (loan: PreviewLoan): boolean => this.held.get(loan.handle) === loan;
+    this.painter = new PreviewPainter(new PreviewDecoder(workers), live, () => this.pump());
   }
 
   enqueue(ids: string[]): void {
-    for (const id of ids) {
-      if (!hasWorkPreview(id) && !this.queue.includes(id) && this.loading?.id !== id) this.queue.push(id);
-    }
-    const order = new Map(ids.map((id, i) => [id, i]));
-    this.queue.sort((a, b) => (order.get(a) ?? 9999) - (order.get(b) ?? 9999));
+    this.opens.enqueue(ids);
     this.pump();
   }
 
   /** A work is opened for viewing: every preview canvas is closed (CERRAR releases all of it). */
   pause(): void {
     this.paused = true;
-    const all = [...this.held.values(), ...(this.loading ? [this.loading] : [])];
+    const all = [...this.held.values(), ...this.opens.drain()];
     for (const l of all) this.close(l);
-    this.loading = null;
-    this.decoder.dispose();
+    this.painter.dispose();
     // Back in the gallery, the same thumbnails are fetched again (not kept meanwhile).
-    this.queue = [...new Set([...all.map((l) => l.id), ...this.queue])];
+    this.opens.requeueFirst(all.map((l) => l.id));
   }
 
   resume(): void {
@@ -66,15 +58,16 @@ export class PreviewManager {
   }
 
   owns(handle: number): boolean {
-    return this.held.has(handle) || this.loading?.handle === handle;
+    return this.held.has(handle) || this.opens.byHandle(handle) !== undefined;
   }
 
   onWorkOpened(id: string, a: WorkOpened): void {
-    if (!this.loading || this.loading.id !== id) {
+    const opening = this.opens.byId(id);
+    if (!opening) {
       this.client()?.closeHandle(a.handle);
       return;
     }
-    const loan = Object.assign(this.loading, {
+    const loan = Object.assign(opening, {
       handle: a.handle, seedW: a.seedWidth, seedH: a.seedHeight, top: a.strata - 1, workW: a.width, workH: a.height, vw: previewWidth(),
     });
     if (loan.top > 0) loan.level = gazeLevel(this.gaze(loan, performance.now()), loan.top);
@@ -89,7 +82,7 @@ export class PreviewManager {
     } catch {
       return false;
     }
-    const loan = this.loading?.handle === h.handle ? this.loading : this.held.get(h.handle);
+    const loan = this.opens.byHandle(h.handle) ?? this.held.get(h.handle);
     if (!loan) return false;
     const { bx, by } = splitBrushId(h.brushId);
     if (!loan.wants(h, bx, by)) return this.release(loan, SOLTAR_LRU, [h.delivery]); // finer than the card needs, or held already
@@ -97,12 +90,8 @@ export class PreviewManager {
     const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * 1000 };
     this.release(loan, SOLTAR_REEMPLAZADA, loan.take(piece).map((p) => p.delivery));
     this.client()?.sendReceipt(loan.handle, [h.delivery], 0, PREVIEW_CREDIT, 0);
-    if (loan === this.loading && loan.seed) {
-      if (this.timer) clearTimeout(this.timer);
-      this.loading = null;
-      this.held.set(loan.handle, loan);
-    }
-    if (loan.seed) this.draw(loan);
+    if (loan.seed && this.opens.done(loan)) this.held.set(loan.handle, loan);
+    if (loan.seed) this.painter.draw(loan);
     return true;
   }
 
@@ -116,11 +105,11 @@ export class PreviewManager {
   }
 
   onScrape(r: Scrape): boolean {
-    const loan = this.held.get(r.handle) ?? (this.loading?.handle === r.handle ? this.loading : undefined);
+    const loan = this.held.get(r.handle) ?? this.opens.byHandle(r.handle);
     if (!loan) return false;
     const { scraped, kept } = loan.scrape(r);
     this.client()?.sendScraped(r.handle, r.order, r.epoch, r.through, scraped.length, piecesKib(scraped), kept);
-    if (scraped.length > 0) this.redraw(loan);
+    if (scraped.length > 0) this.painter.redraw(loan);
     return true;
   }
 
@@ -145,21 +134,19 @@ export class PreviewManager {
       if (gone.length === 0) continue;
       this.release(loan, SOLTAR_CADUCADA, gone.map((p) => p.delivery));
       loan.remove(gone);
-      if (loan.seed) this.redraw(loan);
+      if (loan.seed) this.painter.redraw(loan);
       else this.close(loan);
     }
   }
 
   onError(id: string): void {
-    if (this.loading?.id !== id) return;
-    this.close(this.loading);
-    this.loading = null;
-    this.pump();
+    const loan = this.opens.byId(id);
+    if (loan) this.giveUp(loan);
   }
 
   dispose(): void {
     this.pause();
-    this.queue = [];
+    this.opens.clear();
   }
 
   private gaze(loan: PreviewLoan, now: number): PreviewGaze {
@@ -174,56 +161,23 @@ export class PreviewManager {
     return true;
   }
 
-  /** What the loan still holds is shown again: less detail, or nothing once the seed is gone. */
-  private redraw(loan: PreviewLoan): void {
-    if (loan.seed) this.draw(loan);
-    else dropWorkPreview(loan.id);
-  }
-
-  private draw(loan: PreviewLoan): void {
-    if (this.drawing.has(loan)) {
-      this.stale.add(loan);
-      return;
-    }
-    this.drawing.add(loan);
-    composePreview(loan, this.decoder)
-      .then((img) => {
-        if (img && loan.seed && this.held.get(loan.handle) === loan) setWorkPreview(loan.id, img);
-      })
-      .catch((err: unknown) => {
-        if (this.held.get(loan.handle) === loan) console.warn('Preview decode error for', loan.id, err);
-      })
-      .finally(() => {
-        this.drawing.delete(loan);
-        if (this.stale.delete(loan) && this.held.get(loan.handle) === loan) this.draw(loan);
-        else this.pump();
-      });
+  /** A work that could not be opened, or brought no seed in time: its card keeps its placeholder. */
+  private giveUp(loan: PreviewLoan): void {
+    this.close(loan);
+    this.pump();
   }
 
   private close(loan: PreviewLoan): void {
-    if (loan === this.loading && this.timer) clearTimeout(this.timer);
+    this.opens.done(loan);
     this.held.delete(loan.handle);
-    this.stale.delete(loan);
+    this.painter.forget(loan);
     dropWorkPreview(loan.id);
     if (loan.handle > 0) this.client()?.closeHandle(loan.handle);
   }
 
+  /** Opens queued works while fewer than PREVIEW_OPENS are being opened or composed. */
   private pump(): void {
-    if (this.paused || this.loading !== null) return;
-    const nextId = this.queue.shift();
-    if (!nextId) return;
-    if (hasWorkPreview(nextId)) {
-      this.pump();
-      return;
-    }
-    const loan = new PreviewLoan(nextId);
-    this.timer = setTimeout(() => {
-      if (this.loading !== loan) return;
-      this.close(loan);
-      this.loading = null;
-      this.pump();
-    }, OPEN_TIMEOUT_MS);
-    this.loading = loan;
-    this.client()?.openPreview(nextId);
+    if (this.paused) return;
+    for (const loan of this.opens.start(PREVIEW_OPENS - this.painter.busy)) this.client()?.openPreview(loan.id);
   }
 }

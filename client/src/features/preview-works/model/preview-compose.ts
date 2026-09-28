@@ -27,7 +27,7 @@ export async function composePreview(loan: PreviewLoan, decoder: PreviewDecoder)
   return toRgba(shrinkTo(level, loan.vw));
 }
 
-/** Stratum `s` over the whole work, each brush decoded on its 128² crop of `parent`. */
+/** Stratum `s` over the whole work, each brush decoded on its 128² crop of `parent`, all at once. */
 async function stratum(
   loan: PreviewLoan, decoder: PreviewDecoder, seed: PreviewPiece, parent: DecodedPlanes, s: number,
 ): Promise<DecodedPlanes> {
@@ -36,19 +36,21 @@ async function stratum(
     width: parent.width * LEVEL_SCALE,
     height: parent.height * LEVEL_SCALE,
   };
+  const brushes: Promise<void>[] = [];
   for (let by = 0; by < loan.rows(s); by++) {
     for (let bx = 0; bx < loan.cols(s); bx++) {
       const run = loan.shown(s, bx, by);
       const base = run[0] ?? { ...seed, brushId: makeBrushId(s, bx, by), stratum: s, delivery: 0 };
-      const brush = await decoder.decode({
+      const brush = decoder.decode({
         ...request(loan, base, run),
         parentPlanes: crop(parent, bx * PARENTS_PER_SIDE, by * PARENTS_PER_SIDE),
         parentPlaneWidth: PARENTS_PER_SIDE,
         parentPlaneHeight: PARENTS_PER_SIDE,
       });
-      place(brush, out, bx * TILE, by * TILE);
+      brushes.push(brush.then((b) => place(b, out, bx * TILE, by * TILE)));
     }
   }
+  await Promise.all(brushes);
   return out;
 }
 

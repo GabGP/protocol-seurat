@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreviewManager } from '../model/preview-manager';
 import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work/previews';
 import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum, type WorkOpened } from '@/shared/proto/messages';
-import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
+import {
+  LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, PREVIEW_OPEN_TIMEOUT_MS,
+} from '@/shared/config/constants';
 import type { SessionClient } from '@/app/providers/session-client';
 import { brushDelivery, inlineWorkers, seedDelivery, settle } from './preview-fixtures';
 
@@ -161,14 +163,30 @@ describe('PreviewManager', () => {
     manager.dispose();
   });
 
-  it('orders pending queue according to the latest sorted ids list', () => {
+  it('opens a few works at once, in the order of the latest sorted ids list', () => {
     const { log, manager } = recorder();
-    manager.enqueue(['work-3']);
-    expect(log.opened).toEqual(['work-3']);
-    // work-3 is loading; the rest queue in the new order and work-1 goes next
-    manager.enqueue(['work-1', 'work-2', 'work-3']);
-    manager.onError('work-3');
-    expect(log.opened).toEqual(['work-3', 'work-1']);
+    const ids = Array.from({ length: PREVIEW_OPENS + 2 }, (_, i) => `work-${i}`);
+    const last = ids.at(-1) ?? '';
+    manager.enqueue([last]);
+    expect(log.opened).toEqual([last]);
+    // `last` is being opened; the rest queue in the new order and fill the free slots
+    manager.enqueue(ids);
+    expect(log.opened).toEqual([last, ...ids.slice(0, PREVIEW_OPENS - 1)]);
+    manager.onError(last);
+    expect(log.opened.at(-1)).toBe(ids[PREVIEW_OPENS - 1]);
     manager.dispose();
+  });
+
+  it('gives up a work that brings no seed in time and opens the next', () => {
+    vi.useFakeTimers();
+    const { log, manager } = recorder();
+    const ids = Array.from({ length: PREVIEW_OPENS + 1 }, (_, i) => `work-${i}`);
+    manager.enqueue(ids);
+    manager.onWorkOpened('work-0', opened(101));
+    vi.advanceTimersByTime(PREVIEW_OPEN_TIMEOUT_MS);
+    expect(log.closed).toContain(101);
+    expect(log.opened).toEqual(ids);
+    manager.dispose();
+    vi.useRealTimers();
   });
 });
