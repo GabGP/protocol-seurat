@@ -102,7 +102,7 @@ public final class Progress {
         if (queued > 0) {
             all.add(QUEUED + "=" + queued);
         }
-        String text = all.toString();
+        String text = LogNames.cut(all.toString());
         int cols = columns() - 1;
         return text.length() > cols ? text.substring(0, cols) : text;
     }

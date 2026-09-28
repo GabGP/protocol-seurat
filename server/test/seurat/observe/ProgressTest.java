@@ -25,6 +25,11 @@ public final class ProgressTest {
         System.out.println("ProgressTest OK");
     }
 
+    /** A job key as a log line shows it: the name padded to the common width, then the separating space. */
+    private static String n(String key) {
+        return LogNames.fit(key + " ");
+    }
+
     private static void steps(ByteArrayOutputStream bytes) {
         Progress.setLive(false);
         for (int pct = 0; pct <= 100; pct++) {
@@ -33,13 +38,13 @@ public final class ProgressTest {
         }
         String out = bytes.toString(StandardCharsets.UTF_8);
         TestKit.check(out.lines().count() == 10, "one INFO line per 10 %: " + out);
-        TestKit.check(out.contains("work=a painting progress=[#####-----] 50%"), "step line shape: " + out);
+        TestKit.check(out.contains(n("work=a") + "painting progress=[#####-----] 50%"), "step line shape: " + out);
         TestKit.check(out.replace(System.lineSeparator(), "\n").indexOf('\r') < 0,
                 "no carriage return in a captured log beyond the platform line separator");
         bytes.reset();
         Progress.update("ingest", "work=b", "unzipping", 57, " rate=1.0 MiB/s");
         TestKit.check(bytes.toString(StandardCharsets.UTF_8).contains(
-                "work=b unzipping progress=[#####-----] 57% rate=1.0 MiB/s"), "a job that starts past a step reports it");
+                n("work=b") + "unzipping progress=[#####-----] 57% rate=1.0 MiB/s"), "a job that starts past a step reports it");
         Progress.done("work=a");
         Progress.done("work=b");
         TestKit.check(Progress.line().isEmpty(), "done drops the job");
@@ -51,7 +56,7 @@ public final class ProgressTest {
         Progress.update("ingest", "work=b", "painting", 5, "");
         TestKit.check(bytes.size() == 0, "a new phase restarts its steps: 5 % is below the first");
         Progress.update("ingest", "work=b", "painting", 12, "");
-        TestKit.check(bytes.toString(StandardCharsets.UTF_8).contains("work=b painting progress=[#---------] 12%"),
+        TestKit.check(bytes.toString(StandardCharsets.UTF_8).contains(n("work=b") + "painting progress=[#---------] 12%"),
                 "then reports its own first step: " + bytes);
         bytes.reset();
         Progress.phase("ingest", "work=b", "finishing", "");

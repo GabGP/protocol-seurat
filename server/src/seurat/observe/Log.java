@@ -83,6 +83,7 @@ public final class Log {
         if (level.severity < currentLevel.severity) {
             return;
         }
+        msg = LogNames.fit(msg);
         String ts = LocalDateTime.now().format(FMT);
         String paddedLevel = padRight(level.name(), LEVEL_WIDTH);
         String paddedTag = padRight(tag != null ? tag : "", TAG_WIDTH);

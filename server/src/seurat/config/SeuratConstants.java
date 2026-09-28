@@ -82,5 +82,7 @@ public final class SeuratConstants {
     public static final int PROGRESS_COLUMNS = 80;
     /** A phase shows an ETA only after running this long: earlier extrapolations swing wildly. */
     public static final long PROGRESS_ETA_MIN_MS = 1_000;
+    /** A work, file or zip name in a log line is cut to ("...") or padded to this many characters. */
+    public static final int LOG_NAME_WIDTH = 32;
 }
 
