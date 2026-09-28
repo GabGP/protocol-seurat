@@ -11,6 +11,7 @@ import java.util.concurrent.TimeoutException;
 import seurat.config.SeuratConstants;
 import seurat.net.Mapping;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.session.Canvas;
 import seurat.session.Delivery;
 
@@ -53,7 +54,7 @@ public final class WsMapping implements Mapping {
                 }
             }
         } catch (Exception ex) {
-            Log.debug("ws", "Reader stopped: " + ex.getMessage());
+            Log.debug("ws", "reader stopped: " + LogUnits.cause(ex));
         } finally {
             control.offer(new byte[0]);
         }

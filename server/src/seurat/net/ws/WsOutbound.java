@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 
 /**
  * The one writer of a WebSocket (spec 3.1): control messages first, in order, then
@@ -96,7 +97,7 @@ final class WsOutbound implements Runnable {
             }
             WsFraming.close(out, closeCode);
         } catch (Exception ex) {
-            Log.debug("ws", "Writer stopped: " + ex.getMessage());
+            Log.debug("ws", "writer stopped: " + LogUnits.cause(ex));
         } finally {
             stop();
         }

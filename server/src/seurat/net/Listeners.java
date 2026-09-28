@@ -1,15 +1,20 @@
 package seurat.net;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.KeyStore;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import seurat.config.SeuratConfig;
+import seurat.net.http.HttpSurface;
 
-/** The TCP listener: TLS 1.3 from a PKCS#12 keystore when configured (pure JDK), else plain. */
+/** The TCP listener (TLS 1.3 from a PKCS#12 keystore when configured, pure JDK) and the raw HTTP answers on it. */
 final class Listeners {
     private Listeners() {}
 
@@ -29,6 +34,27 @@ final class Listeners {
         SSLServerSocket server = (SSLServerSocket) tls.getServerSocketFactory().createServerSocket(config.httpPort);
         server.setEnabledProtocols(new String[]{"TLSv1.3"});
         return server;
+    }
+
+    /** Writes one HTTP response and ends the connection (Connection: close, no-store unless set). */
+    static void respond(Socket socket, HttpSurface.Response response) throws IOException {
+        StringBuilder header = new StringBuilder("HTTP/1.1 " + status(response.code())
+                + "\r\nContent-Type: " + response.type() + "\r\nContent-Length: " + response.body().length
+                + "\r\nConnection: close\r\n");
+        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store\r\n");
+        response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append("\r\n"));
+        OutputStream out = socket.getOutputStream();
+        out.write(header.append("\r\n").toString().getBytes(StandardCharsets.UTF_8));
+        out.write(response.body());
+        out.flush();
+        socket.close();
+    }
+
+    /** An empty answer that ends the connection: a refused upgrade or an unparsable request. */
+    static void refuse(Socket socket, int code) throws IOException {
+        socket.getOutputStream().write(("HTTP/1.1 " + status(code) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .getBytes(StandardCharsets.US_ASCII));
+        socket.close();
     }
 
     static String status(int code) {

@@ -10,6 +10,7 @@ import seurat.catalog.Catalog;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.session.Sessions;
 
 /**
@@ -66,7 +67,7 @@ public final class HttpSurface {
             }
             return json(404, "{\"error\":\"no existe\"}");
         } catch (Exception ex) {
-            Log.error("http", "Error routing request " + req.method() + " " + req.path(), ex);
+            Log.error("http", req.method() + " " + req.path() + " failed: " + LogUnits.cause(ex), ex);
             return json(500, "{\"error\":\"interno\"}");
         }
     }

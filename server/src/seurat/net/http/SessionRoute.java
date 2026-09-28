@@ -41,7 +41,7 @@ final class SessionRoute {
         if (!auth.isEmpty()) {
             account = auth.startsWith(BEARER) ? config.accounts.find(auth.substring(BEARER.length()).trim()) : null;
             if (account == null || !WorkRecord.ROLES.contains(account.role())) {
-                Log.warn("session", "Session refused: unknown Bearer key");
+                Log.warn("session", "token refused: unknown Bearer key");
                 return HttpSurface.json(401, "{\"error\":\"autenticacion\"}");
             }
         }
@@ -53,7 +53,7 @@ final class SessionRoute {
         String role = account != null ? account.role() : WorkRecord.ANONYMOUS;
         String principal = account != null ? "user-" + account.name() : "anon-" + anon; // names a coverage directory
         String token = sessions.issueToken(principal, role, memMib, SeuratConstants.TOKEN_TTL_S * 1000);
-        Log.info("session", "Issued session token for principal=" + principal + " (role=" + role + ")");
+        Log.info("session", "token issued principal=" + principal + " role=" + role);
         String host = req.host();
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
         String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + ws

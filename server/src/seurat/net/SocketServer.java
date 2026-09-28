@@ -17,6 +17,7 @@ import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 
 /**
  * One TCP port: HTTP routes plus the seurat.1 WebSocket mapping (TLS when a keystore
@@ -42,7 +43,7 @@ public final class SocketServer implements Closeable {
     public void start() throws Exception {
         try (ServerSocket server = Listeners.open(config)) {
             bound = server;
-            Log.info("net", "Listening on TCP port " + config.httpPort + (config.tls() ? " (TLS)" : ""));
+            Log.info("net", "listening port=" + config.httpPort + " tls=" + config.tls());
             while (!closed) {
                 Socket socket;
                 try {
@@ -56,7 +57,7 @@ public final class SocketServer implements Closeable {
                     try {
                         handle(socket, remote);
                     } catch (Throwable ex) {
-                        Log.debug("net", "Connection closed/error from " + remote + ": " + ex.getMessage());
+                        Log.debug("net", "remote=" + remote + " connection ended: " + LogUnits.cause(ex));
                         try {
                             socket.close();
                         } catch (Throwable alsoIgnored) {
@@ -83,6 +84,11 @@ public final class SocketServer implements Closeable {
             return;
         }
         String[] parts = head.split(" ", 3);
+        if (parts.length < 2) {
+            Log.warn("http", "remote=" + remote + " bad request line: " + head);
+            Listeners.refuse(socket, 400);
+            return;
+        }
         Map<String, String> headers = new HashMap<>();
         String line;
         while ((line = SocketIo.readLine(in)) != null && !line.isEmpty()) {
@@ -103,18 +109,9 @@ public final class SocketServer implements Closeable {
                 host, streamed ? in : null, length);
         long t0 = System.nanoTime();
         var response = http.route(request);
-        Log.info("http", parts[0] + " " + parts[1] + " -> " + response.code() + " ("
-                + (System.nanoTime() - t0) / 1_000_000L + "ms) [" + remote + "]");
-        StringBuilder header = new StringBuilder("HTTP/1.1 " + Listeners.status(response.code())
-                + "\r\nContent-Type: " + response.type() + "\r\nContent-Length: " + response.body().length
-                + "\r\nConnection: close\r\n");
-        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store\r\n");
-        response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append("\r\n"));
-        OutputStream out = socket.getOutputStream();
-        out.write(header.append("\r\n").toString().getBytes(StandardCharsets.UTF_8));
-        out.write(response.body());
-        out.flush();
-        socket.close();
+        Log.info("http", "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
+                + " took=" + LogUnits.duration((System.nanoTime() - t0) / 1_000_000L));
+        Listeners.respond(socket, response);
     }
 
     private static long contentLength(Map<String, String> headers) {
@@ -128,10 +125,8 @@ public final class SocketServer implements Closeable {
     private void upgrade(Socket socket, Map<String, String> headers, String remote) throws Exception {
         OutputStream out = socket.getOutputStream();
         if (!WsHandshake.offersSubprotocol(headers) || !WsHandshake.originAllowed(headers, config.origins)) {
-            Log.warn("ws", "Upgrade refused for " + remote + " (subprotocol or Origin)");
-            out.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                    .getBytes(StandardCharsets.UTF_8));
-            socket.close();
+            Log.warn("ws", "remote=" + remote + " upgrade refused: subprotocol or Origin");
+            Listeners.refuse(socket, 403);
             return;
         }
         String accept = WsHandshake.acceptKey(headers.get("sec-websocket-key"));
@@ -140,7 +135,7 @@ public final class SocketServer implements Closeable {
                 + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         out.flush();
         BlockingQueue<byte[]> control = new ArrayBlockingQueue<>(SeuratConstants.INPUT_QUEUE_FRAMES);
-        Log.info("ws", "WebSocket connection upgraded (seurat.1) for " + remote);
+        Log.info("ws", "remote=" + remote + " upgraded subprotocol=" + WsHandshake.SUBPROTOCOL);
         acceptor.accept(new WsMapping(socket, control), control);
     }
 }
