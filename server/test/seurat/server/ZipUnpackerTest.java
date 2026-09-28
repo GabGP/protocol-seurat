@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import seurat.kit.TestKit;
@@ -14,6 +15,7 @@ public final class ZipUnpackerTest {
         testSkipPredicate();
         testReuseExisting();
         testEmptyAndCorrupt();
+        testDamagedEntryIsRejected();
         System.out.println("ZipUnpackerTest OK");
     }
 
@@ -63,6 +65,37 @@ public final class ZipUnpackerTest {
         Files.write(corruptZip, new byte[]{1, 2, 3, 4, 5});
         List<Path> res2 = ZipUnpacker.unpack(corruptZip, null);
         TestKit.check(res2.isEmpty(), "corrupt zip returns empty list without error");
+    }
+
+    /** ZipFile never checks entry CRCs, so a flipped byte would extract silently without the read-back. */
+    private static void testDamagedEntryIsRejected() throws Exception {
+        Path tempDir = Files.createTempDirectory("zip-test-damaged");
+        Path zip = tempDir.resolve("damaged.zip");
+        byte[] data = "0123456789 payload that will be damaged".getBytes();
+        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zip))) {
+            ZipEntry entry = new ZipEntry("damaged.png");
+            CRC32 crc = new CRC32();
+            crc.update(data);
+            entry.setMethod(ZipEntry.STORED);
+            entry.setSize(data.length);
+            entry.setCrc(crc.getValue());
+            zos.putNextEntry(entry);
+            zos.write(data);
+            zos.closeEntry();
+        }
+        byte[] bytes = Files.readAllBytes(zip);
+        int at = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1).indexOf("payload");
+        bytes[at] ^= 0x01;
+        Files.write(zip, bytes);
+        boolean rejected = false;
+        try {
+            ZipUnpacker.unpack(zip, null);
+        } catch (IOException ex) {
+            rejected = ex.getMessage().contains("crc mismatch");
+        }
+        TestKit.check(rejected, "a damaged entry must fail on its CRC");
+        TestKit.check(!Files.exists(tempDir.resolve("damaged.zip.d/damaged.png")), "no master left behind");
+        TestKit.check(!Files.exists(tempDir.resolve("damaged.zip.d/damaged.png.tmp")), "no temp left behind");
     }
 
     private static void createZip(Path zip, List<String> entryNames) throws IOException {

@@ -1,6 +1,7 @@
 package seurat.server;
 
 import java.io.BufferedOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -20,6 +21,7 @@ import seurat.observe.Progress;
 /** Unpacks image files from a zip archive into an inbox directory. */
 final class ZipUnpacker {
     private static final int BUFFER_SIZE = 1024 * 1024;
+    private static final int EXTRACT_ATTEMPTS = 2;
 
     private ZipUnpacker() {}
 
@@ -81,12 +83,39 @@ final class ZipUnpacker {
         return list;
     }
 
+    /** Extract, read the file back and compare its CRC-32 with the entry's; a mismatch is retried, then fatal. */
     private static void extract(ZipFile in, ZipEntry entry, Path out, String key) throws Exception {
         String name = out.getFileName().toString();
         long size = entry.getSize();
         Path tmp = out.resolveSibling(name + ".tmp");
         Log.info("ingest", key + " extracting file=" + name + " size=" + LogUnits.bytes(size));
         long start = System.currentTimeMillis();
+        long written;
+        try {
+            for (int attempt = 1; ; attempt++) {
+                written = copy(in, entry, tmp, key, start);
+                Progress.phase("ingest", key, "verifying", "");
+                if (entry.getCrc() == -1 || FileCrc.of(tmp) == entry.getCrc()) {
+                    break;
+                }
+                Files.delete(tmp);
+                String why = "file=" + name + " crc mismatch after writing to disk";
+                if (attempt == EXTRACT_ATTEMPTS) {
+                    throw new IOException(why + ": zip damaged or disk/memory faulty");
+                }
+                Log.warn("ingest", key + " " + why + ", extracting again");
+            }
+        } finally {
+            Progress.done(key);
+        }
+        Files.move(tmp, out, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        long elapsed = System.currentTimeMillis() - start;
+        Log.info("ingest", key + " extracted file=" + name + " size=" + LogUnits.bytes(written) + " took="
+                + LogUnits.duration(elapsed) + " rate=" + LogUnits.rate(written, elapsed));
+    }
+
+    private static long copy(ZipFile in, ZipEntry entry, Path tmp, String key, long start) throws IOException {
+        long size = entry.getSize();
         long written = 0;
         byte[] buf = new byte[BUFFER_SIZE];
         try (InputStream is = in.getInputStream(entry);
@@ -100,12 +129,7 @@ final class ZipUnpacker {
                             " rate=" + LogUnits.rate(written, System.currentTimeMillis() - start));
                 }
             }
-        } finally {
-            Progress.done(key);
         }
-        Files.move(tmp, out, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        long elapsed = System.currentTimeMillis() - start;
-        Log.info("ingest", key + " extracted file=" + name + " size=" + LogUnits.bytes(written) + " took="
-                + LogUnits.duration(elapsed) + " rate=" + LogUnits.rate(written, elapsed));
+        return written;
     }
 }
