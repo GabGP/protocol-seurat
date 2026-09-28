@@ -146,7 +146,7 @@ export function simulate(trace: readonly Frame[], rank: Ranker, cap: number): Si
   const relieve = (v: EvictView, tS: number): void => {
     if (sim.size < cap - EVICT_HEADROOM) return;
     while (sim.size > EVICT_TARGET * cap) {
-      const cands = collectCandidates(sim.book, v, SIM.sketch);
+      const cands = collectCandidates(sim.book, [v], SIM.sketch);
       if (cands.length === 0) break;
       const ctx = { view: v, gaze: gaze.state(tS), heatOf: (k: string) => heat.heat(k, tS) };
       for (const c of rank(cands, ctx)) {

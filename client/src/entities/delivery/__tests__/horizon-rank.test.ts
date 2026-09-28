@@ -69,7 +69,7 @@ describe('collectCandidates (fixed §5.2.3 filter)', () => {
   const view: EvictView = { x0: 0, y0: 0, x1: 200, y1: 200, focus: 0 };
 
   it('never offers the sketch, the core, or a brush with owned children; groups deliveries per brush', () => {
-    const got = collectCandidates(book(), view, 7);
+    const got = collectCandidates(book(), [view], 7);
     expect(got.map((c) => c.recs.map((r) => r.delivery))).toEqual([[3], [5, 6]]);
   });
 
@@ -85,7 +85,7 @@ describe('collectCandidates (fixed §5.2.3 filter)', () => {
     add(2, 0, 1); // [256, 512): off screen and outside F_0: evictable
     add(3, 1, 2); // [1024, 1536): outside F_1: evictable
     const offCentre: EvictView = { x0: 600, y0: 0, x1: 800, y1: 200, focus: 0 };
-    const got = collectCandidates(b, offCentre, 7);
+    const got = collectCandidates(b, [offCentre], 7);
     expect(got.map((c) => c.recs[0]!.delivery).sort()).toEqual([2, 3]);
   });
 });

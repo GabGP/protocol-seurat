@@ -327,7 +327,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       const v = st.v;
       const roi = viewToRoi(v.s, v.tx, v.ty, { vw: W, vh: H }, p.iw, p.ih);
       p.gazeService.motion({ handle: p.handle, x0: roi.x0, y0: roi.y0, x1: roi.x1, y1: roi.y1, vw: Math.round(W), vh: Math.round(H), flags: 0 });
-      p.sink?.setView(roi.x0, roi.y0, roi.x1, roi.y1, Math.round(W), Math.round(H)); // evicts what we moved away from
+      p.sink?.setView(roi.x0, roi.y0, roi.x1, roi.y1, Math.round(W), Math.round(H), p.gazeService.lastSeq); // evicts what we moved away from
     }
 
     function loop(): void {

@@ -154,7 +154,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       onPlan: (p) => {
         if (telemetryRef.current?.handle === p.handle) telemetryRef.current.onPlan(p, performance.now());
         if (sinkRef.current?.handle === p.handle) {
-          if (p.event === 0) sinkRef.current.planStart(p.first);
+          if (p.event === 0) sinkRef.current.planStart(p.first, p.gazeSeq);
           if (alive) setPlan(p);
           if (p.event === 2) sinkRef.current?.applyPlanCanceladas(p.cancelled);
         } else if (p.event === 2) {

@@ -72,19 +72,20 @@ export function ownedBrushes(book: DeliveryLedger): Map<string, DeliveryRecord[]
 
 /**
  * The fixed §5.2.3 filter, independent of scoring: leaves only (no owned children), never the
- * sketch (stratum ≥ `sketch`), never the current cone (`inCone`, which contains the core).
- * Scoring decides only the order among these.
+ * sketch (stratum ≥ `sketch`), never a cone the server may still be painting (`inCone` of each
+ * of `views`: the current one, which contains the core, and past ones with deliveries still on
+ * the way, see `PaintedCones`). Scoring decides only the order among these.
  */
 export function collectCandidates(
   book: DeliveryLedger,
-  view: EvictView | null,
+  views: readonly EvictView[],
   sketch: number,
 ): EvictCandidate[] {
   const out: EvictCandidate[] = [];
   for (const [key, recs] of ownedBrushes(book)) {
     const first = recs[0]!;
     const { stratum, x0, y0, side } = brushRect(first.brushId);
-    if (stratum >= sketch || inCone(view, first.brushId)) continue;
+    if (stratum >= sketch || views.some((v) => inCone(v, first.brushId))) continue;
     const hasKids = recs.some((r) => [...(book.childrenOf.get(r.delivery) ?? [])].some((k) => book.byDelivery.has(k)));
     if (hasKids) continue;
     out.push({ key, recs, stratum, cx: x0 + side / 2, cy: y0 + side / 2, side });

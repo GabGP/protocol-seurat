@@ -80,6 +80,11 @@ export class GazeSender {
     }
   }
 
+  /** The seq of the latest MIRADA (sent or about to be). */
+  get lastSeq(): number {
+    return this.seq;
+  }
+
   get lastSent(): number {
     return this.lastSentAt;
   }

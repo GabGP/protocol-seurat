@@ -5,6 +5,7 @@ import { receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
 import { AttentionHeat } from '@/entities/delivery/attention-heat';
 import { collectCandidates, inCore, ownedBrushes, type EvictView } from '@/entities/delivery/evict-candidate';
+import { PaintedCones } from '@/entities/delivery/painted-cones';
 import { GazeMotion } from '@/entities/delivery/gaze-motion';
 import { rankHorizon } from '@/entities/delivery/horizon-rank';
 import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
@@ -80,6 +81,8 @@ export class DeliverySink {
   private inflight = new Map<number, { req: SynthRequest; brushId: bigint; epoch: number }>();
   private repaint = (): void => undefined;
   private view: EvictView | null = null;
+  /** This view and the past ones the server may still be painting: never evicted from. */
+  private readonly cones = new PaintedCones();
   /** When `view` went on screen (s), so its brushes get the dwell as attention heat. */
   private viewSince = 0;
   private readonly gaze = new GazeMotion();
@@ -604,9 +607,13 @@ export class DeliverySink {
     for (const run of early) run();
   }
 
-  /** PLAN INICIO: after a resume, numbers below `first` that never came are gone. */
-  planStart(first: number): void {
+  /**
+   * PLAN INICIO for MIRADA `gazeSeq`: after a resume, numbers below `first` that never came are
+   * gone; views before that MIRADA stop being painted once every number below `first` settles.
+   */
+  planStart(first: number, gazeSeq = 0): void {
     this.settlement.planStart(first);
+    this.cones.planStart(gazeSeq, first);
     this.answerScrapes();
   }
 
@@ -680,16 +687,18 @@ export class DeliverySink {
   }
 
   /**
-   * The view the last MIRADA described (image px). Moving away is what makes old brushes
-   * evictable; if that frees room, a RECIBO tells the server the window reopened.
+   * The view the last MIRADA (numbered `seq`) described, image px. Moving away is what makes old
+   * brushes evictable, once the old view's flows have landed; if that frees room, a RECIBO tells
+   * the server the window reopened.
    */
-  setView(x0: number, y0: number, x1: number, y1: number, vw: number, vh: number): void {
+  setView(x0: number, y0: number, x1: number, y1: number, vw: number, vh: number, seq = 0): void {
     const nowS = performance.now() / 1000;
     const zoom = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
     const ideal = Number.isFinite(zoom) ? zoom : 0;
     const focus = Math.max(0, Math.min(this.top - 1, Math.floor(ideal)));
     this.warmShown(nowS);
     this.view = { x0, y0, x1, y1, focus };
+    this.cones.look(this.view, seq);
     this.viewSince = nowS;
     this.gaze.observe(nowS, (x0 + x1) / 2, (y0 + y1) / 2, ideal, Math.hypot(x1 - x0, y1 - y0) / 2);
     if (this.relieve()) this.flushReceipt();
@@ -707,9 +716,10 @@ export class DeliverySink {
 
   /**
    * §5.2.3 voluntary eviction. Under pressure (owned + in flight ≥ max − 8, or bytes > 90 %)
-   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor the cone's
-   * core (see `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted
-   * time-to-need from the gaze's motion (kinematic Bélády), shortened by attention heat.
+   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor a cone the
+   * server may still be painting (see `collectCandidates`). Order is Horizon (`rankHorizon`):
+   * the largest predicted time-to-need from the gaze's motion (kinematic Bélády), shortened by
+   * attention heat.
    * Whole brushes go, all deliveries at once, with SOLTAR reason 1.
    */
   private relieve(vramShort = false): boolean {
@@ -724,8 +734,9 @@ export class DeliverySink {
     const heatOf = (key: string): number => this.heat.heat(key, nowS);
     const released: number[] = [];
     const over = (): boolean => load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
+    const painted = this.cones.views((n) => this.settlement.settledBelow(n, (m) => this.book.byDelivery.has(m)));
     while (over()) {
-      const candidates = collectCandidates(this.book, this.view, sketch);
+      const candidates = collectCandidates(this.book, painted, sketch);
       if (candidates.length === 0) break;
       for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
         if (!over()) break;
