@@ -33,12 +33,12 @@ final class TiffChunk {
             int[] out = rows[r];
             if (l.photometric() == TiffLayout.RGB) {
                 for (int x = 0; x < n; x++, o += spp) {
-                    out[x0 + x] = (raw[o] & 0xFF) << 16 | (raw[o + 1] & 0xFF) << 8 | raw[o + 2] & 0xFF;
+                    out[x0 + x] = Pixels.rgbBytes(raw[o], raw[o + 1], raw[o + 2]);
                 }
             } else {
-                int flip = l.photometric() == TiffLayout.WHITE_IS_ZERO ? 0xFF : 0;
+                int flip = l.photometric() == TiffLayout.WHITE_IS_ZERO ? Pixels.MAX : 0;
                 for (int x = 0; x < n; x++, o += spp) {
-                    out[x0 + x] = ((raw[o] & 0xFF) ^ flip) * 0x010101;
+                    out[x0 + x] = Pixels.gray((raw[o] & Pixels.MAX) ^ flip);
                 }
             }
         }

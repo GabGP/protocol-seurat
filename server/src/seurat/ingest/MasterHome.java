@@ -5,7 +5,6 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +14,7 @@ import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
+import seurat.store.Trees;
 
 /**
  * Spec 1.2 and 7.2: the master lives at {@code obras/<id>/master/<original>}. Only IngestJob
@@ -80,13 +80,6 @@ public final class MasterHome {
     }
 
     private static void delete(Path dir) throws IOException {
-        if (!Files.exists(dir)) {
-            return;
-        }
-        try (var walk = Files.walk(dir)) {
-            for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(p);
-            }
-        }
+        Trees.deleteRecursive(dir);
     }
 }

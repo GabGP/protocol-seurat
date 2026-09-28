@@ -48,8 +48,7 @@ final class ZipUnpacker {
                     continue;
                 }
                 String base = Path.of(entry.getName()).getFileName().toString();
-                String lower = base.toLowerCase();
-                if (!MasterFormats.isMaster(lower)) {
+                if (!MasterFormats.isMaster(base)) {
                     continue;
                 }
                 String workId = MasterFormats.stem(base);

@@ -35,19 +35,15 @@ final class RasterRgb {
                 int y = samples[x * bands];
                 int cb = samples[x * bands + 1];
                 int cr = samples[x * bands + 2];
-                rgb[x] = clamp(y + CR_R[cr]) << 16
-                        | clamp(y + ((CB_G[cb] + CR_G[cr]) >> SCALEBITS)) << 8
-                        | clamp(y + CB_B[cb]);
+                rgb[x] = Pixels.rgb(Pixels.clampByte(y + CR_R[cr]),
+                        Pixels.clampByte(y + ((CB_G[cb] + CR_G[cr]) >> SCALEBITS)),
+                        Pixels.clampByte(y + CB_B[cb]));
             }
         } else {
             for (int x = 0; x < n; x++) {
                 int v = samples[x];
-                rgb[x] = (v << 16) | (v << 8) | v;
+                rgb[x] = Pixels.gray(v);
             }
         }
-    }
-
-    private static int clamp(int v) {
-        return Math.max(0, Math.min(255, v));
     }
 }

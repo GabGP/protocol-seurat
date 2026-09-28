@@ -10,7 +10,9 @@ import seurat.ingest.IngestJob;
 import seurat.ingest.MasterFormats;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
+import seurat.store.SeedFile;
 import seurat.store.StoreFiles;
+import seurat.store.Trees;
 
 /** Restart recovery: read meta.json per work and rebuild LISTA stores. */
 final class WorkRecovery {
@@ -53,11 +55,7 @@ final class WorkRecovery {
             }
         }
         for (Path dir : doomed) {
-            try (var tree = Files.walk(dir)) {
-                for (Path p : tree.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                    Files.deleteIfExists(p);
-                }
-            }
+            Trees.deleteRecursive(dir);
         }
         return found;
     }
@@ -78,8 +76,7 @@ final class WorkRecovery {
         Path storeDir = info.edition() == 1 && Files.exists(dir.resolve(StoreFiles.SKETCH_DIR))
                 ? dir.resolve(StoreFiles.SKETCH_DIR)
                 : dir;
-        Path seed = storeDir.resolve(StoreFiles.SEED);
-        if (Files.isRegularFile(seed) && Files.size(seed) > 4) {
+        if (SeedFile.present(storeDir)) {
             work.store = new FileBrushStore(storeDir, info, nx, ny);
         }
     }

@@ -94,6 +94,6 @@ final class JpegIdct {
     /** Pass 1 keeps the scaled value; pass 2 recenters and clamps to a sample. */
     private static int out(int v, int shift, int center) {
         v >>= shift;
-        return center == 0 ? v : Math.max(0, Math.min(255, v + center));
+        return center == 0 ? v : Pixels.clampByte(v + center);
     }
 }

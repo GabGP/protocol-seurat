@@ -1,5 +1,7 @@
 package seurat.ingest;
 
+import java.util.Locale;
+
 /** Byte signatures and sizes of the container formats intake recognises. */
 public final class FormatMarkers {
     public static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
@@ -15,6 +17,11 @@ public final class FormatMarkers {
     public static final String ZIP_EXTENSION = ".zip";
 
     private FormatMarkers() {}
+
+    /** True for a zip name, in any letter case. */
+    public static boolean isZip(String name) {
+        return name.toLowerCase(Locale.ROOT).endsWith(ZIP_EXTENSION);
+    }
 
     /** True when the first 8 bytes of `head` are the PNG signature. */
     public static boolean isPng(byte[] head) {

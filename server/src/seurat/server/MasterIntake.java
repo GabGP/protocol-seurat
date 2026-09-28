@@ -49,7 +49,7 @@ public final class MasterIntake implements Closeable {
             return;
         }
         Thread.ofVirtual().start(() -> {
-            if (!file.toString().endsWith(FormatMarkers.ZIP_EXTENSION) && isLista(id)) {
+            if (!FormatMarkers.isZip(file.toString()) && isLista(id)) {
                 skipped(id);
                 watcher.done(file);
                 return;
@@ -79,7 +79,7 @@ public final class MasterIntake implements Closeable {
 
     private void launch(String id, Path file) {
         try {
-            if (file.toString().endsWith(FormatMarkers.ZIP_EXTENSION)) {
+            if (FormatMarkers.isZip(file.toString())) {
                 Progress.done(LogTags.work(id)); // the zip's own queued segment: its works take over
                 // a work whose master is already home is resumed from there (watch), not unpacked again
                 ZipIntake.run(file, w -> isLista(w) || MasterHome.find(config.works, w).isPresent(), this::ingest);

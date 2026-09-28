@@ -27,7 +27,7 @@ public final class Easel implements Runnable {
         this.ctx = ctx;
     }
 
-    static void send(Mapping mapping, long type, byte[] payload) {
+    public static void send(Mapping mapping, long type, byte[] payload) {
         try {
             mapping.sendControl(new Frame(type, payload).encode());
         } catch (Exception ex) {

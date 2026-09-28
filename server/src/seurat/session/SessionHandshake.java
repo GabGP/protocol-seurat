@@ -1,5 +1,6 @@
 package seurat.session;
 
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import seurat.config.SeuratConstants;
@@ -40,7 +41,7 @@ final class SessionHandshake {
         if (hello.maxVersion() < 1 || hello.minVersion() > 1) {
             throw new FatalProtocol(ProtoCodes.ERR_VERSION, f.type(), "VERSION");
         }
-        Sessions.Token token = ctx.sessions().consumeToken(Hex.hex(hello.token()));
+        Sessions.Token token = ctx.sessions().consumeToken(HexFormat.of().formatHex(hello.token()));
         if (token == null) {
             Log.warn(LogTags.SESSION, "handshake rejected: token invalid or expired");
             throw new FatalProtocol(ProtoCodes.ERR_AUTENTICACION, f.type(), "token");

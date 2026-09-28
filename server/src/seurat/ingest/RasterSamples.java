@@ -52,7 +52,7 @@ final class RasterSamples {
         int g = colors == 1 ? 0 : 1;
         int b = colors == 1 ? 0 : 2;
         for (int x = 0, i = 0; x < w; x++, i += bands) {
-            out[x] = (samples[i] >> shift) << 16 | (samples[i + g] >> shift) << 8 | samples[i + b] >> shift;
+            out[x] = Pixels.rgb(samples[i] >> shift, samples[i + g] >> shift, samples[i + b] >> shift);
         }
     }
 }

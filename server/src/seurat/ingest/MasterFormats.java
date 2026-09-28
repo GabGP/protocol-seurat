@@ -21,6 +21,16 @@ public final class MasterFormats {
         return SUFFIX.matcher(name).find();
     }
 
+    /** A name intake admits: a master or a zip of masters, in any letter case. */
+    public static boolean isAdmitted(String name) {
+        return isMaster(name) || FormatMarkers.isZip(name);
+    }
+
+    /** The file's own name in lower case, for extension checks. */
+    public static String lowerName(Path file) {
+        return file.getFileName().toString().toLowerCase(Locale.ROOT);
+    }
+
     /** The name without its master extension. */
     public static String stem(String name) {
         return SUFFIX.matcher(name).replaceFirst("");
@@ -28,7 +38,7 @@ public final class MasterFormats {
 
     /** TIFF and Photoshop: whole once every byte the streaming reader needs is on disk. */
     public static boolean isWhole(Path file, long size) {
-        String lower = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        String lower = lowerName(file);
         try {
             if (lower.endsWith(".tif") || lower.endsWith(".tiff")) {
                 try (TiffFile f = TiffFile.open(file)) {

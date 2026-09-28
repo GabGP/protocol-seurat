@@ -10,7 +10,6 @@ import seurat.observe.LogTags;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.plan.ConeTiling;
-import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
 import seurat.proto.MsgGaze;
@@ -20,6 +19,7 @@ import seurat.proto.Ranges;
 import seurat.session.Canvas;
 import seurat.session.CanvasOrders;
 import seurat.session.Concession;
+import seurat.session.Easel;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
@@ -36,11 +36,7 @@ public final class GrantController {
     }
 
     static void send(Session session, long type, byte[] payload) {
-        try {
-            session.mapping().sendControl(new Frame(type, payload).encode());
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
+        Easel.send(session.mapping(), type, payload);
     }
 
     /** Ceiling of the canvas's role on its work; a withdrawn work grants only the sketch. */

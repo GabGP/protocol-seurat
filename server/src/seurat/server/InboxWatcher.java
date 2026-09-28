@@ -9,7 +9,6 @@ import java.nio.file.WatchService;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
-import seurat.ingest.FormatMarkers;
 import seurat.ingest.MasterFormats;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
@@ -81,8 +80,7 @@ final class InboxWatcher {
             for (Path file : walk.filter(Files::isRegularFile).toList()) {
                 String rel = root.relativize(file).toString().replace('\\', '/');
                 if (rel.contains(".d/") || rel.startsWith(".d/")) continue;
-                String lower = file.getFileName().toString().toLowerCase();
-                if (isMaster(lower)) {
+                if (MasterFormats.isAdmitted(file.getFileName().toString())) {
                     submit(rel.replaceAll("\\.[^.]+$", ""), file);
                 }
             }
@@ -93,8 +91,7 @@ final class InboxWatcher {
 
     private void offerIfMaster(String name) {
         if (name.endsWith(".d") || name.endsWith(".tmp") || name.contains(".d/")) return;
-        String lower = name.toLowerCase();
-        if (isMaster(lower)) {
+        if (MasterFormats.isAdmitted(name)) {
             submit(name.replaceAll("\\.[^.]+$", ""), inbox.resolve(name));
         }
     }
@@ -106,9 +103,5 @@ final class InboxWatcher {
 
     void done(Path file) {
         seen.remove(file.toAbsolutePath().normalize());
-    }
-
-    private static boolean isMaster(String lower) {
-        return MasterFormats.isMaster(lower) || lower.endsWith(FormatMarkers.ZIP_EXTENSION);
     }
 }

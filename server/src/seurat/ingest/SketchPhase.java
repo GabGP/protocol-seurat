@@ -1,6 +1,5 @@
 package seurat.ingest;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.catalog.Catalog;
 import seurat.observe.Log;
@@ -8,7 +7,7 @@ import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
-import seurat.store.StoreFiles;
+import seurat.store.SeedFile;
 
 /**
  * Spec 7.1 steps 2-3, before the pass: when the master carries an overview (or an interrupted
@@ -25,8 +24,7 @@ final class SketchPhase {
 
     static void run(String id, Path master, Path ed1Dir, Ed1 ed1, int top, int w, int h, Catalog catalog) {
         try {
-            Path seed = ed1Dir.resolve(StoreFiles.SEED);
-            boolean kept = Files.isRegularFile(seed) && Files.size(seed) > 4;
+            boolean kept = SeedFile.present(ed1Dir);
             Overview.Sampled overview = kept ? null : Overview.probe(master, w, h, SketchBuilder.sampling(top));
             if (!kept && overview == null) {
                 Log.info(LogTags.INGEST, LogTags.work(id) + " sketch skipped: no overview");

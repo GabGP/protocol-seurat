@@ -48,18 +48,15 @@ final class PngUnfilter {
     static void decodeRgb(byte[] raw, int[] out, int ct, int w) {
         if (ct == 2) {
             for (int x = 0; x < w; x++) {
-                out[x] = 0xFF000000 | ((raw[x * 3] & 0xFF) << 16)
-                        | ((raw[x * 3 + 1] & 0xFF) << 8) | (raw[x * 3 + 2] & 0xFF);
+                out[x] = Pixels.OPAQUE | Pixels.rgbBytes(raw[x * 3], raw[x * 3 + 1], raw[x * 3 + 2]);
             }
         } else if (ct == 6) {
             for (int x = 0; x < w; x++) {
-                out[x] = ((raw[x * 4 + 3] & 0xFF) << 24) | ((raw[x * 4] & 0xFF) << 16)
-                        | ((raw[x * 4 + 1] & 0xFF) << 8) | (raw[x * 4 + 2] & 0xFF);
+                out[x] = ((raw[x * 4 + 3] & Pixels.MAX) << 24) | Pixels.rgbBytes(raw[x * 4], raw[x * 4 + 1], raw[x * 4 + 2]);
             }
         } else {
             for (int x = 0; x < w; x++) {
-                int v = raw[x] & 0xFF;
-                out[x] = 0xFF000000 | (v << 16) | (v << 8) | v;
+                out[x] = Pixels.OPAQUE | Pixels.gray(raw[x] & Pixels.MAX);
             }
         }
     }

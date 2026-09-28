@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,7 +43,7 @@ public final class Sessions {
     public String issueToken(String principal, String role, long memMib, long ttlMs) {
         byte[] t = new byte[SeuratConstants.TOKEN_BYTES];
         random.nextBytes(t);
-        String hex = Hex.hex(t);
+        String hex = HexFormat.of().formatHex(t);
         long now = System.nanoTime();
         tokens.values().removeIf(old -> old.expiresNs() < now); // unused tokens do not pile up
         tokens.put(hex, new Token(principal, role, memMib, now + ttlMs * Units.NANOS_PER_MS));

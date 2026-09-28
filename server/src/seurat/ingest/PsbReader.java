@@ -66,7 +66,7 @@ final class PsbReader implements MasterReader {
         IntStream.range(0, n).parallel().forEach(y -> {
             int[] out = band[y];
             for (int x = 0, i = y * w; x < w; x++, i++) {
-                out[x] = (r[i] & 0xFF) << 16 | (g[i] & 0xFF) << 8 | b[i] & 0xFF;
+                out[x] = Pixels.rgbBytes(r[i], g[i], b[i]);
             }
         });
         row += n;

@@ -86,7 +86,7 @@ public final class FileBrushStore implements BrushStore {
     private byte[][] read(BrushId p, int b0, int b1) throws IOException {
         if (p.stratum() == SeuratConstants.SEED_STRATUM) {
             byte[] seed = Files.readAllBytes(seedPath()); // u32 CRC-32C, then the one band
-            byte[] band = java.util.Arrays.copyOfRange(seed, 4, seed.length);
+            byte[] band = java.util.Arrays.copyOfRange(seed, SeedFile.CRC_BYTES, seed.length);
             return valid(p, 0, band, Integer.toUnsignedLong(ByteBuffer.wrap(seed).getInt()))
                     ? new byte[][]{band} : new byte[0][];
         }
@@ -133,7 +133,7 @@ public final class FileBrushStore implements BrushStore {
     @Override
     public long bytes(BrushId p, int b0, int b1) throws IOException {
         if (p.stratum() == SeuratConstants.SEED_STRATUM) {
-            return Files.size(seedPath()) - 4;
+            return Files.size(seedPath()) - SeedFile.CRC_BYTES;
         }
         IndexEntry e = entry(p);
         if (e.isMissing()) {

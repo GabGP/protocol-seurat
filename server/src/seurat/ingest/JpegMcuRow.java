@@ -88,7 +88,7 @@ final class JpegMcuRow {
             }
         }
         if (rgb) {
-            for (int x = 0; x < w; x++) out[x] = samples[3 * x] << 16 | samples[3 * x + 1] << 8 | samples[3 * x + 2];
+            for (int x = 0; x < w; x++) out[x] = Pixels.rgb(samples[3 * x], samples[3 * x + 1], samples[3 * x + 2]);
         } else {
             RasterRgb.row(samples, nc, out, w);
         }

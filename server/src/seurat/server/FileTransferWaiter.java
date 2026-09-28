@@ -78,8 +78,8 @@ final class FileTransferWaiter {
     }
 
     static boolean isComplete(Path file, long size) {
-        String lower = file.getFileName().toString().toLowerCase();
-        if (lower.endsWith(FormatMarkers.ZIP_EXTENSION)) return isZipComplete(file, size);
+        String lower = MasterFormats.lowerName(file);
+        if (FormatMarkers.isZip(lower)) return isZipComplete(file, size);
         if (lower.endsWith(".png")) return isPngComplete(file, size);
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return isJpgComplete(file, size);
         return MasterFormats.isWhole(file, size);

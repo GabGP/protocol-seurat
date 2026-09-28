@@ -3,7 +3,6 @@ package seurat.server;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,6 +14,7 @@ import seurat.session.Canvas;
 import seurat.session.Session;
 import seurat.session.Sessions;
 import seurat.store.StoreFiles;
+import seurat.store.Trees;
 
 /**
  * Deferred deletes on disk. A withdrawn work's files go once its last canvas is closed
@@ -77,10 +77,8 @@ public final class DiskReaper {
         if (!Files.exists(dir)) {
             return true;
         }
-        try (var walk = Files.walk(dir)) {
-            for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(p);
-            }
+        try {
+            Trees.deleteRecursive(dir);
             Log.info(LogTags.REAPER, "deleted path=" + dir);
             return true;
         } catch (Exception ex) {

@@ -2,6 +2,7 @@ package seurat.session;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import seurat.budget.BrushBudget;
@@ -61,7 +62,7 @@ public final class SessionHandshakeTest {
 
     private static Session hello(EaselContext ctx, RecordingMapping mapping, MsgHandshake.ResumeRequest resume)
             throws Exception {
-        byte[] token = Hex.unhex(ctx.sessions().issueToken("alice", "autenticado", 256, 60000));
+        byte[] token = HexFormat.of().parseHex(ctx.sessions().issueToken("alice", "autenticado", 256, 60000));
         var queue = new LinkedBlockingQueue<byte[]>();
         queue.add(new Frame(FrameType.SALUDO, new MsgHandshake.Hello(1, 1,
                 ProtoCodes.CAP_REANUDAR | ProtoCodes.CAP_DATAGRAMAS, 256, token, resume).encode()).encode());

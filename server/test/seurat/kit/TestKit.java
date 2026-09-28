@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
@@ -22,20 +23,11 @@ public final class TestKit {
     }
 
     public static String hex(byte[] b) {
-        StringBuilder s = new StringBuilder();
-        for (byte x : b) {
-            s.append(Character.forDigit((x >> 4) & 0xF, 16));
-            s.append(Character.forDigit(x & 0xF, 16));
-        }
-        return s.toString();
+        return HexFormat.of().formatHex(b);
     }
 
     public static byte[] unhex(String s) {
-        byte[] out = new byte[s.length() / 2];
-        for (int i = 0; i < out.length; i++) {
-            out[i] = (byte) Integer.parseInt(s.substring(2 * i, 2 * i + 2), 16);
-        }
-        return out;
+        return HexFormat.of().parseHex(s);
     }
 
     /** A deterministic gradient + grid, w x h. */
