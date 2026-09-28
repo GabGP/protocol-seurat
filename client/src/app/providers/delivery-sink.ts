@@ -716,10 +716,10 @@ export class DeliverySink {
 
   /**
    * §5.2.3 voluntary eviction. Under pressure (owned + in flight ≥ max − 8, or bytes > 90 %)
-   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor a cone the
-   * server may still be painting (see `collectCandidates`). Order is Horizon (`rankHorizon`):
-   * the largest predicted time-to-need from the gaze's motion (kinematic Bélády), shortened by
-   * attention heat.
+   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor the core, and
+   * not a cone the server may still be painting unless the book is full (see
+   * `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted time-to-need
+   * from the gaze's motion (kinematic Bélády), shortened by attention heat.
    * Whole brushes go, all deliveries at once, with SOLTAR reason 1.
    */
   private relieve(vramShort = false): boolean {
@@ -734,9 +734,13 @@ export class DeliverySink {
     const heatOf = (key: string): number => this.heat.heat(key, nowS);
     const released: number[] = [];
     const over = (): boolean => load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
-    const painted = this.cones.views((n) => this.settlement.settledBelow(n, (m) => this.book.byDelivery.has(m)));
+    // The server opens a flow only while |libro| < max_pinceladas (§4.1 c), so with the book full
+    // nothing is on the wire: only the core stays (§5.2.3), and a cone larger than the
+    // concession cannot stall the view with nothing evictable.
+    const painted = this.book.byDelivery.size >= this.maxBrushes() ? []
+      : this.cones.views((n) => this.settlement.settledBelow(n, (m) => this.book.byDelivery.has(m)));
     while (over()) {
-      const candidates = collectCandidates(this.book, painted, sketch);
+      const candidates = collectCandidates(this.book, this.view, painted, sketch);
       if (candidates.length === 0) break;
       for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
         if (!over()) break;

@@ -29,7 +29,7 @@ export function brushRect(brushId: bigint): { stratum: number; x0: number; y0: n
   return { stratum, x0: bx * side, y0: by * side, side };
 }
 
-/** The cone's core: a brush at the focus stratum or coarser that overlaps what is on screen now. */
+/** The cone's core (spec 4.1 núcleo): a brush at the focus stratum or coarser that overlaps what is on screen now. */
 export function inCore(view: EvictView | null, brushId: bigint): boolean {
   if (!view) return false;
   const { stratum, x0, y0, side } = brushRect(brushId);
@@ -72,20 +72,22 @@ export function ownedBrushes(book: DeliveryLedger): Map<string, DeliveryRecord[]
 
 /**
  * The fixed §5.2.3 filter, independent of scoring: leaves only (no owned children), never the
- * sketch (stratum ≥ `sketch`), never a cone the server may still be painting (`inCone` of each
- * of `views`: the current one, which contains the core, and past ones with deliveries still on
- * the way, see `PaintedCones`). Scoring decides only the order among these.
+ * sketch (stratum ≥ `sketch`), never the core of the current view (`inCore`: focus and its
+ * ancestors), and never a cone in `painted` (`inCone`), the cones the server may still be
+ * painting (see `PaintedCones`): their children may be on the wire. Scoring decides only the
+ * order among these.
  */
 export function collectCandidates(
   book: DeliveryLedger,
-  views: readonly EvictView[],
+  core: EvictView | null,
+  painted: readonly EvictView[],
   sketch: number,
 ): EvictCandidate[] {
   const out: EvictCandidate[] = [];
   for (const [key, recs] of ownedBrushes(book)) {
     const first = recs[0]!;
     const { stratum, x0, y0, side } = brushRect(first.brushId);
-    if (stratum >= sketch || views.some((v) => inCone(v, first.brushId))) continue;
+    if (stratum >= sketch || inCore(core, first.brushId) || painted.some((v) => inCone(v, first.brushId))) continue;
     const hasKids = recs.some((r) => [...(book.childrenOf.get(r.delivery) ?? [])].some((k) => book.byDelivery.has(k)));
     if (hasKids) continue;
     out.push({ key, recs, stratum, cx: x0 + side / 2, cy: y0 + side / 2, side });

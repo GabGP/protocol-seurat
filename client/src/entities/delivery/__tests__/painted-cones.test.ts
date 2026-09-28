@@ -52,4 +52,28 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     expect(sentRelease.at(-1)?.ranges).toEqual(expect.arrayContaining([31, 32, 33, 34, 35, 36]));
     sink.dispose();
   });
+
+  it('with the book full nothing is on the wire: ring brushes go, the core stays', () => {
+    const run = (max: number): number[] => {
+      const released: number[] = [];
+      const client = {
+        sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
+        sendReceipt: () => undefined,
+      } as unknown as SessionClient;
+      const sink = new DeliverySink(1, () => client, () => 36864, () => max);
+      const hold = (n: number, stratum: number, bx: number): void => {
+        sink.book.byDelivery.set(n, {
+          delivery: n, brushId: makeBrushId(stratum, bx, 0), stratum,
+          from: 0, through: 4, bytes: 10, epoch: 1, edition: 1, expires: 1e12, rgba: null,
+        });
+      };
+      for (let bx = 0; bx < 20; bx++) hold(bx + 1, 0, bx); // the focus: core
+      for (let bx = 10; bx < 15; bx++) hold(bx + 11, 1, bx); // ring 1 beyond the view: cone, not core
+      sink.setView(0, 0, 20 * 256, 256, 20 * 256, 256, 1);
+      sink.dispose();
+      return released.sort((a, b) => a - b);
+    };
+    expect(run(26)).toEqual([]); // not full: the ring's children may be on the wire
+    expect(run(25)).toEqual([21, 22, 23, 24, 25]);
+  });
 });
