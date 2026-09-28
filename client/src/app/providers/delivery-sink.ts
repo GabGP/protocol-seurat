@@ -747,8 +747,9 @@ export class DeliverySink {
   }
 
   /**
-   * §5.2.3 voluntary eviction. Under pressure (owned + in flight ≥ max − 8, or bytes > 90 %)
-   * drop leaf brushes — no owned children — until 75 % full. Never the sketch nor the core, and
+   * §5.2.3 voluntary eviction. Under pressure (owned + in flight ≥ max − 8, bytes > 90 %, or room
+   * in max_kib for fewer than 8 more after what may still come) drop leaf brushes — no owned
+   * children — until 75 % full with room for 8. Never the sketch nor the core, and
    * not a cone the server may still be painting unless the book is full (see
    * `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted time-to-need
    * from the gaze's motion (kinematic Bélády), shortened by attention heat.
@@ -759,19 +760,22 @@ export class DeliverySink {
     // A failed VRAM reservation is pressure whatever the counts say: relieve to 75 % of what is held.
     const maxN = vramShort ? Math.min(this.maxBrushes(), load()) : this.maxBrushes();
     const maxB = (vramShort ? Math.min(this.maxKiB() * 1024, ownedBytes(this.book)) : this.maxKiB() * 1024);
-    if (!vramShort && load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) return false;
+    // The byte window closes RECIBO.libre (`free`): pressure must see it too, or the view stalls at 0.
+    const cramped = (): boolean => !vramShort && this.byteWindow() < EVICT_HEADROOM;
+    if (!vramShort && !cramped() && load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) {
+      return false;
+    }
     const sketch = Math.min(SKETCH_MIN, Math.max(0, this.top - 1));
     const nowS = performance.now() / 1000;
     const gaze = this.gaze.state(nowS);
     const heatOf = (key: string): number => this.heat.heat(key, nowS);
     const released: number[] = [];
-    const over = (): boolean => load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
+    const over = (): boolean => cramped() || load() > EVICT_TARGET * maxN || ownedBytes(this.book) > EVICT_TARGET * maxB;
     // The server opens a flow only while |libro| < max_pinceladas (§4.1 c), so with the book full
     // nothing is on the wire: only the core stays (§5.2.3), and a cone larger than the
-    // concession cannot stall the view with nothing evictable. With max_kib spent libre is 0,
-    // so only what was granted before still comes and fits (`free`); the same holds.
-    const full = this.book.byDelivery.size >= this.maxBrushes() || this.bytesLeft() <= this.coming();
-    const painted = full ? []
+    // concession cannot stall the view with nothing evictable. Bytes do not stop the server: a cone
+    // it may still paint keeps its parents, or its children arrive to find them gone (spec 5.4).
+    const painted = this.book.byDelivery.size >= this.maxBrushes() ? []
       : this.cones.views((n) => this.settlement.settledBelow(n, (m) => this.book.byDelivery.has(m)));
     while (over()) {
       const candidates = collectCandidates(this.book, this.view, painted, sketch);
@@ -799,7 +803,7 @@ export class DeliverySink {
    * recent rate, so a slow link never queues more than that ahead of a new MIRADA.
    */
   free(): number {
-    const memory = Math.max(0, Math.min(this.maxBrushes() - this.book.byDelivery.size, this.bytesLeft() - this.coming()));
+    const memory = Math.max(0, Math.min(this.maxBrushes() - this.book.byDelivery.size, this.byteWindow()));
     const peak = this.client()?.meter?.peak(performance.now()) ?? 0;
     // Only a second that carried at least one brush measures the link; idle keeps the last rate,
     // so the next view starts with a full window instead of re-ramping from CREDIT_MIN.
@@ -807,14 +811,10 @@ export class DeliverySink {
     return receiverWindow(memory, this.linkBps, this.avgDelivery);
   }
 
-  /** Deliveries as large as the largest yet that still fit in max_kib. */
-  private bytesLeft(): number {
-    return byteRoom(this.maxKiB() * 1024 - ownedBytes(this.book), this.largest);
-  }
-
-  /** What may arrive before the server reads the next RECIBO: the wire and the unused grant. */
-  private coming(): number {
-    return coming(Math.max(0, this.lastFree), this.book.pendingReceipt.length);
+  /** Deliveries that still fit in max_kib after what may arrive before the server reads the next RECIBO. */
+  private byteWindow(): number {
+    const room = byteRoom(this.maxKiB() * 1024 - ownedBytes(this.book), this.largest, this.avgDelivery);
+    return room - coming(Math.max(0, this.lastFree), this.book.pendingReceipt.length);
   }
 
   get queueDepthMs(): number {

@@ -22,10 +22,18 @@ describe('receiverWindow (RECIBO.libre)', () => {
 });
 
 describe('byte window (max_kib)', () => {
-  it('shares the byte room out at the largest delivery, or the per-brush share before any came', () => {
-    expect(byteRoom(12 * 1024 * 1024, 64 * 1024)).toBe(192);
-    expect(byteRoom(12 * 1024 * 1024, 0)).toBe((12 * 1024) / KIB_PER_BRUSH);
-    expect(byteRoom(-5, 1000)).toBe(0);
+  it('reserves one delivery as large as the largest yet and the rest at the average', () => {
+    const mib12 = 12 * 1024 * 1024;
+    expect(byteRoom(mib12, 64 * 1024, 64 * 1024)).toBe(192);
+    // 2.5 MB left with 33 KB deliveries and one of 250 KB seen: about 70 more fit, not 10.
+    expect(byteRoom(2_500_000, 250_000, 33_000)).toBe(69);
+    expect(byteRoom(mib12, 0, 0)).toBe((12 * 1024) / KIB_PER_BRUSH);
+  });
+
+  it('has no room when not even the largest fits', () => {
+    expect(byteRoom(-5, 1000, 1000)).toBe(0);
+    expect(byteRoom(249_999, 250_000, 33_000)).toBe(0);
+    expect(byteRoom(250_000, 250_000, 33_000)).toBe(1);
   });
 
   it('counts the wire and the unused part of the last grant as still coming', () => {

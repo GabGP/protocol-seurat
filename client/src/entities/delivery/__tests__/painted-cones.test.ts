@@ -68,8 +68,8 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     sink.dispose();
   });
 
-  /** 20 core brushes and 5 ring ones of `kib` each under the given caps: what eviction releases. */
-  const run = (max: number, maxKiB = 36864, kib = 0): number[] => {
+  /** 20 core brushes, 5 ring ones and `far` ones out of every cone, of `kib` each: what eviction releases. */
+  const run = (max: number, maxKiB = 36864, kib = 0, far = 0): number[] => {
     const released: number[] = [];
     const client = {
       sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
@@ -84,6 +84,7 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     };
     for (let bx = 0; bx < 20; bx++) hold(bx + 1, 0, bx); // the focus: core
     for (let bx = 10; bx < 15; bx++) hold(bx + 11, 1, bx); // ring 1 beyond the view: cone, not core
+    for (let i = 0; i < far; i++) hold(26 + i, 0, 200 + i); // long left behind
     sink.setView(0, 0, 20 * 256, 256, 20 * 256, 256, 1);
     sink.dispose();
     return released.sort((a, b) => a - b);
@@ -94,9 +95,14 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     expect(run(25)).toEqual([21, 22, 23, 24, 25]);
   });
 
-  it('with max_kib spent libre is 0 and what still comes fits: ring brushes go, the core stays', () => {
-    // 6000 KiB held, above 90 %: 650 KiB left still take 13 per-brush shares, more than the wire's 12
-    expect(run(1000, 6650, 240)).toEqual([]);
-    expect(run(1000, 6600, 240)).toEqual([21, 22, 23, 24, 25]);
+  it('with max_kib spent but the book not full the cone stays: its children may be on the wire', () => {
+    expect(run(1000, 6600, 240)).toEqual([]); // 6000 of 6600 KiB, over 90 %
+  });
+
+  it('a byte window closed below 90 % of max_kib still evicts, so libre reopens instead of staying 0', () => {
+    // 6480 of 7380 KiB (88 %): 900 KiB take 18 per-brush shares, 12 of them for the wire: fewer than 8 left
+    // Once relieving, it goes on to 75 %: both far brushes; the cone and the core stay.
+    expect(run(1000, 7380, 240, 2)).toEqual([26, 27]);
+    expect(run(1000, 7380 + 240, 240, 2)).toEqual([]); // 1140 KiB: 23 − 12 = 11 shares, no pressure
   });
 });

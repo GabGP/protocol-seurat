@@ -10,12 +10,14 @@ export function receiverWindow(memory: number, linkBps: number, avgDelivery: num
 }
 
 /**
- * Deliveries of `largest` bytes (KIB_PER_BRUSH before any came) that still fit in `roomBytes`
- * of max_kib. The server opens by count only (spec 4.1 c), so max_kib holds only if the window
- * also leaves room for what may still come (spec 5.4).
+ * Deliveries that still fit in `roomBytes` of max_kib: one as large as the `largest` yet, the rest
+ * at the `average` (KIB_PER_BRUSH before any came). The server opens by count only (spec 4.1 c),
+ * so max_kib holds only if the window also leaves room for what may still come (spec 5.4).
+ * Reserving the largest for every one would close the window with most of max_kib unused.
  */
-export function byteRoom(roomBytes: number, largest: number): number {
-  return Math.max(0, Math.floor(roomBytes / (largest > 0 ? largest : KIB_PER_BRUSH * 1024)));
+export function byteRoom(roomBytes: number, largest: number, average: number): number {
+  const each = average > 0 ? average : KIB_PER_BRUSH * 1024;
+  return Math.max(0, Math.floor((roomBytes - Math.max(largest, each)) / each) + 1);
 }
 
 /**
