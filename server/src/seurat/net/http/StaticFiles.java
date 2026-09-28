@@ -31,6 +31,13 @@ final class StaticFiles {
         return Files.readAllBytes(file);
     }
 
+    /** A build asset served under its own name: its name changes with its content, so it may be cached. */
+    boolean hashed(String path) {
+        String rel = path.startsWith("/") ? path.substring(1) : path;
+        Path file = root.resolve(rel).normalize();
+        return rel.startsWith("assets/") && file.startsWith(root) && Files.isRegularFile(file);
+    }
+
     private Path fallback(String rel) {
         if (rel.equals("favicon.ico") || rel.equals("favicon.svg")) {
             Path pub = root.resolveSibling("public").resolve(rel);

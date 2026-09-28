@@ -70,5 +70,7 @@ public final class SeuratConstants {
     public static final long SHUTDOWN_TIMEOUT_S = 5;
     /** Graceful shutdown: poll interval while draining in-flight paint. */
     public static final long SHUTDOWN_POLL_MS = 50;
+    /** Static files under assets/ carry their content hash in the name: cached for a year, never revalidated. */
+    public static final long ASSET_MAX_AGE_S = 365L * 24 * 60 * 60;
 }
 

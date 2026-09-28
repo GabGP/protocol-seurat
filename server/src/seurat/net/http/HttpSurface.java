@@ -8,6 +8,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.catalog.Catalog;
 import seurat.config.SeuratConfig;
+import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.session.Sessions;
 
@@ -29,6 +30,11 @@ public final class HttpSurface {
             this(code, type, body, Map.of());
         }
     }
+
+    /** Every response is no-store unless it names its own Cache-Control. */
+    public static final String CACHE_CONTROL = "Cache-Control";
+    private static final String IMMUTABLE =
+            "public, max-age=" + SeuratConstants.ASSET_MAX_AGE_S + ", immutable";
 
     private final StaticFiles files;
     private final SessionRoute session;
@@ -75,7 +81,9 @@ public final class HttpSurface {
         String type = (!path.contains(".") || path.equals("/"))
                 ? "text/html; charset=utf-8"
                 : StaticFiles.contentType(path);
-        return new Response(200, type, body);
+        return files.hashed(path)
+                ? new Response(200, type, body, Map.of(CACHE_CONTROL, IMMUTABLE))
+                : new Response(200, type, body);
     }
 
     static long number(String json, String key, long dflt) {

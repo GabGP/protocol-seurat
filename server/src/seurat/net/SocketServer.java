@@ -107,7 +107,8 @@ public final class SocketServer implements Closeable {
                 + (System.nanoTime() - t0) / 1_000_000L + "ms) [" + remote + "]");
         StringBuilder header = new StringBuilder("HTTP/1.1 " + Listeners.status(response.code())
                 + "\r\nContent-Type: " + response.type() + "\r\nContent-Length: " + response.body().length
-                + "\r\nCache-Control: no-store\r\nConnection: close\r\n");
+                + "\r\nConnection: close\r\n");
+        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store\r\n");
         response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append("\r\n"));
         OutputStream out = socket.getOutputStream();
         out.write(header.append("\r\n").toString().getBytes(StandardCharsets.UTF_8));

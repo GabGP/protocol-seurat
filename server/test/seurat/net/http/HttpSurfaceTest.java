@@ -68,6 +68,13 @@ public final class HttpSurfaceTest {
                 "/assets/synthesis.worker-99999.js", Map.of(), new byte[0], "localhost"));
         TestKit.check(workerFallback.code() == 200
                 && new String(workerFallback.body()).contains("worker-body"), "worker fallback serves");
+        TestKit.check(!workerFallback.headers().containsKey(HttpSurface.CACHE_CONTROL),
+                "a worker served under another name is not cached");
+        var worker = http.route(new HttpSurface.Request("GET",
+                "/assets/synthesis.worker-12345.js", Map.of(), new byte[0], "localhost"));
+        TestKit.check(worker.headers().getOrDefault(HttpSurface.CACHE_CONTROL, "").contains("immutable"),
+                "a hashed asset is cached as immutable");
+        TestKit.check(!index.headers().containsKey(HttpSurface.CACHE_CONTROL), "index.html stays no-store");
 
         var sessionResp = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
                 Map.of("authorization", "Bearer k-prof"), "{\"memMiB\":256}".getBytes(),
