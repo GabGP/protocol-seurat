@@ -378,10 +378,15 @@ export function ViewerChrome(props: Props): JSX.Element {
     function meterFrame(now: number): void {
       const meter = (st.meter ??= new FrameMeter());
       meter.frame(now, performance.now() - now);
-      const el = meterRef.current;
-      if (!el || now - st.meterAt < METER_TEXT_MS) return;
+      if (now - st.meterAt < METER_TEXT_MS) return;
       st.meterAt = now;
-      el.textContent = meter.label(st.drawn, brushes().length, renderer.kind);
+      meterText();
+    }
+
+    /** The readout, placeholders included: shown from the moment the meter is on, before the first paint. */
+    function meterText(): void {
+      const el = meterRef.current;
+      if (el) el.textContent = (st.meter ??= new FrameMeter()).label(st.drawn, brushes().length, renderer.kind);
     }
 
     /** Settings changed: repaint now, and show or hide the meter. */
@@ -394,6 +399,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       dirty = true;
       st.meterAt = -Infinity;
       if (meterRef.current) meterRef.current.hidden = !flags.fps;
+      if (flags.fps) meterText();
       cv.parentElement?.toggleAttribute('data-meter', flags.fps); // overlays below make room
     }
 

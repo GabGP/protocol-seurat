@@ -1,4 +1,5 @@
 import type { DeliveryLedger } from '@/entities/delivery/store';
+import { SEED_STRATUM } from '@/shared/config/constants';
 import type { RateMeter } from '@/shared/lib/rate-meter';
 import type { Concession } from '@/shared/proto/messages';
 import type { ImageTelemetry } from './image-telemetry';
@@ -18,6 +19,8 @@ export interface HeldBrushes {
   book: DeliveryLedger;
   free(): number;
   queueDepthMs: number;
+  /** Strata of the open work (`top + 1`): levels 0 … top − 1 arrive as brushes, the top one as the seed. */
+  strata: number;
 }
 
 export interface TelemetryInput {
@@ -28,6 +31,9 @@ export interface TelemetryInput {
   sink: HeldBrushes | null;
   concession: Concession | null;
 }
+
+/** Stands for a value not known yet: rows keep their place so only values change as data arrives. */
+export const PENDING = '—';
 
 const THROTTLE: ReadonlyArray<readonly [number, string]> = [
   [1, 'server load'],
@@ -40,32 +46,36 @@ export function telemetrySections(t: TelemetryInput): TelemetrySection[] {
 }
 
 function link({ now, transport, link: meter, sink }: TelemetryInput): TelemetrySection {
-  const rows: TelemetryRow[] = [];
-  if (transport) rows.push({ k: 'Transport', v: transport });
-  if (meter) {
-    rows.push({ k: 'Link peak (10 s)', v: fmtRate(meter.peak(now)) });
-    rows.push({ k: 'Received this session', v: fmtBytes(meter.total) });
-  }
-  if (sink) rows.push({ k: 'Receiver window', v: `${sink.free()} brushes` });
-  return { title: 'Link', rows };
-}
-
-function image({ now, image: img }: TelemetryInput): TelemetrySection {
-  if (!img) return { title: 'This image', rows: [] };
-  const secs = Math.max(0.001, (now - img.openedAt) / 1000);
   return {
-    title: 'This image',
+    title: 'Link',
     rows: [
-      { k: 'Downloaded', v: fmtBytes(img.meter.total) },
-      { k: 'Brushes received', v: String(img.deliveries) },
-      { k: 'Average since open', v: fmtRate(img.meter.total / secs) },
-      { k: 'First brush after', v: img.firstDeliveryMs === null ? '—' : fmtMs(img.firstDeliveryMs) },
+      { k: 'Transport', v: transport ?? PENDING },
+      { k: 'Link peak (10 s)', v: meter ? fmtRate(meter.peak(now)) : PENDING },
+      { k: 'Received this session', v: meter ? fmtBytes(meter.total) : PENDING },
+      { k: 'Receiver window', v: sink ? `${sink.free()} brushes` : PENDING },
     ],
   };
 }
 
+function image({ now, image: img }: TelemetryInput): TelemetrySection {
+  const secs = img ? Math.max(0.001, (now - img.openedAt) / 1000) : 1;
+  return {
+    title: 'This image',
+    rows: [
+      { k: 'Downloaded', v: img ? fmtBytes(img.meter.total) : PENDING },
+      { k: 'Brushes received', v: img ? String(img.deliveries) : PENDING },
+      { k: 'Average since open', v: img ? fmtRate(img.meter.total / secs) : PENDING },
+      { k: 'First brush after', v: img?.firstDeliveryMs == null ? PENDING : fmtMs(img.firstDeliveryMs) },
+    ],
+  };
+}
+
+const MEMORY_KEYS = ['Total in memory', 'Compressed bands', 'Decoded pixels', 'Brushes held', 'In flight', 'Decode queue'];
+const PLAN_KEYS = ['Plan', 'Time', 'Throttled by', 'Cancelled (view moved)'];
+const pending = (keys: string[]): TelemetryRow[] => keys.map((k) => ({ k, v: PENDING }));
+
 function memory({ sink, concession }: TelemetryInput): TelemetrySection {
-  if (!sink) return { title: 'Stored on this device', rows: [] };
+  if (!sink) return { title: 'Stored on this device', rows: pending(MEMORY_KEYS) };
   let bands = 0;
   let pixels = 0;
   for (const r of sink.book.byDelivery.values()) {
@@ -73,38 +83,43 @@ function memory({ sink, concession }: TelemetryInput): TelemetrySection {
     if (r.rgba) pixels += r.rgba.width * r.rgba.height * 4;
   }
   const held = sink.book.byDelivery.size;
+  const values = [
+    fmtBytes(bands + pixels),
+    concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * 1024)}` : fmtBytes(bands),
+    fmtBytes(pixels),
+    concession ? `${held} of ${concession.maxBrushes}` : String(held),
+    String(sink.book.inFlight.size),
+    fmtMs(sink.queueDepthMs),
+  ];
+  return { title: 'Stored on this device', rows: MEMORY_KEYS.map((k, i) => ({ k, v: values[i] ?? PENDING })) };
+}
+
+function plan({ now, image: img }: TelemetryInput): TelemetrySection {
+  if (!img?.plan) return { title: 'Current view', rows: pending(PLAN_KEYS) };
+  const p = img.plan;
+  const pct = p.expected > 0 ? Math.min(100, Math.round((100 * p.received) / p.expected)) : 100;
+  const reasons = THROTTLE.filter(([bit]) => (p.throttle & bit) !== 0).map(([, label]) => label);
   return {
-    title: 'Stored on this device',
+    title: 'Current view',
     rows: [
-      { k: 'Total in memory', v: fmtBytes(bands + pixels) },
-      { k: 'Compressed bands', v: concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * 1024)}` : fmtBytes(bands) },
-      { k: 'Decoded pixels', v: fmtBytes(pixels) },
-      { k: 'Brushes held', v: concession ? `${held} of ${concession.maxBrushes}` : String(held) },
-      { k: 'In flight', v: String(sink.book.inFlight.size) },
-      { k: 'Decode queue', v: fmtMs(sink.queueDepthMs) },
+      { k: 'Plan', v: `#${p.seq} · ${p.received} of ${p.expected} brushes (${pct}%)` },
+      {
+        k: 'Time',
+        v: p.finishedAt === null ? `loading · ${fmtMs(now - p.startedAt)}` : `done · ${fmtMs(p.finishedAt - p.startedAt)}`,
+      },
+      { k: 'Throttled by', v: reasons.length > 0 ? reasons.join(', ') : 'nothing' },
+      { k: 'Cancelled (view moved)', v: String(img.cancelled) },
     ],
   };
 }
 
-function plan({ now, image: img }: TelemetryInput): TelemetrySection {
-  const p = img?.plan;
-  if (!img || !p) return { title: 'Current view', rows: [] };
-  const pct = p.expected > 0 ? Math.min(100, Math.round((100 * p.received) / p.expected)) : 100;
-  const reasons = THROTTLE.filter(([bit]) => (p.throttle & bit) !== 0).map(([, label]) => label);
-  const rows: TelemetryRow[] = [
-    { k: 'Plan', v: `#${p.seq} · ${p.received} of ${p.expected} brushes (${pct}%)` },
-    p.finishedAt === null
-      ? { k: 'Loading for', v: fmtMs(now - p.startedAt) }
-      : { k: 'Completed in', v: fmtMs(p.finishedAt - p.startedAt) },
-    { k: 'Throttled by', v: reasons.length > 0 ? reasons.join(', ') : 'nothing' },
-  ];
-  if (img.cancelled > 0) rows.push({ k: 'Cancelled (view moved)', v: String(img.cancelled) });
-  return { title: 'Current view', rows };
-}
-
+/** Every level of the open work, empty ones included, finest first and the seed last. */
 function strata({ sink, concession }: TelemetryInput): TelemetrySection {
   if (!sink) return { title: 'Detail by level', rows: [] };
+  const top = Math.max(0, sink.strata - 1);
   const by = new Map<number, { n: number; bytes: number }>();
+  for (let s = 0; s < top; s++) by.set(s, { n: 0, bytes: 0 });
+  by.set(SEED_STRATUM, { n: 0, bytes: 0 });
   for (const r of sink.book.byDelivery.values()) {
     const s = by.get(r.stratum) ?? { n: 0, bytes: 0 };
     s.n += 1;
@@ -113,10 +128,14 @@ function strata({ sink, concession }: TelemetryInput): TelemetrySection {
   }
   const rows = [...by.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([s, v]) => ({ k: s === 10 ? 'Seed' : `Level ${s} (1:${2 ** s})`, v: `${v.n} · ${fmtBytes(v.bytes)}` }));
-  if (concession && rows.length > 0) {
-    rows.push({ k: 'Finest allowed', v: `Level ${concession.minStratum} · ${concession.maxBands} bands` });
-  }
+    .map(([s, v]) => ({
+      k: s === SEED_STRATUM ? 'Seed' : `Level ${s} (1:${2 ** s})`,
+      v: `${v.n} · ${fmtBytes(v.bytes)}`,
+    }));
+  rows.push({
+    k: 'Finest allowed',
+    v: concession ? `Level ${concession.minStratum} · ${concession.maxBands} bands` : PENDING,
+  });
   return { title: 'Detail by level', rows };
 }
 

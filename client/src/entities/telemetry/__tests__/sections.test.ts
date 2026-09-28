@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyLedger, type DeliveryRecord } from '@/entities/delivery/store';
 import { ImageTelemetry } from '@/entities/telemetry/image-telemetry';
-import { fmtBytes, fmtMs, fmtRate, telemetrySections } from '@/entities/telemetry/sections';
+import { PENDING, fmtBytes, fmtMs, fmtRate, telemetrySections } from '@/entities/telemetry/sections';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
 function rec(delivery: number, stratum: number, bytes: number, decoded: boolean): DeliveryRecord {
@@ -29,7 +29,7 @@ describe('telemetry sections', () => {
   image.onDelivery(9_000, 3, 400);
   const sections = telemetrySections({
     now: 2000, transport: 'websocket', link, image,
-    sink: { book, free: () => 3, queueDepthMs: 12 },
+    sink: { book, free: () => 3, queueDepthMs: 12, strata: 3 },
     concession: { handle: 7, epoch: 1, minStratum: 0, maxBands: 4, reason: 0, maxBrushes: 768, maxKiB: 36_864, leaseS: 120 },
   });
 
@@ -53,9 +53,17 @@ describe('telemetry sections', () => {
     expect(m['Throttled by']).toBe('fine-detail budget');
   });
 
-  it('breaks detail down by level, finest first', () => {
-    const keys = Object.keys(rows('Detail by level', sections));
-    expect(keys).toEqual(['Level 0 (1:1)', 'Seed', 'Finest allowed']);
+  it('lists every level of the work, empty ones too, finest first', () => {
+    const m = rows('Detail by level', sections);
+    expect(Object.keys(m)).toEqual(['Level 0 (1:1)', 'Level 1 (1:2)', 'Seed', 'Finest allowed']);
+    expect(m['Level 1 (1:2)']).toBe('0 · 0 B');
+  });
+
+  it('keeps every row in place with a placeholder before anything is known', () => {
+    const empty = telemetrySections({ now: 0, transport: null, link: null, image: null, sink: null, concession: null });
+    const full = sections.filter((s) => s.title !== 'Detail by level');
+    expect(empty.map((s) => s.rows.map((r) => r.k))).toEqual(full.map((s) => s.rows.map((r) => r.k)));
+    expect(empty.every((s) => s.rows.every((r) => r.v === PENDING))).toBe(true);
   });
 });
 

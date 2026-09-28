@@ -9,8 +9,8 @@ const SEP = ' · ';
 
 const timing = (fps: string, p95: string): string[] =>
   [`${fps.padStart(FPS_W)} fps`, `p95 ${p95.padStart(MS_W)} ms`];
-/** 'move to measure' stands where the timing fields go, padded to their width. */
-const TIMING_W = timing('', '').join(SEP).length;
+/** Stands for a timing not measured yet (no frames, or only idle gaps): the fields keep their place. */
+const PENDING = '—';
 
 /**
  * Frame meter (settings → Frame meter, or `?render=fps`): gaps between consecutive painted frames
@@ -41,7 +41,7 @@ export class FrameMeter {
   label(drawn: number, loaded: number, renderer?: string): string {
     const parts: string[] = renderer ? [renderer] : [];
     if (this.n === 0) {
-      parts.push('move to measure'.padEnd(TIMING_W));
+      parts.push(...timing(PENDING, PENDING));
     } else {
       const g = Array.from(this.gaps.subarray(0, this.n)).sort((a, b) => a - b);
       const mean = g.reduce((a, b) => a + b, 0) / g.length;
