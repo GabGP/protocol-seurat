@@ -20,10 +20,25 @@ describe('PaintedCones', () => {
     expect(cones.views((n) => n === 40)).toEqual([view(1000)]);
   });
 
-  it('forgets the oldest past views beyond its bound', () => {
+  it('merges the views of a drag no plan answered yet into one cone covering them all', () => {
     const cones = new PaintedCones();
-    for (let seq = 1; seq <= 40; seq++) cones.look(view(seq), seq);
-    expect(cones.views(() => false).length).toBeLessThanOrEqual(17);
+    for (let seq = 1; seq <= 60; seq++) cones.look(view(seq * 100), seq); // one view per frame
+    const views = cones.views(() => false);
+    expect(views).toHaveLength(2);
+    expect(views[1]).toEqual({ x0: 100, y0: 0, x1: 5900 + 512, y1: 512, focus: 0 });
+  });
+
+  it('past its bound it merges the oldest cones instead of dropping one', () => {
+    const cones = new PaintedCones();
+    for (let seq = 1; seq <= 40; seq++) {
+      cones.look(view(seq * 1000), seq);
+      cones.planStart(seq, seq * 10); // every view answered, none of it settled yet
+    }
+    const views = cones.views(() => false);
+    expect(views.length).toBeLessThanOrEqual(17);
+    for (let seq = 1; seq < 40; seq++) {
+      expect(views.some((v) => v.x0 <= seq * 1000 && v.x1 >= seq * 1000 + 512)).toBe(true);
+    }
   });
 });
 

@@ -1,13 +1,32 @@
 import type { EvictView } from './evict-candidate';
 
-/** Past views kept at most: a bound on memory, reached only if PLAN INICIO stops coming. */
+/** Past entries kept at most; beyond it the two oldest merge, so no cone is ever dropped. */
 const MAX_PAST = 16;
 
 interface Past {
   view: EvictView;
+  /** The latest MIRADA this entry covers. */
   seq: number;
   /** primera_entrega of the first plan for a later MIRADA; null until that PLAN INICIO. */
   until: number | null;
+}
+
+/**
+ * A view whose cone contains the cones of both: the bounding box of the rectangles and the finer
+ * focus. Each ring F_j scales the box around its own centre, and a box containing another
+ * still contains it scaled by the same factor ≥ 1, so every cone test is a superset.
+ */
+function union(a: EvictView, b: EvictView): EvictView {
+  return {
+    x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0),
+    x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1),
+    focus: Math.min(a.focus, b.focus),
+  };
+}
+
+function merge(a: Past, b: Past): Past {
+  const until = a.until === null || b.until === null ? null : Math.max(a.until, b.until);
+  return { view: union(a.view, b.view), seq: Math.max(a.seq, b.seq), until };
 }
 
 /**
@@ -15,7 +34,8 @@ interface Past {
  * flows already opened for the old one keep coming (spec 4.1.3), so a past view stays until a
  * plan for a later MIRADA started (PLAN INICIO, seq_mirada above its seq) and every delivery
  * numbered below that plan's primera_entrega is settled. Evicting a parent in one of these
- * cones would get its child refused on arrival (spec 5.4).
+ * cones would get its child refused on arrival (spec 5.4). A drag reports a view every frame:
+ * views no plan has answered yet share one merged entry, so the list stays short.
  */
 export class PaintedCones {
   private current: { view: EvictView; seq: number } | null = null;
@@ -23,8 +43,13 @@ export class PaintedCones {
 
   /** The view the MIRADA numbered `seq` described. */
   look(view: EvictView, seq: number): void {
-    if (this.current) this.past.push({ ...this.current, until: null });
-    if (this.past.length > MAX_PAST) this.past.shift();
+    if (this.current) {
+      const left: Past = { ...this.current, until: null };
+      const last = this.past[this.past.length - 1];
+      if (last && last.until === null) this.past[this.past.length - 1] = merge(last, left);
+      else this.past.push(left);
+      if (this.past.length > MAX_PAST) this.past.splice(0, 2, merge(this.past[0]!, this.past[1]!));
+    }
     this.current = { view, seq };
   }
 
