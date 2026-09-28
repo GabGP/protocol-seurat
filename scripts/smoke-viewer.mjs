@@ -3,12 +3,14 @@
 // Node >= 22 (global WebSocket) drives headless Chrome/Edge over the DevTools protocol.
 //
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
-//                                [--zoom 3] [--shot .seurat/smoke-viewer.png] [--max-refused-pct 2]
+//                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
+//                                [--max-refused-pct 2]
 //
-// Opens #/visor/<id>, zooms in at the centre, and counts the Seurat/1 traffic the page sends
+// Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
-// Use a large work (1.6-31 GP): small ones never leave the sketch.
+// With --key it signs in first (seurat.conf auth.accounts) and reports the finest stratum reached
+// and the bands delivered there. Use a large work (1.6-31 GP): small ones never leave the sketch.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -26,6 +28,7 @@ if (!args.work) {
 const base = args.url ?? 'http://localhost:8180';
 const seconds = Number(args.seconds ?? 20);
 const zoomSteps = Number(args.zoom ?? 3);
+const panSteps = Number(args.pan ?? 0);
 const maxRefusedPct = Number(args['max-refused-pct'] ?? 2);
 const PORT = 9333;
 const ERROR = 0x05;
@@ -53,7 +56,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hook = `(() => {
   const vi = (b, o) => { const n = 1 << (b[o] >> 6); let v = b[o] & 0x3f;
     for (let i = 1; i < n; i++) v = v * 256 + b[o + i]; return [v, o + n]; };
-  const S = window.__smoke = { in: {}, out: {}, strata: {}, soltar: {}, synthFail: 0 };
+  const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0 };
   const bump = (m, k) => { m[k] = (m[k] || 0) + 1; };
   const NativeWS = window.WebSocket;
   window.WebSocket = function (...a) {
@@ -61,7 +64,8 @@ const hook = `(() => {
     s.addEventListener('message', (e) => {
       if (!(e.data instanceof ArrayBuffer)) return;
       const b = new Uint8Array(e.data);
-      if (b[0] === 1) { let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]); }
+      if (b[0] === 1) { let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]);
+        if (b[o] === 0) bump(S.s0bands, b[o + 8] & 0x0f); }
       else bump(S.in, b[1]);
     });
     const send = s.send.bind(s);
@@ -95,6 +99,14 @@ try {
   let id = 0;
   const pending = new Map();
   const exceptions = [];
+  const refusals = {}; // the viewer's own spec 5.4 verdicts, by reason
+  const drag = async (dx, dy) => {
+    await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: 800, y: 450, button: 'left', clickCount: 1 });
+    for (let k = 1; k <= 10; k++) {
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 800 + (dx * k) / 10, y: 450 + (dy * k) / 10, button: 'left' });
+    }
+    await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: 800 + dx, y: 450 + dy, button: 'left', clickCount: 1 });
+  };
   const cdp = (method, params = {}) => new Promise((res) => {
     pending.set(++id, res);
     ws.send(JSON.stringify({ id, method, params }));
@@ -104,18 +116,29 @@ try {
     if (m.id) pending.get(m.id)?.(m.result ?? m.error);
     else if (m.method === 'Runtime.exceptionThrown') {
       exceptions.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
+    } else if (m.method === 'Runtime.consoleAPICalled') {
+      const why = /refused \((\w+)\)/.exec(String(m.params.args?.[0]?.value ?? ''));
+      if (why) refusals[why[1]] = (refusals[why[1]] ?? 0) + 1;
     }
   });
   await cdp('Runtime.enable');
   await cdp('Page.enable');
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: hook });
+  if (args.key) {
+    await cdp('Page.addScriptToEvaluateOnNewDocument',
+      { source: `localStorage.setItem('seurat.accessKey', ${JSON.stringify(args.key)})` });
+  }
   await cdp('Page.navigate', { url: `${base}/#/visor/${encodeURIComponent(args.work)}` });
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',
     { expression: 'JSON.stringify(window.__smoke)', returnByValue: true })).result.value);
+  const panFrom = 4 + 2 * zoomSteps;
   for (let t = 2; t <= seconds; t += 2) {
     await sleep(2000);
-    if (t > 4 && t <= 4 + 2 * zoomSteps) {
+    if (t > 4 && t <= panFrom) {
       await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 800, y: 450, deltaX: 0, deltaY: -400 });
+    } else if (t > panFrom && t <= panFrom + 2 * panSteps) {
+      const k = (t - panFrom) / 2;
+      await drag(k % 2 ? -700 : 0, k % 2 ? 0 : -400); // alternate half-screen moves: new ground each time
     }
   }
   const s = await read();
@@ -128,7 +151,8 @@ try {
   const refused = s.soltar[RELEASE.refused] ?? 0;
   const refusedPct = deliveries ? (100 * refused) / deliveries : 0;
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);
-  console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) · screenshot ${shot}`);
+  if (s.strata[0]) console.log(`stratum 0 reached · deliveries by bands-through ${JSON.stringify(s.s0bands)}`);
+  console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) ${JSON.stringify(refusals)} · screenshot ${shot}`);
   const failures = [
     exceptions.length && `page exceptions: ${exceptions.join(' | ')}`,
     s.in[ERROR] && `${s.in[ERROR]} ERROR frame(s) from the server`,

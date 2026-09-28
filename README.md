@@ -195,7 +195,10 @@ With the server running, drive the real viewer in headless Chrome/Edge (Node >= 
 ```bash
 node scripts/smoke-viewer.mjs --work The_Night_Watch_-_HD   # use a large work (1.6-31 GP)
 ```
-It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional.
+It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional. `--pan N` drags the view N times after zooming. `--key <access key>` signs in first and reports the bands delivered at stratum 0, which shows whether an account really gets full detail:
+```bash
+node scripts/smoke-viewer.mjs --work 093-494-000-120123412 --zoom 7 --pan 6 --seconds 40 --key <profesor key>
+```
 
 ### Cleaning Build Artifacts
 To clean build outputs without touching runtime data:
