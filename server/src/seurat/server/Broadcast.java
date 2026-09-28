@@ -1,17 +1,24 @@
 package seurat.server;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
 import seurat.proto.MsgHandshake;
+import seurat.proto.ProtoCodes;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
 /** Pushes to every live session: OBRA on each catalog change (spec 7.3) and LATIDO (spec 3.3, 8). */
 public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
     private final Sessions sessions;
+    /** Last state logged per work: a percent tick in the same state goes to the progress bar. */
+    private final Map<String, Integer> states = new ConcurrentHashMap<>();
 
     public Broadcast(Sessions sessions) {
         this.sessions = sessions;
@@ -19,9 +26,25 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
 
     @Override
     public void accept(MsgCatalog.WorkMessage message) {
-        Log.info("catalog", "Work '" + message.id() + "' event=" + message.event() + " state="
-                + message.state() + " (" + message.progress() + "%, ed=" + message.edition() + ")");
+        log(message);
         send(sessions, FrameType.OBRA, message.encode());
+    }
+
+    private void log(MsgCatalog.WorkMessage m) {
+        String key = "work=" + m.id();
+        Integer before = states.put(m.id(), m.state());
+        if (m.event() == ProtoCodes.OBRA_ESTADO && before != null && before == m.state()) {
+            Progress.update("catalog", key, m.progress(), "");
+            return;
+        }
+        Log.info("catalog", key + " " + ProtoCodes.eventName(m.event()) + " state=" + ProtoCodes.stateName(m.state())
+                + " progress=" + m.progress() + "% ed=" + m.edition());
+        if (m.event() == ProtoCodes.OBRA_BAJA) {
+            states.remove(m.id());
+        }
+        if (m.event() == ProtoCodes.OBRA_BAJA || m.state() != ProtoCodes.ST_PINTANDO) {
+            Progress.done(key);
+        }
     }
 
     public static void heartbeat(Sessions sessions) {
@@ -34,7 +57,7 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
             try {
                 session.mapping().sendControl(frame);
             } catch (Exception ex) {
-                Log.debug("server", "Push to session " + session.id() + " failed: " + ex.getMessage());
+                Log.debug("server", "s" + session.id() + " push failed: " + LogUnits.cause(ex));
             }
         }
     }

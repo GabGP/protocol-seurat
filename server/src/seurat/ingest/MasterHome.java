@@ -12,6 +12,7 @@ import java.util.Optional;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
 
 /**
@@ -38,7 +39,7 @@ public final class MasterHome {
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(incoming, target); // inbox on another file system: copy, then delete
         }
-        Log.info("ingest", "Master of '" + id + "' moved to " + target);
+        Log.info("ingest", "work=" + id + " master moved path=" + target);
         return target;
     }
 
@@ -71,9 +72,9 @@ public final class MasterHome {
     static void drop(Path works, String id) {
         try {
             delete(works.resolve(id).resolve(DIR));
-            Log.info("ingest", "Master of '" + id + "' deleted (keepMaster=false)");
+            Log.info("ingest", "work=" + id + " master deleted keepMaster=false");
         } catch (IOException ex) {
-            Log.warn("ingest", "Cannot delete the master of '" + id + "': " + ex.getMessage());
+            Log.warn("ingest", "work=" + id + " master delete failed: " + LogUnits.cause(ex));
         }
     }
 

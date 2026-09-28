@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.catalog.Catalog;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
 
@@ -26,7 +27,7 @@ final class SketchPhase {
             boolean kept = Files.isRegularFile(seed) && Files.size(seed) > 4;
             Overview.Sampled overview = kept ? null : Overview.probe(master, w, h, SketchBuilder.sampling(top));
             if (!kept && overview == null) {
-                Log.info("ingest", "Work '" + id + "' carries no overview: no sketch, straight to the pass");
+                Log.info("ingest", "work=" + id + " sketch skipped: no overview");
                 return;
             }
             FileBrushStore store = ed1.open();
@@ -35,9 +36,9 @@ final class SketchPhase {
             }
             store.close();
             catalog.sketch(id, store, ProtoCodes.ST_BOCETO, 1);
-            Log.info("ingest", "Work '" + id + "' ed1 sketch " + (kept ? "kept" : "from its overview") + " (ST_BOCETO)");
+            Log.info("ingest", "work=" + id + " sketch ready ed=1 source=" + (kept ? "kept" : "overview"));
         } catch (Exception ex) {
-            Log.warn("ingest", "Work '" + id + "' sketch unavailable (" + ex.getMessage() + "), continuing with the pass");
+            Log.warn("ingest", "work=" + id + " sketch skipped: " + LogUnits.cause(ex));
         }
     }
 }

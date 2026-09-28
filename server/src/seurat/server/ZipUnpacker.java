@@ -9,23 +9,24 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 
 /** Unpacks image files from a zip archive into an inbox directory. */
 final class ZipUnpacker {
     private static final int BUFFER_SIZE = 1024 * 1024;
-    private static final long LOG_INTERVAL_MS = 5000;
 
     private ZipUnpacker() {}
 
     static List<Path> unpack(Path zip, Predicate<String> skip) throws Exception {
+        String subject = "zip=" + zip.getFileName();
         if (!Files.exists(zip) || Files.size(zip) < 22) {
-            Log.warn("ingest", "Zip archive " + zip.getFileName() + " is empty or incomplete, skipping");
+            Log.warn("ingest", subject + " skipped: empty or incomplete");
             return List.of();
         }
         Path dir = zip.getParent().resolve(zip.getFileName() + ".d");
@@ -48,13 +49,13 @@ final class ZipUnpacker {
                 }
                 String workId = base.replaceAll("\\.[^.]+$", "");
                 if (skip != null && skip.test(workId)) {
-                    Log.info("ingest", "Skipping completed work in zip: '" + workId + "'");
+                    Log.info("ingest", subject + " entry skipped work=" + workId + ": already ready");
                     skipped++;
                     continue;
                 }
                 Path out = dir.resolve(base);
                 if (Files.exists(out) && Files.size(out) == entry.getSize()) {
-                    Log.info("ingest", "Reusing extracted master: " + base + " (" + formatBytes(entry.getSize()) + ")");
+                    Log.info("ingest", subject + " entry reused file=" + base + " size=" + LogUnits.bytes(entry.getSize()));
                     list.add(out);
                     skipped++;
                     continue;
@@ -64,16 +65,15 @@ final class ZipUnpacker {
                 extracted++;
             }
         } catch (java.util.zip.ZipException ex) {
-            Log.warn("ingest", "Zip archive " + zip.getFileName() + " cannot be read: " + ex.getMessage());
+            Log.warn("ingest", subject + " skipped: unreadable: " + LogUnits.cause(ex));
             return List.of();
         }
-        long elapsed = System.currentTimeMillis() - totalStart;
+        String counts = " extracted=" + extracted + " skipped=" + skipped;
         if (extracted > 0) {
-            Log.info("ingest", "Zip unpack completed for " + zip.getFileName() + ": "
-                    + extracted + " extracted, " + skipped + " skipped in "
-                    + String.format(Locale.US, "%.2f", elapsed / 1000.0) + "s");
+            Log.info("ingest", subject + " unpacked" + counts
+                    + " took=" + LogUnits.duration(System.currentTimeMillis() - totalStart));
         } else {
-            Log.info("ingest", "Zip archive " + zip.getFileName() + " up-to-date (" + skipped + " skipped)");
+            Log.info("ingest", subject + " up to date" + counts);
         }
         list.sort(Comparator.comparingLong(p -> {
             try { return Files.size(p); } catch (Exception e) { return 0L; }
@@ -83,11 +83,11 @@ final class ZipUnpacker {
 
     private static void extract(ZipFile in, ZipEntry entry, Path out) throws Exception {
         String name = out.getFileName().toString();
+        String key = "file=" + name;
         long size = entry.getSize();
         Path tmp = out.resolveSibling(name + ".tmp");
-        Log.info("ingest", "Extracting '" + name + "' (" + formatBytes(size) + ")...");
+        Log.info("ingest", key + " extracting size=" + LogUnits.bytes(size));
         long start = System.currentTimeMillis();
-        long lastLog = start;
         long written = 0;
         byte[] buf = new byte[BUFFER_SIZE];
         try (InputStream is = in.getInputStream(entry);
@@ -96,29 +96,17 @@ final class ZipUnpacker {
             while ((read = is.read(buf)) != -1) {
                 os.write(buf, 0, read);
                 written += read;
-                long now = System.currentTimeMillis();
-                if (size > 100_000_000L && now - lastLog >= LOG_INTERVAL_MS) {
-                    int pct = size > 0 ? (int) (written * 100 / size) : 0;
-                    double mbps = (written / 1_000_000.0) / Math.max(0.001, (now - start) / 1000.0);
-                    Log.info("ingest", "Extracting '" + name + "': " + formatBytes(written)
-                            + " / " + formatBytes(size) + " (" + pct + "%) - "
-                            + String.format(Locale.US, "%.1f", mbps) + " MB/s");
-                    lastLog = now;
+                if (size > 0) {
+                    Progress.update("ingest", key, (int) (written * 100 / size),
+                            " rate=" + LogUnits.rate(written, System.currentTimeMillis() - start));
                 }
             }
+        } finally {
+            Progress.done(key);
         }
         Files.move(tmp, out, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         long elapsed = System.currentTimeMillis() - start;
-        double mbps = (written / 1_000_000.0) / Math.max(0.001, elapsed / 1000.0);
-        Log.info("ingest", "Extracted '" + name + "' (" + formatBytes(written) + ") in "
-                + String.format(Locale.US, "%.2f", elapsed / 1000.0) + "s ("
-                + String.format(Locale.US, "%.1f", mbps) + " MB/s)");
-    }
-
-    static String formatBytes(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return String.format(Locale.US, "%.1f KiB", bytes / 1024.0);
-        if (bytes < 1024 * 1024 * 1024) return String.format(Locale.US, "%.1f MiB", bytes / (1024.0 * 1024.0));
-        return String.format(Locale.US, "%.2f GiB", bytes / (1024.0 * 1024.0 * 1024.0));
+        Log.info("ingest", key + " extracted size=" + LogUnits.bytes(written) + " took="
+                + LogUnits.duration(elapsed) + " rate=" + LogUnits.rate(written, elapsed));
     }
 }

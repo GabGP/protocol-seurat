@@ -8,6 +8,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
@@ -50,36 +52,37 @@ public final class Shutdown implements Runnable {
     @Override
     public void run() {
         if (!done.compareAndSet(false, true)) return;
-        Log.info("server", "Shutdown requested, stopping intake and listener");
+        Log.info("server", "shutdown started: stopping intake and listener");
         try {
             intake.close();
         } catch (Exception ex) {
-            Log.debug("server", "Intake close: " + ex.getMessage());
+            Log.debug("server", "intake close failed: " + LogUnits.cause(ex));
         }
         ingest.shutdown();
         try {
             listener.close();
         } catch (Exception ex) {
-            Log.debug("server", "Listener close: " + ex.getMessage());
+            Log.debug("server", "listener close failed: " + LogUnits.cause(ex));
         }
         clock.shutdown();
-        Log.info("server", "Draining in-flight paint");
+        Log.info("server", "shutdown draining paint");
         drainIdle(painter::isIdle, SeuratConstants.SHUTDOWN_POLL_MS,
                 TimeUnit.SECONDS.toNanos(SeuratConstants.SHUTDOWN_TIMEOUT_S));
-        Log.info("server", "Closing sessions");
+        Log.info("server", "shutdown closing sessions count=" + sessions.all().size());
         byte[] adios = new Frame(FrameType.ADIOS, new MsgGoodbye(0, "apagado").encode()).encode();
         for (Session session : sessions.all()) {
             try {
                 session.mapping().sendControl(adios); // orderly close (spec 3.3): books stay L + delta
                 session.mapping().close();
             } catch (Exception ex) {
-                Log.debug("server", "Session " + session.id() + " close: " + ex.getMessage());
+                Log.debug("server", "s" + session.id() + " close failed: " + LogUnits.cause(ex));
             }
         }
         painterThread.interrupt();
         await(clock);
         await(ingest);
-        Log.info("server", "Shutdown complete");
+        Progress.clear();
+        Log.info("server", "shutdown done");
     }
 
     /** Polls idle until the deadline; ShutdownTest drives it with fake suppliers. */

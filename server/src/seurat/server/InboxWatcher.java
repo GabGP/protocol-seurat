@@ -12,6 +12,7 @@ import java.util.function.BiConsumer;
 import seurat.ingest.MasterFormats;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 
 /** Watches inbox directory and scans for incoming master images and archives. */
 final class InboxWatcher {
@@ -35,7 +36,7 @@ final class InboxWatcher {
                 watch = watcher;
                 inbox.register(watcher, StandardWatchEventKinds.ENTRY_CREATE,
                         StandardWatchEventKinds.ENTRY_MODIFY);
-                Log.info("ingest", "Inbox file watcher active on " + inbox.toAbsolutePath());
+                Log.info("ingest", "inbox watching path=" + inbox.toAbsolutePath());
                 for (;;) {
                     var key = takeQuietly(watcher);
                     if (key == null) return;
@@ -45,11 +46,7 @@ final class InboxWatcher {
                     key.reset();
                 }
             } catch (Throwable ex) {
-                Log.error("ingest", "Inbox watcher error: " + ex.getMessage(), ex);
-                try {
-                    AuditLog.alert("inbox watch failed: " + ex.getMessage());
-                } catch (Throwable ignored) {
-                }
+                AuditLog.alert("inbox watch failed: " + LogUnits.cause(ex), ex);
             }
         });
     }
@@ -60,7 +57,7 @@ final class InboxWatcher {
             return watcher.take();
         } catch (ClosedWatchServiceException ex) {
             if (closed) {
-                Log.info("ingest", "Inbox file watcher stopped");
+                Log.info("ingest", "inbox watch stopped");
                 return null;
             }
             throw ex;
@@ -88,7 +85,7 @@ final class InboxWatcher {
                 }
             }
         } catch (Throwable ex) {
-            Log.error("ingest", "Scan failed on " + root + ": " + ex.getMessage());
+            Log.error("ingest", "inbox scan failed path=" + root + ": " + LogUnits.cause(ex));
         }
     }
 

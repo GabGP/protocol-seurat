@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import seurat.catalog.Catalog;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.session.Canvas;
 import seurat.session.Session;
 import seurat.session.Sessions;
@@ -78,10 +79,10 @@ public final class DiskReaper {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(p);
             }
-            Log.info("reaper", "Deleted " + dir);
+            Log.info("reaper", "deleted path=" + dir);
             return true;
         } catch (Exception ex) {
-            Log.warn("reaper", "Cannot delete " + dir + ": " + ex.getMessage());
+            Log.warn("reaper", "delete failed path=" + dir + ": " + LogUnits.cause(ex));
             return false;
         }
     }

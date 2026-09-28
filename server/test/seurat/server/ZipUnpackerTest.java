@@ -13,7 +13,6 @@ public final class ZipUnpackerTest {
         testUnpackAndFilter();
         testSkipPredicate();
         testReuseExisting();
-        testFormatBytes();
         testEmptyAndCorrupt();
         System.out.println("ZipUnpackerTest OK");
     }
@@ -51,13 +50,6 @@ public final class ZipUnpackerTest {
         // Second unpack should reuse existing file without failing
         List<Path> second = ZipUnpacker.unpack(zip, null);
         TestKit.check(second.size() == 1, "second unpack should succeed and reuse");
-    }
-
-    private static void testFormatBytes() {
-        TestKit.check(ZipUnpacker.formatBytes(500).equals("500 B"), "bytes format");
-        TestKit.check(ZipUnpacker.formatBytes(2048).contains("KiB"), "kib format");
-        TestKit.check(ZipUnpacker.formatBytes(5_000_000).contains("MiB"), "mib format");
-        TestKit.check(ZipUnpacker.formatBytes(5_000_000_000L).contains("GiB"), "gib format");
     }
 
     private static void testEmptyAndCorrupt() throws Exception {

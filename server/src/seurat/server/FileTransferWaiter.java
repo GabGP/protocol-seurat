@@ -8,6 +8,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.zip.ZipFile;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 
 /** Waits for an inbox file transfer to complete and verifies file integrity. */
 final class FileTransferWaiter {
@@ -38,7 +39,7 @@ final class FileTransferWaiter {
             long now = System.currentTimeMillis();
             if (size <= 0) {
                 if (now - lastGrowth >= emptyTimeoutMs) {
-                    Log.warn("ingest", "File " + file.getFileName() + " remained empty (0 B), skipping");
+                    Log.warn("ingest", "file=" + file.getFileName() + " skipped: still empty");
                     return false;
                 }
                 if (!pause(pollMs)) return false;
@@ -48,16 +49,14 @@ final class FileTransferWaiter {
                 lastSize = size;
                 lastGrowth = now;
                 if (now - lastLog >= LOG_INTERVAL_MS) {
-                    Log.info("ingest", "Waiting for transfer of '" + file.getFileName() + "' ("
-                            + ZipUnpacker.formatBytes(size) + " written)...");
+                    Log.info("ingest", "file=" + file.getFileName() + " waiting written=" + LogUnits.bytes(size));
                     lastLog = now;
                 }
             } else if (isComplete(file, size)) {
-                Log.info("ingest", "File ready for ingest: " + file.getFileName() + " ("
-                        + ZipUnpacker.formatBytes(size) + ")");
+                Log.info("ingest", "file=" + file.getFileName() + " ready size=" + LogUnits.bytes(size));
                 return true;
             } else if (now - lastGrowth >= stallTimeoutMs) {
-                Log.warn("ingest", "File " + file.getFileName() + " incomplete after transfer stalled, skipping");
+                Log.warn("ingest", "file=" + file.getFileName() + " skipped: transfer stalled incomplete");
                 return false;
             }
             if (!pause(pollMs)) return false;

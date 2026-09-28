@@ -19,6 +19,7 @@ import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
 import seurat.observe.LogLevel;
+import seurat.observe.LogUnits;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.regulate.Regulator;
@@ -38,13 +39,13 @@ public final class SeuratServer {
         Path base = Path.of(args.length > 0 ? args[0] : ".");
         SeuratConfig config = SeuratConfig.load(base.resolve("seurat.conf"));
         Log.setLevel(LogLevel.fromString(config.logLevel, LogLevel.INFO));
-        Log.info("server", "Starting Seurat/1 server on port " + config.httpPort);
+        Log.info("server", "server starting protocol=Seurat/1 port=" + config.httpPort);
         Catalog catalog = new Catalog(config.works);
         Sessions sessions = new Sessions();
         catalog.observe(new Broadcast(sessions));
         catalog.load();
-        catalog.all().forEach(w -> Log.info("catalog", "Loaded: " + w.meta.id() + " (" + w.meta.width()
-                + "x" + w.meta.height() + ", strata=" + w.meta.strata() + ")"));
+        catalog.all().forEach(w -> Log.info("catalog", "work=" + w.meta.id() + " loaded size=" + w.meta.width()
+                + "x" + w.meta.height() + " strata=" + w.meta.strata()));
         Regulator regulator = new Regulator();
         Painter painter = new Painter(regulator, new BrushBudget(config.coverage), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
@@ -100,7 +101,7 @@ public final class SeuratServer {
             try {
                 tick.run();
             } catch (Throwable ex) {
-                Log.error("server", "Timer tick failed", ex);
+                Log.error("server", "timer tick failed: " + LogUnits.cause(ex), ex);
             }
         };
     }

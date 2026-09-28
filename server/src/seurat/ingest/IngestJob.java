@@ -2,12 +2,12 @@ package seurat.ingest;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.codec.Quant;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
 import seurat.store.WorkMeta;
@@ -47,11 +47,11 @@ public final class IngestJob implements Runnable {
     public void run() {
         try {
             if (catalog.isCompleted(id)) {
-                Log.info("ingest", "Work already completed, skipping: " + id);
+                Log.info("ingest", "work=" + id + " skipped: already ready");
                 return;
             }
             long start = System.currentTimeMillis();
-            Log.info("ingest", "Ingest started for '" + id + "' [" + name + "] from " + master.getFileName());
+            Log.info("ingest", "work=" + id + " ingest started name=\"" + name + "\" file=" + master.getFileName());
             WorkRecord fresh = new WorkRecord(new WorkMeta(id, name, 0, 0, 256, 0,
                     ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2));
             fresh.keepMaster = keepMaster;
@@ -60,7 +60,7 @@ public final class IngestJob implements Runnable {
                 int w = reader.width();
                 int h = reader.height();
                 int top = topLevels(w, h);
-                Log.info("ingest", "Work '" + id + "' dimensions: " + w + "x" + h + ", strata=" + (top + 1));
+                Log.info("ingest", "work=" + id + " decoding size=" + w + "x" + h + " strata=" + (top + 1));
                 WorkRecord work = catalog.get(id);
                 work.meta = new WorkMeta(id, name, w, h, 256, top + 1,
                         ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2);
@@ -71,33 +71,20 @@ public final class IngestJob implements Runnable {
                 ed2.close();
                 catalog.sketch(id, ed2, ProtoCodes.ST_LISTA, 2);
                 catalog.list(id);
-                long elapsed = System.currentTimeMillis() - start;
-                Log.info("ingest", "Work '" + id + "' ed2 pyramid completed, work ready (ST_LISTA)");
-                Log.info("ingest", "Preprocessing for '" + id + "' completed in " + formatDuration(elapsed));
+                Log.info("ingest", "work=" + id + " ready ed=2 took="
+                        + LogUnits.duration(System.currentTimeMillis() - start));
             }
             if (!keepMaster) {
                 MasterHome.drop(worksDir, id); // after the reader closed it
             }
             onReady.run();
         } catch (Throwable ex) { // OutOfMemoryError included: never leave a work stuck mid-pass
-            Log.error("ingest", "Ingest failed for '" + id + "': " + ex.getMessage(), ex);
-            try {
-                AuditLog.alert("ingest failed " + id + ": " + ex.getMessage());
-            } catch (Throwable ignored) {
-            }
+            AuditLog.alert("work=" + id + " ingest failed: " + LogUnits.cause(ex), ex);
             WorkRecord work = catalog.get(id);
             if (work != null) {
                 catalog.sketch(id, work.store, ProtoCodes.ST_FALLIDA, work.meta.edition());
             }
         }
-    }
-
-    public static String formatDuration(long millis) {
-        Duration d = Duration.ofMillis(Math.max(0, millis));
-        long m = d.toMinutes();
-        int s = d.toSecondsPart();
-        int ms = d.toMillisPart();
-        return m + "m " + s + "s " + ms + "ms";
     }
 
     public static int topLevels(int w, int h) {
