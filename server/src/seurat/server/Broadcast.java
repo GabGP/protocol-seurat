@@ -5,7 +5,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
-import seurat.observe.Progress;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
@@ -17,7 +16,7 @@ import seurat.session.Sessions;
 /** Pushes to every live session: OBRA on each catalog change (spec 7.3) and LATIDO (spec 3.3, 8). */
 public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
     private final Sessions sessions;
-    /** Last state logged per work: a percent tick in the same state goes to the progress bar. */
+    /** Last state logged per work: a percent tick in the same state is only DEBUG. */
     private final Map<String, Integer> states = new ConcurrentHashMap<>();
 
     public Broadcast(Sessions sessions) {
@@ -31,19 +30,16 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
     }
 
     private void log(MsgCatalog.WorkMessage m) {
-        String key = "work=" + m.id();
         Integer before = states.put(m.id(), m.state());
+        String line = "work=" + m.id() + " " + ProtoCodes.eventName(m.event()) + " state="
+                + ProtoCodes.stateName(m.state()) + " progress=" + m.progress() + "% ed=" + m.edition();
         if (m.event() == ProtoCodes.OBRA_ESTADO && before != null && before == m.state()) {
-            Progress.update("catalog", key, m.progress(), "");
+            Log.debug("catalog", line); // the ingest's own progress bar shows the ticks
             return;
         }
-        Log.info("catalog", key + " " + ProtoCodes.eventName(m.event()) + " state=" + ProtoCodes.stateName(m.state())
-                + " progress=" + m.progress() + "% ed=" + m.edition());
+        Log.info("catalog", line);
         if (m.event() == ProtoCodes.OBRA_BAJA) {
             states.remove(m.id());
-        }
-        if (m.event() == ProtoCodes.OBRA_BAJA || m.state() != ProtoCodes.ST_PINTANDO) {
-            Progress.done(key);
         }
     }
 

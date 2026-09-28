@@ -15,6 +15,7 @@ public final class LogUnitsTest {
         TestKit.check(LogUnits.duration(-5).equals("0m 0s 0ms"), "negative clamps to 0");
         TestKit.check(LogUnits.rate(10L * 1024 * 1024, 2000).equals("5.0 MiB/s"), "10 MiB in 2 s");
         TestKit.check(LogUnits.rate(1024 * 1024, 0).equals("1000.0 MiB/s"), "0 ms counts as 1 ms");
+        TestKit.check(LogUnits.pixelRate(30_000_000L, 2000).equals("15.0 Mpx/s"), "30 Mpx in 2 s");
         TestKit.check(LogUnits.cause(new IllegalStateException("boom")).equals("boom"), "cause: message");
         TestKit.check(LogUnits.cause(new NullPointerException()).equals("NullPointerException"), "cause: class");
         System.out.println("LogUnitsTest OK");

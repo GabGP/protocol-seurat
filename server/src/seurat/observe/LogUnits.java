@@ -8,6 +8,7 @@ public final class LogUnits {
     private static final long KIB = 1024;
     private static final long MIB = KIB * KIB;
     private static final long GIB = MIB * KIB;
+    private static final double MEGAPIXEL = 1_000_000.0;
 
     private LogUnits() {}
 
@@ -27,6 +28,12 @@ public final class LogUnits {
     public static String rate(long bytes, long millis) {
         double seconds = Math.max(1, millis) / 1000.0;
         return String.format(Locale.US, "%.1f MiB/s", bytes / (double) MIB / seconds);
+    }
+
+    /** Decode throughput in megapixels per second; a zero-length interval counts as 1 ms. */
+    public static String pixelRate(long pixels, long millis) {
+        double seconds = Math.max(1, millis) / 1000.0;
+        return String.format(Locale.US, "%.1f Mpx/s", pixels / MEGAPIXEL / seconds);
     }
 
     /** The ": cause" tail: the exception message, or its class when it has none (NPE, some Errors). */

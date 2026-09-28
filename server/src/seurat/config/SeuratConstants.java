@@ -80,5 +80,7 @@ public final class SeuratConstants {
     public static final int PROGRESS_BAR_CELLS = 10;
     /** Sticky bar width when COLUMNS is unset: a wrapped bar cannot be wiped in place. */
     public static final int PROGRESS_COLUMNS = 80;
+    /** A phase shows an ETA only after running this long: earlier extrapolations swing wildly. */
+    public static final long PROGRESS_ETA_MIN_MS = 1_000;
 }
 

@@ -9,6 +9,8 @@ import java.util.concurrent.Future;
 import seurat.catalog.Catalog;
 import seurat.codec.SeedCodec;
 import seurat.codec.YCoCgR;
+import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 import seurat.store.FileBrushStore;
 
 /** The single full-resolution pass: bands in, brushes + seed out. */
@@ -20,6 +22,7 @@ final class ImagePass {
     private final int width;
     private final int height;
     private final java.nio.file.Path worksDir;
+    private final long start = System.currentTimeMillis();
 
     ImagePass(String id, Catalog catalog, FileBrushStore store, int top, int width,
             int height, java.nio.file.Path worksDir) {
@@ -56,6 +59,7 @@ final class ImagePass {
                 row = BandFeeder.feed(ctx, band, row, width);
                 progress(reader);
             }
+            finishing();
             BandFeeder.pad(ctx, row, paddedH);
             for (int stratum = 0; stratum < top; stratum++) {
                 acc[stratum].replicate();
@@ -81,12 +85,21 @@ final class ImagePass {
             }
             progress(reader);
         }
+        finishing();
         writeSeed(seed, width, height);
     }
 
-    /** PINTANDO's progress (spec 7.1 step 4): OBRA(ESTADO) on every whole percent. */
+    /** PINTANDO's progress (spec 7.1 step 4): OBRA(ESTADO) on every whole percent, and the console bar. */
     private void progress(MasterReader reader) {
-        catalog.progress(id, (int) (reader.fraction() * 100));
+        double fraction = reader.fraction();
+        catalog.progress(id, (int) (fraction * 100));
+        Progress.update("ingest", "work=" + id, "painting", (int) (fraction * 100), " rate="
+                + LogUnits.pixelRate((long) (fraction * height) * width, System.currentTimeMillis() - start));
+    }
+
+    /** Every band is read: what is left is draining the strata, waiting on the brushes and the seed. */
+    private void finishing() {
+        Progress.phase("ingest", "work=" + id, "finishing", "");
     }
 
     private void writeSeed(List<short[][]> seed, int seedW, int seedH) throws Exception {

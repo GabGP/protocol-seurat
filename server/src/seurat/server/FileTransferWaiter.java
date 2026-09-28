@@ -9,6 +9,7 @@ import java.util.zip.ZipFile;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 
 /** Waits for an inbox file transfer to complete and verifies file integrity. */
 final class FileTransferWaiter {
@@ -23,7 +24,17 @@ final class FileTransferWaiter {
         return waitForReady(file, POLL_MS, EMPTY_TIMEOUT_MS, STALL_TIMEOUT_MS);
     }
 
+    /** While it polls, the file is a "waiting" segment on the progress bar (no total: the copy may still grow). */
     static boolean waitForReady(Path file, long pollMs, long emptyTimeoutMs, long stallTimeoutMs) {
+        String key = "file=" + file.getFileName();
+        try {
+            return poll(file, key, pollMs, emptyTimeoutMs, stallTimeoutMs);
+        } finally {
+            Progress.done(key);
+        }
+    }
+
+    private static boolean poll(Path file, String key, long pollMs, long emptyTimeoutMs, long stallTimeoutMs) {
         if (!Files.exists(file)) return false;
         long lastSize = -1;
         long lastGrowth = System.currentTimeMillis();
@@ -39,7 +50,7 @@ final class FileTransferWaiter {
             long now = System.currentTimeMillis();
             if (size <= 0) {
                 if (now - lastGrowth >= emptyTimeoutMs) {
-                    Log.warn("ingest", "file=" + file.getFileName() + " skipped: still empty");
+                    Log.warn("ingest", key + " skipped: still empty");
                     return false;
                 }
                 if (!pause(pollMs)) return false;
@@ -48,15 +59,16 @@ final class FileTransferWaiter {
             if (size != lastSize) {
                 lastSize = size;
                 lastGrowth = now;
+                Progress.phase("ingest", key, "waiting", " written=" + LogUnits.bytes(size));
                 if (now - lastLog >= LOG_INTERVAL_MS) {
-                    Log.info("ingest", "file=" + file.getFileName() + " waiting written=" + LogUnits.bytes(size));
+                    Log.info("ingest", key + " waiting written=" + LogUnits.bytes(size));
                     lastLog = now;
                 }
             } else if (isComplete(file, size)) {
-                Log.info("ingest", "file=" + file.getFileName() + " ready size=" + LogUnits.bytes(size));
+                Log.info("ingest", key + " ready size=" + LogUnits.bytes(size));
                 return true;
             } else if (now - lastGrowth >= stallTimeoutMs) {
-                Log.warn("ingest", "file=" + file.getFileName() + " skipped: transfer stalled incomplete");
+                Log.warn("ingest", key + " skipped: transfer stalled incomplete");
                 return false;
             }
             if (!pause(pollMs)) return false;

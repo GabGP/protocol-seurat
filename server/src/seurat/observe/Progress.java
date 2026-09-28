@@ -6,16 +6,27 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import seurat.config.SeuratConstants;
 
 /**
- * Long jobs with a known total (ingest painting, zip extraction). On a terminal they share one sticky
- * line that Log wipes and redraws around every log line; otherwise each crossed PROGRESS_STEP_PCT is
- * one INFO line and every other percent a DEBUG line, so a captured log never holds carriage returns.
+ * Long jobs (inbox copy, unzip, ingest), each in a named phase ("unzipping", "painting"...). On a
+ * terminal they share one sticky line that Log wipes and redraws around every log line; otherwise
+ * each crossed PROGRESS_STEP_PCT of a phase is one INFO line and every other change a DEBUG line,
+ * so a captured log never holds carriage returns. A phase without a total shows as [~].
  */
 public final class Progress {
+    private static final int UNKNOWN = -1;
     private static final Map<String, Job> JOBS = new ConcurrentSkipListMap<>();
     private static volatile boolean live = System.console() != null
             && !"false".equalsIgnoreCase(System.getProperty("seurat.log.progress"));
 
-    private record Job(int pct, String suffix) {}
+    /** pct is UNKNOWN while the phase has no total; since is when the phase began (ETA base). */
+    private record Job(String phase, int pct, String suffix, long since) {
+        String text(String key, String label) {
+            if (pct == UNKNOWN) {
+                return key + " " + phase + " " + label + "[~]" + suffix;
+            }
+            return key + " " + phase + " " + label + bar(pct) + " " + pct + "%" + suffix
+                    + eta(pct, System.currentTimeMillis() - since);
+        }
+    }
 
     private Progress() {}
 
@@ -25,10 +36,21 @@ public final class Progress {
     }
 
     /** key is the line's subject ("work=venus"); suffix trails the percent (" rate=85.2 MiB/s" or ""). */
-    public static void update(String tag, String key, int pct, String suffix) {
-        int p = Math.max(0, Math.min(100, pct));
-        Job before = JOBS.put(key, new Job(p, suffix));
-        if (before != null && before.pct == p) {
+    public static void update(String tag, String key, String phase, int pct, String suffix) {
+        track(tag, key, phase, Math.max(0, Math.min(100, pct)), suffix);
+    }
+
+    /** A phase with no total yet ("waiting", "queued", "sketching"): an open-ended [~] segment. */
+    public static void phase(String tag, String key, String phase, String suffix) {
+        track(tag, key, phase, UNKNOWN, suffix);
+    }
+
+    private static void track(String tag, String key, String phase, int pct, String suffix) {
+        Job before = JOBS.get(key);
+        boolean same = before != null && before.phase.equals(phase);
+        Job job = new Job(phase, pct, suffix, same ? before.since : System.currentTimeMillis());
+        JOBS.put(key, job);
+        if (same && before.pct == pct && (pct != UNKNOWN || before.suffix.equals(suffix))) {
             return;
         }
         if (live()) {
@@ -36,10 +58,10 @@ public final class Progress {
             return;
         }
         int step = SeuratConstants.PROGRESS_STEP_PCT;
-        if (p / step > (before == null ? 0 : before.pct / step)) {
-            Log.info(tag, key + " progress=" + bar(p) + " " + p + "%" + suffix);
+        if (pct != UNKNOWN && pct / step > (same ? Math.max(0, before.pct) / step : 0)) {
+            Log.info(tag, job.text(key, "progress="));
         } else if (Log.isDebugEnabled()) {
-            Log.debug(tag, key + " progress=" + bar(p) + " " + p + "%" + suffix);
+            Log.debug(tag, job.text(key, "progress="));
         }
     }
 
@@ -63,7 +85,7 @@ public final class Progress {
             return "";
         }
         StringJoiner all = new StringJoiner(" | ");
-        JOBS.forEach((key, job) -> all.add(key + " " + bar(job.pct) + " " + job.pct + "%" + job.suffix));
+        JOBS.forEach((key, job) -> all.add(job.text(key, "")));
         String text = all.toString();
         int cols = columns() - 1;
         return text.length() > cols ? text.substring(0, cols) : text;
@@ -78,6 +100,15 @@ public final class Progress {
         int cells = SeuratConstants.PROGRESS_BAR_CELLS;
         int full = pct * cells / 100;
         return "[" + "#".repeat(full) + "-".repeat(cells - full) + "]";
+    }
+
+    /** " eta=…" to the whole second once the phase has run long enough to extrapolate, else "". */
+    static String eta(int pct, long elapsedMs) {
+        if (pct <= 0 || pct >= 100 || elapsedMs < SeuratConstants.PROGRESS_ETA_MIN_MS) {
+            return "";
+        }
+        long left = elapsedMs * (100 - pct) / pct;
+        return " eta=" + LogUnits.duration(Math.round(left / 1000.0) * 1000);
     }
 
     private static boolean live() {

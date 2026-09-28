@@ -47,7 +47,7 @@ final class ZipUnpacker {
                 if (!MasterFormats.isMaster(lower)) {
                     continue;
                 }
-                String workId = base.replaceAll("\\.[^.]+$", "");
+                String workId = MasterFormats.stem(base);
                 if (skip != null && skip.test(workId)) {
                     Log.info("ingest", subject + " entry skipped work=" + workId + ": already ready");
                     skipped++;
@@ -60,7 +60,7 @@ final class ZipUnpacker {
                     skipped++;
                     continue;
                 }
-                extract(in, entry, out);
+                extract(in, entry, out, "work=" + workId);
                 list.add(out);
                 extracted++;
             }
@@ -81,12 +81,11 @@ final class ZipUnpacker {
         return list;
     }
 
-    private static void extract(ZipFile in, ZipEntry entry, Path out) throws Exception {
+    private static void extract(ZipFile in, ZipEntry entry, Path out, String key) throws Exception {
         String name = out.getFileName().toString();
-        String key = "file=" + name;
         long size = entry.getSize();
         Path tmp = out.resolveSibling(name + ".tmp");
-        Log.info("ingest", key + " extracting size=" + LogUnits.bytes(size));
+        Log.info("ingest", key + " extracting file=" + name + " size=" + LogUnits.bytes(size));
         long start = System.currentTimeMillis();
         long written = 0;
         byte[] buf = new byte[BUFFER_SIZE];
@@ -97,7 +96,7 @@ final class ZipUnpacker {
                 os.write(buf, 0, read);
                 written += read;
                 if (size > 0) {
-                    Progress.update("ingest", key, (int) (written * 100 / size),
+                    Progress.update("ingest", key, "unzipping", (int) (written * 100 / size),
                             " rate=" + LogUnits.rate(written, System.currentTimeMillis() - start));
                 }
             }
@@ -106,7 +105,7 @@ final class ZipUnpacker {
         }
         Files.move(tmp, out, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         long elapsed = System.currentTimeMillis() - start;
-        Log.info("ingest", key + " extracted size=" + LogUnits.bytes(written) + " took="
+        Log.info("ingest", key + " extracted file=" + name + " size=" + LogUnits.bytes(written) + " took="
                 + LogUnits.duration(elapsed) + " rate=" + LogUnits.rate(written, elapsed));
     }
 }

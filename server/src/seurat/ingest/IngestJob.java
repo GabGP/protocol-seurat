@@ -8,6 +8,7 @@ import seurat.codec.Quant;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
 import seurat.store.WorkMeta;
@@ -64,6 +65,7 @@ public final class IngestJob implements Runnable {
                 WorkRecord work = catalog.get(id);
                 work.meta = new WorkMeta(id, name, w, h, 256, top + 1,
                         ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2);
+                Progress.phase("ingest", "work=" + id, "sketching", "");
                 SketchPhase.run(id, master, dir(1), () -> store(top, w, h, 1), top, w, h, catalog);
                 catalog.painting(id);
                 FileBrushStore ed2 = store(top, w, h, 2);
@@ -84,6 +86,8 @@ public final class IngestJob implements Runnable {
             if (work != null) {
                 catalog.sketch(id, work.store, ProtoCodes.ST_FALLIDA, work.meta.edition());
             }
+        } finally {
+            Progress.done("work=" + id);
         }
     }
 

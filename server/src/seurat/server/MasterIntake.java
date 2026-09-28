@@ -2,7 +2,6 @@ package seurat.server;
 
 import java.io.Closeable;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import seurat.catalog.Catalog;
@@ -10,10 +9,12 @@ import seurat.catalog.WorkRecord;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.ingest.IngestJob;
+import seurat.ingest.MasterFormats;
 import seurat.ingest.MasterHome;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.observe.LogUnits;
+import seurat.observe.Progress;
 import seurat.session.Canvas;
 import seurat.session.Session;
 import seurat.session.Sessions;
@@ -56,16 +57,19 @@ public final class MasterIntake implements Closeable {
                 return;
             }
             Log.info("ingest", "work=" + id + " ingest queued file=" + file.getFileName());
+            Progress.phase("ingest", "work=" + id, "queued", "");
             try {
                 ingest.execute(() -> {
                     try {
                         launch(id, file);
                     } finally {
+                        Progress.done("work=" + id);
                         watcher.done(file);
                     }
                 });
             } catch (RejectedExecutionException ex) {
                 Log.info("ingest", "work=" + id + " ingest dropped: shutting down");
+                Progress.done("work=" + id);
                 watcher.done(file);
             }
         });
@@ -74,26 +78,12 @@ public final class MasterIntake implements Closeable {
     private void launch(String id, Path file) {
         try {
             if (file.toString().endsWith(".zip")) {
-                Log.info("ingest", "zip=" + file.getFileName() + " unpack started");
+                Progress.done("work=" + id); // the zip's own queued segment: its works take over
                 // a work whose master is already home is resumed from there (watch), not unpacked again
-                List<Path> imgs = ZipUnpacker.unpack(file,
-                        w -> isLista(w) || MasterHome.find(config.works, w).isPresent());
-                if (imgs.isEmpty()) {
-                    return; // ZipUnpacker said why: up to date or unreadable
-                }
-                Log.info("ingest", "zip=" + file.getFileName() + " ingest started works=" + imgs.size());
-                long batchStart = System.currentTimeMillis();
-                for (Path img : imgs) {
-                    String name = img.getFileName().toString().replaceAll("\\.[^.]+$", "");
-                    ingest(name, name, img);
-                }
-                if (imgs.size() > 1) {
-                    Log.info("ingest", "zip=" + file.getFileName() + " ingest done works=" + imgs.size()
-                            + " took=" + LogUnits.duration(System.currentTimeMillis() - batchStart));
-                }
+                ZipIntake.run(file, w -> isLista(w) || MasterHome.find(config.works, w).isPresent(), this::ingest);
                 return;
             }
-            ingest(id, file.getFileName().toString().replaceAll("\\.[^.]+$", ""), file);
+            ingest(id, MasterFormats.stem(file.getFileName().toString()), file);
         } catch (Throwable ex) {
             AuditLog.alert("work=" + id + " ingest failed: " + LogUnits.cause(ex), ex);
         }
