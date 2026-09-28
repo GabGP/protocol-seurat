@@ -35,6 +35,7 @@ public final class Catalog {
 
     public void register(WorkRecord work) throws IOException {
         WorkRecord previous = records.put(work.meta.id(), work);
+        lastPct.remove(work.meta.id()); // a new pass counts from 0
         if (previous != null) {
             work.ceilings.putAll(previous.ceilings); // a new master keeps the work's policy
         }
@@ -53,14 +54,20 @@ public final class Catalog {
         }
     }
 
+    /** Spec 7.1 step 4 begins: OBRA(ESTADO, PINTANDO, 0), then progress() on every whole percent. */
+    public void painting(String id) {
+        WorkRecord work = records.get(id);
+        if (work != null) {
+            lastPct.put(id, 0);
+            sketch(id, work.store, ProtoCodes.ST_PINTANDO, work.meta.edition());
+        }
+    }
+
     public void sketch(String id, BrushStore store, int state, long edition) {
         WorkRecord work = records.get(id);
         if (work != null) {
             work.store = store;
-            work.meta = new seurat.store.WorkMeta(work.meta.id(), work.meta.name(),
-                    work.meta.width(), work.meta.height(), work.meta.side(),
-                    work.meta.strata(), state, edition, work.meta.ceilingStratum(),
-                    work.meta.ceilingBands());
+            work.meta = work.meta.with(state, edition);
             try {
                 persist(work);
             } catch (IOException ignored) {
@@ -83,9 +90,7 @@ public final class Catalog {
         WorkRecord work = records.remove(id);
         lastPct.remove(id);
         if (work != null) {
-            work.meta = new seurat.store.WorkMeta(work.meta.id(), work.meta.name(), work.meta.width(),
-                    work.meta.height(), work.meta.side(), work.meta.strata(), ProtoCodes.ST_RETIRADA,
-                    work.meta.edition(), work.meta.ceilingStratum(), work.meta.ceilingBands());
+            work.meta = work.meta.with(ProtoCodes.ST_RETIRADA, work.meta.edition());
             try {
                 persist(work);
             } catch (IOException ignored) {

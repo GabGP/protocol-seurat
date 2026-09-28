@@ -13,9 +13,9 @@ import seurat.store.FileBrushStore;
 import seurat.store.WorkMeta;
 
 /**
- * Two-phase ingest: ed1 sketch (BOCETO, servable at once) then the full
- * 256-row-band ed2 pass (PINTANDO -> LISTA). Decode runs on a read-ahead
- * thread while the pool encodes brushes.
+ * Spec 7.1: RECIBIENDO, the ed1 sketch when the master carries an overview (BOCETO), then the one
+ * sequential 256-row-band ed2 pass (PINTANDO -> LISTA). Decode runs on a read-ahead thread while
+ * the pool encodes brushes.
  */
 public final class IngestJob implements Runnable {
     private final String id;
@@ -45,7 +45,7 @@ public final class IngestJob implements Runnable {
             long start = System.currentTimeMillis();
             Log.info("ingest", "Ingest started for '" + id + "' [" + name + "] from " + master.getFileName());
             catalog.register(new WorkRecord(new WorkMeta(id, name, 0, 0, 256, 0,
-                    ProtoCodes.ST_RECIBIENDO, 1, 0, 2)));
+                    ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2)));
             try (MasterReader reader = new ReadAheadReader(new PngReader(master))) {
                 int w = reader.width();
                 int h = reader.height();
@@ -53,15 +53,11 @@ public final class IngestJob implements Runnable {
                 Log.info("ingest", "Work '" + id + "' dimensions: " + w + "x" + h + ", strata=" + (top + 1));
                 WorkRecord work = catalog.get(id);
                 work.meta = new WorkMeta(id, name, w, h, 256, top + 1,
-                        ProtoCodes.ST_RECIBIENDO, 1, 0, 2);
-                SketchPhase sketch = new SketchPhase(id, master, store(top, w, h, 1), top, catalog,
-                        new WorkMeta(id, name, w, h, 256, top + 1, ProtoCodes.ST_PINTANDO, 1, 0, 2));
+                        ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA, 0, 2);
+                SketchPhase.run(id, master, dir(1), () -> store(top, w, h, 1), top, w, h, catalog);
+                catalog.painting(id);
                 FileBrushStore ed2 = store(top, w, h, 2);
-                try {
-                    new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader, sketch.done());
-                } finally {
-                    sketch.join(); // BOCETO and PINTANDO land before LISTA or FALLIDA
-                }
+                new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader);
                 ed2.close();
                 catalog.sketch(id, ed2, ProtoCodes.ST_LISTA, 2);
                 catalog.list(id);
@@ -104,8 +100,12 @@ public final class IngestJob implements Runnable {
         return ((v + (1 << top) - 1) >> top) << top;
     }
 
+    private Path dir(int edition) {
+        return edition == 1 ? worksDir.resolve(id).resolve("ed1") : worksDir.resolve(id);
+    }
+
     private FileBrushStore store(int top, int w, int h, int edition) throws Exception {
-        Path dir = edition == 1 ? worksDir.resolve(id).resolve("ed1") : worksDir.resolve(id);
+        Path dir = dir(edition);
         int levels = top + 1;
         int[] nx = new int[levels];
         int[] ny = new int[levels];

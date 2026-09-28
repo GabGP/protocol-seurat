@@ -32,8 +32,7 @@ final class ImagePass {
         this.worksDir = worksDir;
     }
 
-    /** The pass; until {@code sketch} completes one core stays free for the sketch's own read. */
-    void run(MasterReader reader, java.util.concurrent.CompletionStage<?> sketch) throws Exception {
+    void run(MasterReader reader) throws Exception {
         if (top == 0) {
             runTopZero(reader);
             return;
@@ -47,14 +46,8 @@ final class ImagePass {
         List<short[][]> seed = new ArrayList<>();
         int cores = Runtime.getRuntime().availableProcessors();
         // close() waits for queued brushes: a failed pass leaves no threads or writers behind.
-        int full = Math.max(1, cores - 1);
-        try (java.util.concurrent.ThreadPoolExecutor pool = (java.util.concurrent.ThreadPoolExecutor)
-                    Executors.newFixedThreadPool(Math.max(1, full - 1));
+        try (ExecutorService pool = Executors.newFixedThreadPool(Math.max(1, cores - 1));
                 ExecutorService lane = Executors.newFixedThreadPool(cores)) {
-            sketch.thenRun(() -> {
-                pool.setMaximumPoolSize(full);
-                pool.setCorePoolSize(full);
-            });
             PassContext ctx = new PassContext(top, acc, store, pool, lane,
                     new java.util.ArrayDeque<>(), seed, new int[top]);
             int row = 0;
@@ -91,12 +84,9 @@ final class ImagePass {
         writeSeed(seed, width, height);
     }
 
-    /** PINTANDO's progress (spec 7.1 step 4): while the sketch runs the work is RECIBIENDO and says nothing. */
+    /** PINTANDO's progress (spec 7.1 step 4): OBRA(ESTADO) on every whole percent. */
     private void progress(MasterReader reader) {
-        seurat.catalog.WorkRecord work = catalog.get(id);
-        if (work != null && work.meta.state() != seurat.proto.ProtoCodes.ST_RECIBIENDO) {
-            catalog.progress(id, (int) (reader.fraction() * 100));
-        }
+        catalog.progress(id, (int) (reader.fraction() * 100));
     }
 
     private void writeSeed(List<short[][]> seed, int seedW, int seedH) throws Exception {

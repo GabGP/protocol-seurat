@@ -1,7 +1,6 @@
 package seurat.ingest;
 
 import java.nio.file.Files;
-import java.nio.file.Path;
 import seurat.codec.BrushEncoder;
 import seurat.codec.Quant;
 import seurat.codec.SeedCodec;
@@ -9,21 +8,18 @@ import seurat.codec.TransformS;
 import seurat.store.FileBrushStore;
 
 /**
- * ed1 sketch: subsampled master -> E7 -> S-pyramid -> zero-detail brushes
- * for s7..9 + seed. Servable while the full pass runs.
+ * ed1 sketch (spec 7.1 step 3): the master's overview -> S-pyramid -> zero-detail brushes for the
+ * three strata under the seed + the seed. Servable while the full pass runs.
  */
 final class SketchBuilder {
     private SketchBuilder() {}
 
-    static void build(Path master, FileBrushStore store, int top) throws Exception {
-        int q = 1 << Math.max(0, top - 3);
-        PngSubsampler.Subsampled sub = PngSubsampler.subsample(master, q);
-        if (sub == null) {
-            sub = SketchFallback.thumbnail(master, q);
-        }
-        if (sub == null) {
-            return;
-        }
+    /** Master pixels per overview sample, per side: the overview stands for stratum top - 3. */
+    static int sampling(int top) {
+        return 1 << Math.max(0, top - 3);
+    }
+
+    static void build(Overview.Sampled sub, FileBrushStore store, int top) throws Exception {
         int sw = sub.sw();
         int sh = sub.sh();
         int[][] e = sub.e();

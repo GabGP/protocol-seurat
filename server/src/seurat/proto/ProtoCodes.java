@@ -20,6 +20,9 @@ public final class ProtoCodes {
     public static final int ST_FALLIDA = 4;
     public static final int ST_RETIRADA = 5;
 
+    /** OBRA edición before any store is servable: 1 is the sketch, 2 the definitive (spec 3.3). */
+    public static final int ED_NINGUNA = 0;
+
     public static final int MOT_INICIAL = 0;
     public static final int MOT_MIRADA = 1;
     public static final int MOT_POLITICA = 2;

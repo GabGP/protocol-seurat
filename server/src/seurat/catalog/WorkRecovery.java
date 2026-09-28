@@ -42,7 +42,7 @@ final class WorkRecovery {
                 if (ceilings != null) {
                     work.ceilings.putAll(ceilings);
                 }
-                if (info.strata() > 0 && readyState(info.state())) {
+                if (info.strata() > 0 && servable(info)) {
                     attachStore(dir, info, work);
                 }
                 found.put(normId, work);
@@ -80,7 +80,10 @@ final class WorkRecovery {
         }
     }
 
-    private static boolean readyState(int state) {
-        return state == ProtoCodes.ST_BOCETO || state == ProtoCodes.ST_LISTA;
+    /** LISTA, or a pass that had a sketch to serve (spec 7.2: the edition 1 stays servable). */
+    private static boolean servable(seurat.store.WorkMeta info) {
+        int state = info.state();
+        return state == ProtoCodes.ST_LISTA
+                || ((state == ProtoCodes.ST_BOCETO || state == ProtoCodes.ST_PINTANDO) && info.edition() == 1);
     }
 }

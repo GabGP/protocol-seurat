@@ -38,8 +38,8 @@ public final class TestKit {
         return out;
     }
 
-    /** Master PNG with a deterministic gradient + grid, w x h. */
-    public static Path masterPng(Path dir, String name, int w, int h) throws IOException {
+    /** A deterministic gradient + grid, w x h. */
+    public static BufferedImage picture(int w, int h) {
         BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
@@ -49,6 +49,12 @@ public final class TestKit {
                 img.setRGB(x, y, (r << 16) | (g << 8) | b);
             }
         }
+        return img;
+    }
+
+    /** Master PNG of {@link #picture}. */
+    public static Path masterPng(Path dir, String name, int w, int h) throws IOException {
+        BufferedImage img = picture(w, h);
         Path out = dir.resolve(name);
         ImageIO.write(img, "png", out.toFile());
         return out;
@@ -56,15 +62,7 @@ public final class TestKit {
 
     /** Master JPEG (forces the ImageIO chunk path: no PNG streaming). */
     public static Path masterJpg(Path dir, String name, int w, int h) throws IOException {
-        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int r = (x * 255 / Math.max(1, w - 1) + y) & 0xFF;
-                int g = (y * 255 / Math.max(1, h - 1) + x) & 0xFF;
-                int b = ((x ^ y) + (x / 16 + y / 16) * 37) & 0xFF;
-                img.setRGB(x, y, (r << 16) | (g << 8) | b);
-            }
-        }
+        BufferedImage img = picture(w, h);
         Path out = dir.resolve(name);
         ImageIO.write(img, "jpg", out.toFile());
         return out;
