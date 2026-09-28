@@ -36,6 +36,8 @@ final class Listeners {
             case 200 -> "200 OK";
             case 201 -> "201 Created";
             case 202 -> "202 Accepted";
+            case 400 -> "400 Bad Request";
+            case 401 -> "401 Unauthorized";
             case 403 -> "403 Forbidden";
             case 500 -> "500 Internal Error";
             default -> "404 Not Found";

@@ -6,9 +6,12 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.catalog.Catalog;
+import seurat.catalog.RolePolicy;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
 import seurat.observe.Log;
@@ -57,10 +60,7 @@ final class WorkRoutes {
             return HttpSurface.json(202, "{\"estado\":\"recibiendo\"}");
         }
         if (req.method().equals("PUT") && tail.equals("/politica")) {
-            applyPolicy(id, new String(req.body(), StandardCharsets.UTF_8));
-            Log.info("admin", "Admin updated policy for work '" + id + "'");
-            onPolicy.accept(id);
-            return HttpSurface.json(200, "{\"ok\":true}");
+            return applyPolicy(id, new String(req.body(), StandardCharsets.UTF_8));
         }
         if (req.method().equals("DELETE") && tail.isEmpty()) {
             Log.info("admin", "Admin withdrew work '" + id + "'");
@@ -92,16 +92,26 @@ final class WorkRoutes {
         return req.length();
     }
 
-    private void applyPolicy(String id, String body) {
+    /** Validated (RolePolicy) and persisted before any open canvas hears of it. */
+    private HttpSurface.Response applyPolicy(String id, String body) throws IOException {
         WorkRecord work = catalog.get(id);
         if (work == null) {
-            return;
+            return HttpSurface.json(404, "{\"error\":\"no existe\"}");
         }
-        for (String role : new String[]{WorkRecord.ANONYMOUS, WorkRecord.AUTHENTICATED, WorkRecord.PRIVILEGED}) {
+        Map<String, long[]> changes = new HashMap<>();
+        for (String role : WorkRecord.ROLES) {
             long[] pair = HttpSurface.pair(body, role);
             if (pair != null) {
-                work.ceilings.put(role, pair);
+                changes.put(role, pair);
             }
         }
+        Map<String, long[]> next = RolePolicy.merge(work.ceilings, changes);
+        if (next == null) {
+            return HttpSurface.json(400, "{\"error\":\"politica\"}");
+        }
+        catalog.policy(work, next);
+        Log.info("admin", "Admin updated policy for work '" + id + "'");
+        onPolicy.accept(id);
+        return HttpSurface.json(200, "{\"ok\":true}");
     }
 }

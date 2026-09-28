@@ -6,6 +6,8 @@ import seurat.store.WorkMeta;
 
 /** Minimal meta.json reader/writer. No dependencies. Ids are filenames and may hold commas. */
 final class MetaJson {
+    private static final String CEILING = "techo.";
+
     private MetaJson() {}
 
     static String write(WorkRecord work) {
@@ -13,7 +15,29 @@ final class MetaJson {
         return "{\"id\":\"" + esc(m.id()) + "\",\"name\":\"" + esc(m.name())
                 + "\",\"width\":" + m.width() + ",\"height\":" + m.height()
                 + ",\"side\":" + m.side() + ",\"strata\":" + m.strata()
-                + ",\"state\":" + m.state() + ",\"edition\":" + m.edition() + "}";
+                + ",\"state\":" + m.state() + ",\"edition\":" + m.edition() + ceilings(work) + "}";
+    }
+
+    /** Ceilings per role (spec 8: meta.json holds them), as "techo.<role>":"stratum/bands". */
+    private static String ceilings(WorkRecord work) {
+        StringBuilder b = new StringBuilder();
+        for (String role : WorkRecord.ROLES) {
+            long[] c = work.ceiling(role);
+            b.append(",\"").append(CEILING).append(role).append("\":\"").append(c[0]).append('/').append(c[1]).append('"');
+        }
+        return b.toString();
+    }
+
+    /** The ceilings meta.json records, valid ones only; absent or broken ones keep the defaults. */
+    static Map<String, long[]> ceilings(String json) {
+        Map<String, long[]> out = new HashMap<>();
+        for (var e : parse(json).entrySet()) {
+            String[] v = e.getValue().split("/");
+            if (e.getKey().startsWith(CEILING) && v.length == 2 && v[0].matches("\\d{1,2}") && v[1].matches("\\d")) {
+                out.put(e.getKey().substring(CEILING.length()), new long[]{Long.parseLong(v[0]), Long.parseLong(v[1])});
+            }
+        }
+        return out;
     }
 
     static WorkMeta read(String id, String json) {

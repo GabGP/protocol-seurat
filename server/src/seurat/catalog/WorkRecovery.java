@@ -24,7 +24,8 @@ final class WorkRecovery {
                 Path dir = meta.getParent();
                 if (dir.getFileName().toString().equals("ed1")) continue;
                 String defaultId = worksDir.relativize(dir).toString().replace('\\', '/');
-                var info = MetaJson.read(defaultId, Files.readString(meta));
+                String json = Files.readString(meta);
+                var info = MetaJson.read(defaultId, json);
                 if (info.state() == ProtoCodes.ST_RETIRADA) {
                     doomed.add(dir); // withdrawn: its files can go now (spec 7.4)
                     continue;
@@ -37,6 +38,10 @@ final class WorkRecovery {
                     continue;
                 }
                 WorkRecord work = new WorkRecord(info);
+                var ceilings = RolePolicy.merge(work.ceilings, MetaJson.ceilings(json));
+                if (ceilings != null) {
+                    work.ceilings.putAll(ceilings);
+                }
                 if (info.strata() > 0 && readyState(info.state())) {
                     attachStore(dir, info, work);
                 }

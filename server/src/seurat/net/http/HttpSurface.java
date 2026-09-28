@@ -89,18 +89,25 @@ public final class HttpSurface {
         return num.isEmpty() ? dflt : Long.parseLong(num);
     }
 
+    /** "key":[a,b] as {a, b}; null when the key is absent, empty when it is malformed. */
     static long[] pair(String json, String key) {
         int i = json.indexOf("\"" + key + "\"");
         if (i < 0) {
             return null;
         }
-        String sub = json.substring(json.indexOf('[', i), json.indexOf(']', i) + 1)
-                .replaceAll("[^0-9,]", "");
-        String[] parts = sub.split(",");
-        if (parts.length != 2) {
-            return null;
+        int open = json.indexOf('[', i);
+        int close = json.indexOf(']', i);
+        if (open < 0 || close < open) {
+            return new long[0];
         }
-        return new long[]{Long.parseLong(parts[0]), Long.parseLong(parts[1])};
+        String[] parts = json.substring(open + 1, close).split(",");
+        try {
+            return parts.length == 2
+                    ? new long[]{Long.parseLong(parts[0].trim()), Long.parseLong(parts[1].trim())}
+                    : new long[0];
+        } catch (NumberFormatException ex) {
+            return new long[0];
+        }
     }
 
     static Response json(int code, String body) {

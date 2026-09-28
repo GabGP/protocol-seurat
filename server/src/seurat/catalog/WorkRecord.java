@@ -1,7 +1,8 @@
 package seurat.catalog;
 
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import seurat.store.BrushStore;
 import seurat.store.WorkMeta;
 
@@ -10,9 +11,11 @@ public final class WorkRecord {
     public static final String ANONYMOUS = "anonimo";
     public static final String AUTHENTICATED = "autenticado";
     public static final String PRIVILEGED = "privilegiado";
+    /** Weakest first: each role's ceiling must cover the one before it (spec 9.1, nested masks). */
+    public static final List<String> ROLES = List.of(ANONYMOUS, AUTHENTICATED, PRIVILEGED);
 
     public volatile WorkMeta meta;
-    public final Map<String, long[]> ceilings = new HashMap<>();
+    public final Map<String, long[]> ceilings = new ConcurrentHashMap<>();
     public volatile BrushStore store;
 
     public WorkRecord(WorkMeta meta) {

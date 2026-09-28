@@ -34,7 +34,10 @@ public final class Catalog {
     }
 
     public void register(WorkRecord work) throws IOException {
-        records.put(work.meta.id(), work);
+        WorkRecord previous = records.put(work.meta.id(), work);
+        if (previous != null) {
+            work.ceilings.putAll(previous.ceilings); // a new master keeps the work's policy
+        }
         persist(work);
         emit(message(work, ProtoCodes.OBRA_ALTA, 0));
     }
@@ -99,6 +102,12 @@ public final class Catalog {
             out.add(message(work, ProtoCodes.OBRA_LISTADO, pct));
         }
         return out;
+    }
+
+    /** PUT .../politica: the new ceilings (already valid, see RolePolicy) survive a restart. */
+    public void policy(WorkRecord work, Map<String, long[]> ceilings) throws IOException {
+        work.ceilings.putAll(ceilings);
+        persist(work);
     }
 
     public WorkRecord get(String id) {

@@ -6,9 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import seurat.catalog.Catalog;
+import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
 import seurat.kit.TestKit;
 import seurat.session.Sessions;
+import seurat.store.WorkMeta;
 
 /** HTTP surface: static, session issue, admin obras routes. */
 public final class HttpSurfaceTest {
@@ -82,11 +84,20 @@ public final class HttpSurfaceTest {
                 Map.of("x-admin-token", "test-admin"), new byte[]{1, 2, 3}, "h"));
         TestKit.check(put.code() == 202 && masters.equals(List.of("img1"))
                 && Files.exists(config.inbox.resolve("img1")), "PUT master to inbox");
+        catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 2)));
         var policy = http.route(new HttpSurface.Request("PUT",
                 "/seurat/v1/obras/img1/politica", Map.of("x-admin-token", "test-admin"),
                 "{\"autenticado\":[1,4]}".getBytes(), "h"));
-        TestKit.check(policy.code() == 200 && policies.equals(List.of("img1")),
-                "PUT politica");
+        TestKit.check(policy.code() == 200 && policies.equals(List.of("img1"))
+                && catalog.get("img1").ceiling("autenticado")[0] == 1, "PUT politica");
+        for (String body : new String[]{"{\"privilegiado\":[2,4]}", "{\"anonimo\":[0,5]}", "{\"anonimo\":[x]}"}) {
+            var bad = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1/politica",
+                    Map.of("x-admin-token", "test-admin"), body.getBytes(), "h"));
+            TestKit.check(bad.code() == 400 && policies.size() == 1, "400 for " + body);
+        }
+        var unknown = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/zzz/politica",
+                Map.of("x-admin-token", "test-admin"), "{\"anonimo\":[1,4]}".getBytes(), "h"));
+        TestKit.check(unknown.code() == 404, "PUT politica on an unknown work");
         var delete = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
                 Map.of("x-admin-token", "test-admin"), new byte[0], "h"));
         TestKit.check(delete.code() == 200 && withdrawn.equals(List.of("img1")), "DELETE");

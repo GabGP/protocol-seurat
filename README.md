@@ -103,7 +103,7 @@ curl -X PUT \
   http://localhost:8180/seurat/v1/obras/mona-lisa
 ```
 
-To update role-based density ceilings for a work:
+To update role-based density ceilings (`[stratum, bands]`) for a work:
 ```bash
 curl -X PUT \
   -H "X-Admin-Token: cambia-esto" \
@@ -111,6 +111,7 @@ curl -X PUT \
   -d '{"anonimo":[2,4],"autenticado":[1,4],"privilegiado":[0,4]}' \
   http://localhost:8180/seurat/v1/obras/mona-lisa/politica
 ```
+Open sessions get the change at once (`CONCESION`, plus `RASPAR` when it lowers a ceiling). The ceilings are saved in the work's `meta.json` and survive restarts and new masters. The server answers `400` if a value is out of range (stratum 0–10, bands 1–4) or if a role would get more than a stronger one (anonymous ≤ `autenticado` ≤ `privilegiado`, §9.1).
 
 To withdraw and delete a work:
 ```bash
