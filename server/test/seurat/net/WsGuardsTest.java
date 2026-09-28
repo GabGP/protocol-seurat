@@ -37,18 +37,19 @@ import seurat.session.Easel;
 import seurat.session.EaselContext;
 import seurat.session.Sessions;
 
-/** WS guards: foreign Origin / no seurat.1 refused (9.2, 3.5); malformed frame fatal (8). */
+/** WS guards: foreign or no Origin / no seurat.1 refused (9.2, 3.5); malformed frame fatal (8). */
 public final class WsGuardsTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("ws-guards");
         int port = WsClient.serve(root, new Catalog(root.resolve("obras")));
         refusedUpgrade(port, "Origin: http://evil.example" + WsClient.CRLF + "Sec-WebSocket-Protocol: seurat.1" + WsClient.CRLF);
-        refusedUpgrade(port, "");
+        refusedUpgrade(port, "Sec-WebSocket-Protocol: seurat.1" + WsClient.CRLF);
+        refusedUpgrade(port, "Origin: http://x" + WsClient.CRLF);
         malformedIsFatal(port);
         System.out.println("WsGuardsTest OK");
     }
 
-    /** CSWSH (spec 9.2) and the major version (3.5): foreign Origin or no seurat.1 is refused. */
+    /** CSWSH (spec 9.2) and the major version (3.5): a foreign or absent Origin, or no seurat.1, is refused. */
     static void refusedUpgrade(int port, String extra) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             socket.setSoTimeout(5000);
@@ -61,7 +62,7 @@ public final class WsGuardsTest {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             socket.setSoTimeout(5000);
             String token = WsClient.postSession(port);
-            WsClient.wsHandshake(socket, "Sec-WebSocket-Protocol: seurat.1" + WsClient.CRLF);
+            WsClient.wsHandshake(socket, "Origin: http://x" + WsClient.CRLF + "Sec-WebSocket-Protocol: seurat.1" + WsClient.CRLF);
             WsClient.sendWs(socket.getOutputStream(), 0, WsClient.hello(token));
             WsClient.readControl(socket.getInputStream());
             WsClient.sendWs(socket.getOutputStream(), 0, WsClient.frame(FrameType.RECIBO, new byte[]{1, 0x41}));

@@ -27,13 +27,13 @@ public final class WsHandshake {
     }
 
     /**
-     * CSWSH defense: a browser always sends Origin; it must be this server (same host) or
-     * one the operator allowed. A client without Origin is not a browser page.
+     * CSWSH defense (spec 3.1, 9.2: the upgrade checks Origin): it must be this server (same
+     * host) or one the operator allowed. A browser always sends it; an upgrade without one is refused.
      */
     public static boolean originAllowed(Map<String, String> headers, List<String> allowed) {
         String origin = headers.get("origin");
         if (origin == null) {
-            return true;
+            return false;
         }
         if (allowed.contains(origin)) {
             return true;
