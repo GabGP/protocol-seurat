@@ -29,8 +29,8 @@ export const PREVIEW_OPEN_TIMEOUT_MS = 5000;
 /** Decode workers for previews (never more than the synthesis pool), and a decode's deadline before its worker is replaced. */
 export const PREVIEW_DECODERS_MAX = 4;
 export const PREVIEW_DECODE_TIMEOUT_MS = 10_000;
-/** A preview's decoded brushes are kept this long after its last compose, for the next piece to build on. */
-export const PREVIEW_MEMO_KEEP_MS = 2000;
+/** A preview's decoded levels are kept this long after its last compose, for the next piece to build on. */
+export const PREVIEW_LEVELS_KEEP_MS = 2000;
 /** A card whose pieces kept coming while it was composed waits this long before the next compose, so a burst is one. */
 export const PREVIEW_RECOMPOSE_GAP_MS = 150;
 export const SCRAPE_TIMEOUT_MS = 10_000;

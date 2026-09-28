@@ -1,6 +1,5 @@
-import type { WorkPreview } from '@/entities/work/previews';
-import { finishPlanes, type FinishRequest, type FinishResult } from '@/workers/preview-finish';
-import type { DecodedPlanes } from './preview-decoder';
+import { finishRegion, type FinishRequest, type FinishResult } from '@/workers/preview-finish';
+import { cutRegion, patchRegion, type Planes, type Rect } from '@/workers/plane-shrink';
 
 /** The finishing worker's surface; the real Worker satisfies it structurally. */
 export interface FinishWorker {
@@ -17,27 +16,37 @@ function defaultFinisher(): FinishWorker | null {
   return new Worker(new URL('../../../workers/preview-finish.worker.ts', import.meta.url), { type: 'module' });
 }
 
+/** A finished part of a thumbnail: its RGBA and where it goes in the card's image. */
+export interface PreviewPatch {
+  rgba: Uint8ClampedArray;
+  rect: Rect;
+}
+
 /**
- * Shrinks a composed level to the card and turns it to RGBA in one worker, so the gallery's
- * largest per-pixel pass never blocks the page (a phone froze on it). The level's planes are
- * transferred: the caller must not use them again. Without a worker, or once it failed, the
- * same pass runs here.
+ * Shrinks the changed part of a composed level to the card and turns it to RGBA in one worker,
+ * so the gallery's largest per-pixel pass never blocks the page (a phone froze on it). Only the
+ * level samples that part reads are copied out; the level stays the caller's. Without a worker,
+ * or once it failed, the same pass runs here.
  */
 export class PreviewFinisher {
   private worker: FinishWorker | null | undefined;
   private next = 1;
-  private readonly waiting = new Map<number, { resolve: (p: WorkPreview) => void; reject: (e: Error) => void }>();
+  private readonly waiting = new Map<number, { rect: Rect; resolve: (p: PreviewPatch) => void; reject: (e: Error) => void }>();
 
   constructor(private readonly factory: FinishFactory = defaultFinisher) {}
 
-  finish(level: DecodedPlanes, shownWidth: number): Promise<WorkPreview> {
+  /** The part of `level` shown at `width × height` that samples the level's `dirty` part. */
+  finish(level: Planes, width: number, height: number, dirty: Rect): Promise<PreviewPatch> {
+    const { src, out } = patchRegion(level.width, level.height, width, height, dirty);
+    const req = { src, out, levelWidth: level.width, levelHeight: level.height, width, height };
+    const cut = cutRegion(level.planes, level.width, src);
     const worker = this.pick();
-    if (!worker) return Promise.resolve(finishPlanes(level, shownWidth));
+    if (!worker) return Promise.resolve({ rgba: finishRegion(req, cut), rect: out });
     const id = this.next++;
-    const planes = level.planes.map((p) => p.buffer as ArrayBuffer);
+    const planes = cut.map((p) => p.buffer as ArrayBuffer);
     return new Promise((resolve, reject) => {
-      this.waiting.set(id, { resolve, reject });
-      worker.postMessage({ id, planes, width: level.width, height: level.height, shownWidth }, planes);
+      this.waiting.set(id, { rect: out, resolve, reject });
+      worker.postMessage({ id, planes, ...req }, planes);
     });
   }
 
@@ -62,7 +71,7 @@ export class PreviewFinisher {
     const p = this.waiting.get(r.id);
     if (!p) return;
     this.waiting.delete(r.id);
-    if (r.rgba) p.resolve({ rgba: new Uint8ClampedArray(r.rgba), width: r.width, height: r.height });
+    if (r.rgba) p.resolve({ rgba: new Uint8ClampedArray(r.rgba), rect: p.rect });
     else p.reject(new Error('preview finish failed'));
   }
 

@@ -1,9 +1,9 @@
 import { dropWorkPreview, setWorkPreview } from '@/entities/work/previews';
-import { PREVIEW_MEMO_KEEP_MS, PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
+import { PREVIEW_LEVELS_KEEP_MS, PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 import type { PreviewLoan } from './preview-loan';
 import type { PreviewDecoder } from './preview-decoder';
 import { composePreview } from './preview-compose';
-import { BrushMemo } from './preview-memo';
+import { PreviewLevels } from './preview-levels';
 import { PreviewFinisher } from './preview-finisher';
 
 /**
@@ -11,13 +11,13 @@ import { PreviewFinisher } from './preview-finisher';
  * while it is composed is composed once more, PREVIEW_RECOMPOSE_GAP_MS after (pieces come in
  * bursts; each compose is a full pass over the card); `live` says whether it is still held,
  * and `idle` is told whenever a compose ends with nothing more to do for its loan. A loan's
- * decoded brushes are kept while its pieces keep coming (PREVIEW_MEMO_KEEP_MS after the last
- * compose), so each compose decodes only what changed; a finished thumbnail keeps none.
+ * decoded levels are kept while its pieces keep coming (PREVIEW_LEVELS_KEEP_MS after the last
+ * compose), so each compose decodes and shows only what changed; a finished thumbnail keeps none.
  */
 export class PreviewPainter {
   private readonly drawing = new Set<PreviewLoan>();
   private readonly stale = new Set<PreviewLoan>();
-  private readonly memos = new Map<PreviewLoan, { memo: BrushMemo; timer?: ReturnType<typeof setTimeout> }>();
+  private readonly kept = new Map<PreviewLoan, { levels: PreviewLevels; timer?: ReturnType<typeof setTimeout> }>();
 
   constructor(
     private readonly decoder: PreviewDecoder,
@@ -48,19 +48,19 @@ export class PreviewPainter {
 
   forget(loan: PreviewLoan): void {
     this.stale.delete(loan);
-    clearTimeout(this.memos.get(loan)?.timer);
-    this.memos.delete(loan);
+    clearTimeout(this.kept.get(loan)?.timer);
+    this.kept.delete(loan);
   }
 
   /** Ends every decode; composes in flight fail and end as their loans are no longer live. */
   dispose(): void {
-    for (const loan of [...this.memos.keys()]) this.forget(loan);
+    for (const loan of [...this.kept.keys()]) this.forget(loan);
     this.decoder.dispose();
     this.finisher.dispose();
   }
 
   private compose(loan: PreviewLoan): void {
-    composePreview(loan, this.decoder, this.memo(loan), this.finisher)
+    composePreview(loan, this.decoder, this.levels(loan), this.finisher)
       .then((img) => {
         if (img && loan.seed && this.live(loan)) setWorkPreview(loan.id, img);
       })
@@ -73,20 +73,20 @@ export class PreviewPainter {
       });
   }
 
-  /** Nothing more to compose for the loan: its brushes are kept a while, then dropped. */
+  /** Nothing more to compose for the loan: its levels are kept a while, then dropped. */
   private settle(loan: PreviewLoan): void {
     this.drawing.delete(loan);
-    const kept = this.memos.get(loan);
-    if (kept) kept.timer = setTimeout(() => this.forget(loan), PREVIEW_MEMO_KEEP_MS);
+    const kept = this.kept.get(loan);
+    if (kept) kept.timer = setTimeout(() => this.forget(loan), PREVIEW_LEVELS_KEEP_MS);
     this.idle();
   }
 
-  /** The loan's kept brushes (new when none are), no longer due to be dropped. */
-  private memo(loan: PreviewLoan): BrushMemo {
-    const kept = this.memos.get(loan) ?? { memo: new BrushMemo() };
+  /** The loan's kept levels (new when none are), no longer due to be dropped. */
+  private levels(loan: PreviewLoan): PreviewLevels {
+    const kept = this.kept.get(loan) ?? { levels: new PreviewLevels() };
     clearTimeout(kept.timer);
     kept.timer = undefined;
-    this.memos.set(loan, kept);
-    return kept.memo;
+    this.kept.set(loan, kept);
+    return kept.levels;
   }
 }

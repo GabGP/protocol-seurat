@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shrinkTo } from '@/workers/plane-shrink';
+import { cutRegion, patchRegion, shrinkRegion, shrinkTo } from '@/workers/plane-shrink';
 
 const planes = (w: number, h: number, v: (x: number, y: number) => number) => ({
   planes: [0, 1, 2].map(() => Int16Array.from({ length: w * h }, (_, i) => v(i % w, Math.floor(i / w)))),
@@ -24,5 +24,26 @@ describe('shrinkTo', () => {
     const src = planes(300, 4, () => 7);
     expect(shrinkTo(src, 300)).toBe(src);
     expect(shrinkTo(src, 0)).toBe(src);
+  });
+});
+
+describe('patchRegion', () => {
+  const src = planes(37, 23, (x, y) => (x * 131 + y * 71) % 512 - 256);
+  const full = shrinkTo(src, 11);
+
+  it('finishes a changed part exactly as the whole shrink has it', () => {
+    for (const dirty of [{ x: 0, y: 0, w: 5, h: 4 }, { x: 13, y: 9, w: 7, h: 3 }, { x: 30, y: 17, w: 7, h: 6 }, { x: 0, y: 0, w: 37, h: 23 }]) {
+      const { out, src: from } = patchRegion(37, 23, full.width, full.height, dirty);
+      expect(out.x * 37 / 11).toBeLessThanOrEqual(dirty.x);
+      expect((out.x + out.w) * 37 / 11).toBeGreaterThanOrEqual(dirty.x + dirty.w);
+      const part = shrinkRegion(cutRegion(src.planes, 37, from), from, 37, 23, full.width, full.height, out)[0] ?? [];
+      const whole = cutRegion(full.planes, full.width, out)[0] ?? [];
+      expect(Array.from(part)).toEqual(Array.from(whole));
+    }
+  });
+
+  it('is the changed part itself when nothing is shrunk', () => {
+    const dirty = { x: 3, y: 2, w: 4, h: 5 };
+    expect(patchRegion(37, 23, 37, 23, dirty)).toEqual({ out: dirty, src: dirty });
   });
 });
