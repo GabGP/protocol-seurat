@@ -3,6 +3,8 @@ import { Switch } from '@/shared/ui/Switch';
 import {
   DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type RenderFlags,
 } from '@/shared/lib/render-flags';
+import type { Account } from '@/entities/session/access-key';
+import { SignInSection } from '@/features/sign-in';
 import styles from './RenderSettingsPanel.module.css';
 
 interface Option {
@@ -38,8 +40,16 @@ const SECTIONS: Array<{ title: string; options: Option[] }> = [
   },
 ];
 
-/** Live render switches: every change applies on the next frame and is remembered in this browser. */
-export function RenderSettingsPanel({ onClose }: { onClose(): void }): JSX.Element {
+interface Props {
+  onClose(): void;
+  /** Who the current session is, shown under Account. */
+  account: Account | null;
+  /** The open work's ceiling for this viewer's role (ABIERTA), shown under Account. */
+  ceiling: { stratum: number; bands: number } | null;
+}
+
+/** Account, then live render switches: every change applies on the next frame and is remembered in this browser. */
+export function RenderSettingsPanel({ onClose, account, ceiling }: Props): JSX.Element {
   const flags = useRenderFlags();
   const isDefault = (Object.keys(DEFAULT_RENDER_FLAGS) as Array<keyof RenderFlags>)
     .every((k) => flags[k] === DEFAULT_RENDER_FLAGS[k]);
@@ -51,6 +61,7 @@ export function RenderSettingsPanel({ onClose }: { onClose(): void }): JSX.Eleme
           <Icon name="close" size={20} />
         </button>
       </div>
+      <SignInSection account={account} ceiling={ceiling} />
       {SECTIONS.map((s) => (
         <section key={s.title} className={styles.section}>
           <span className={styles.sectionTitle}>{s.title}</span>

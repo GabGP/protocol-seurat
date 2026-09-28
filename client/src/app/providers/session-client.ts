@@ -1,8 +1,8 @@
-import { postSession } from '@/shared/api/http';
+import { postSession, SessionAuthError, type SessionResponse } from '@/shared/api/http';
 import type { SeuratTransport } from '@/shared/api/transport';
 import { WsTransport } from '@/shared/api/ws';
 import { WtTransport } from '@/shared/api/wt';
-import { CLIENT_NAME } from '@/app/config';
+import { CLIENT_NAME } from '@/shared/config/constants';
 import { CAP_DATAGRAMAS, CAP_REANUDAR, T } from '@/shared/proto/messages';
 import {
   openCore,
@@ -40,6 +40,7 @@ import { concat, u64Decode, viEncode } from '@/shared/proto/varint';
 import { encodeFrame, FatalProtocolError } from '@/shared/proto/frame';
 import { splitFrame } from '@/shared/proto/frame';
 import { declareMemMib, loadResume, persistResume } from '@/entities/session/store';
+import { accountOf, loadAccessKey, saveAccessKey, type Account } from '@/entities/session/access-key';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
 export interface SessionEvents {
@@ -58,6 +59,8 @@ export interface SessionEvents {
   onStatus(s: string): void;
   /** The connection died without a fatal error: the provider resumes (REANUDAR) within L. */
   onDisconnect?(): void;
+  /** POST /sesion answered: the account and role of the session about to start. */
+  onAccount?(a: Account): void;
 }
 
 function tokenFromHex(hex: string): Uint8Array {
@@ -96,7 +99,8 @@ export class SessionClient {
     this.fatal = false;
     this.pendingOpens = [];
     const resume = loadResume();
-    const ses = await postSession(CLIENT_NAME, this.memMib, ['webtransport', 'websocket']);
+    const ses = await this.authenticate();
+    this.events.onAccount?.(accountOf(ses));
     const token = tokenFromHex(ses.token);
     const t = await this.connect(ses.lienzo, ses.respaldo);
     this.transport = t;
@@ -106,6 +110,20 @@ export class SessionClient {
     const s = { minVersion: 1, maxVersion: 1, caps: CAP_DATAGRAMAS | CAP_REANUDAR, memMib: this.memMib, token, resume: claim };
     t.sendControl(encodeFrame(T.SALUDO, helloCore(s), helloTlvs(s)));
     this.events.onStatus('hello');
+  }
+
+  /** POST /sesion as the signed-in account; a key the server no longer knows is forgotten, then anonymous. */
+  private async authenticate(): Promise<SessionResponse> {
+    const transports = ['webtransport', 'websocket'];
+    const key = loadAccessKey();
+    try {
+      return await postSession(CLIENT_NAME, this.memMib, transports, key);
+    } catch (e) {
+      if (!(e instanceof SessionAuthError) || key === null) throw e;
+      console.warn('Seurat: the access key was refused; continuing anonymously');
+      saveAccessKey(null);
+      return postSession(CLIENT_NAME, this.memMib, transports);
+    }
   }
 
   private async connect(url: string, fallbackUrl: string): Promise<SeuratTransport> {

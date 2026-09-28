@@ -7,6 +7,7 @@ import { MAX_RETIRED_HANDLES, RECONNECT_BASE_MS, RECONNECT_MAX_MS } from '@/shar
 import { ownedDeliveries } from '@/entities/delivery/store';
 import { T } from '@/shared/proto/messages';
 import { clearResume } from '@/entities/session/store';
+import type { Account } from '@/entities/session/access-key';
 import { applyWork, sortWorks } from '@/entities/work/store';
 import type { Work } from '@/entities/work/types';
 import type { WorkOpened, Welcome, Concession, PlanMsg, ProtocolError } from '@/shared/proto/messages';
@@ -17,6 +18,8 @@ import { frameBatch } from '@/shared/lib/frame-batch';
 
 export interface SeuratState {
   status: string;
+  /** Who the current session is (POST /sesion); null until the first one is issued. */
+  account: Account | null;
   works: Work[];
   welcome: Welcome | null;
   opened: WorkOpened | null;
@@ -42,6 +45,7 @@ export function useSeurat(): SeuratState {
 
 export function SeuratProvider({ children }: { children: ReactNode }): JSX.Element {
   const [status, setStatus] = useState('boot');
+  const [account, setAccount] = useState<Account | null>(null);
   const [works, setWorks] = useState<Work[]>([]);
   const [welcome, setWelcome] = useState<Welcome | null>(null);
   const [opened, setWorkOpened] = useState<WorkOpened | null>(null);
@@ -99,6 +103,9 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
         if (alive) setWelcome(b);
       },
       onDisconnect: () => reconnect(),
+      onAccount: (a) => {
+        if (alive) setAccount(a);
+      },
       onWork: (m) => {
         worksRef.current = applyWork(worksRef.current, m);
         const list = sortWorks([...worksRef.current.values()]);
@@ -287,12 +294,12 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
 
   const value = useMemo<SeuratState>(
     () => ({
-      status, works, welcome, opened, concession, plan, lastError, paintTick,
+      status, account, works, welcome, opened, concession, plan, lastError, paintTick,
       client: clientRef.current, sink: sinkRef.current, telemetry: telemetryRef.current,
       gazeService: gazesRef.current,
       retryConnect, closeWork,
     }),
-    [status, works, welcome, opened, concession, plan, lastError, paintTick],
+    [status, account, works, welcome, opened, concession, plan, lastError, paintTick],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

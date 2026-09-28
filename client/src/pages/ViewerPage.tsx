@@ -7,6 +7,7 @@ import { ViewerMinimap } from '@/widgets/ViewerMinimap';
 import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
 import { TelemetryPanel } from '@/widgets/TelemetryPanel';
 import { RenderSettingsPanel } from '@/widgets/RenderSettingsPanel';
+import { detailLabel } from '@/features/sign-in';
 import type { TelemetryInput } from '@/entities/telemetry/sections';
 import { ViewerTopBar } from '@/widgets/ViewerTopBar';
 import { LiveStatusPill } from '@/widgets/StatusPill';
@@ -55,9 +56,11 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
     [pct, fitPct, effectiveMaxZoom],
   );
   const workTag = seurat.works[idx]?.tag;
+  const opened = seurat.opened;
+  const detail = opened ? detailLabel(opened.ceilingStratum, opened.ceilingBands) : undefined;
   const rows = useMemo(
-    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, workTag),
-    [dims, mp, iw, ih, fitPct, seurat.status, workTag],
+    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, workTag, detail),
+    [dims, mp, iw, ih, fitPct, seurat.status, workTag, detail],
   );
 
   const handleBack = (): void => back(ui.menu, ui.info, ui.settings);
@@ -159,7 +162,11 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       />
       <ViewerMinimap api={api} feed={feeds.view} iw={iw} ih={ih} ready={ready} sink={seurat.sink} paintTick={seurat.paintTick} />
       {ui.info && <ViewerInfoPanel rows={rows} onClose={() => patchUi({ info: false })} />}
-      {ui.settings && <RenderSettingsPanel onClose={() => patchUi({ settings: false })} />}
+      {ui.settings && <RenderSettingsPanel
+          onClose={() => patchUi({ settings: false })}
+          account={seurat.account}
+          ceiling={opened ? { stratum: opened.ceilingStratum, bands: opened.ceilingBands } : null}
+        />}
       {ui.telemetry && <TelemetryPanel read={readTelemetry} onClose={() => patchUi({ telemetry: false })} />}
     </div>
   );

@@ -1,6 +1,8 @@
 export const PROTO_VERSION = 1;
 export const WS_SUBPROTOCOL = 'seurat.1';
 export const SESSION_PATH = '/seurat/v1/sesion';
+/** `cliente` in POST /sesion (spec 3.4.1). */
+export const CLIENT_NAME = 'visor/2.0';
 export const MAX_FRAME_BYTES = 64 * 1024;
 export const WT_READY_TIMEOUT_MS = 3000;
 export const GAZE_PER_S = 20;

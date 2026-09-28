@@ -10,5 +10,3 @@ export const LIMITS = {
   receiptBatch: 8,
   memMibFallback: 128,
 } as const;
-
-export const CLIENT_NAME = 'visor/2.0';

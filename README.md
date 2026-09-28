@@ -77,6 +77,18 @@ http://localhost:8180/
 
 The server serves the compiled Single Page Application (`client/dist/`) and manages WebSocket connections on `/seurat/v1/lienzo-ws`.
 
+### 3. Sign In for Full Detail
+
+By design (protocol §2.3, §9) an anonymous viewer never receives the finest detail. What a viewer may see depends on its role:
+
+| Role | Default ceiling per work | Brush budget (§9.2) |
+| :--- | :--- | :--- |
+| anonymous (no key) | stratum 1 (half resolution), 2 of 4 bands | 1 000 bands, 1/s, ≤ 25 % of the stratum |
+| `autenticado` | stratum 0 (native resolution), 2 of 4 bands | 20 000 bands, 10/s, ≤ 15 % of the stratum |
+| `privilegiado` | stratum 0, all 4 bands (full quality) | none |
+
+Accounts live in `seurat.conf` as `auth.accounts=name:key:role,...`. To sign in, open a work, press **S** (Settings), and enter the access key under **Account**. The page restarts its session with `Authorization: Bearer <key>` on `POST /seurat/v1/sesion`. **Details** (**I**) then shows the level of detail the account gets. The shipped `seurat.conf` has a `profesor` account (full quality) and an `invitado` account (authenticated); change their keys before deploying.
+
 ---
 
 ## Ingesting Images & Works
