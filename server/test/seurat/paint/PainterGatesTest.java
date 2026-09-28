@@ -14,7 +14,33 @@ public final class PainterGatesTest {
         redHoldsNewFlows();
         amberHalvesSlots();
         corruptBandServesPrefix();
+        windowWaitIsNotCongestion();
         System.out.println("PainterGatesTest OK");
+    }
+
+    /**
+     * Spec 6.3: dwell starts when the entry is "lista" (its turn, its session's gates open).
+     * An entry parked behind its own RECIBO.libre for 400 ms opens with ~0 dwell: no CoDel mark.
+     */
+    private static void windowWaitIsNotCongestion() throws Exception {
+        PainterTest.Rig rig = PainterTest.rig();
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().settle(seurat.proto.Ranges.of(1));
+        rig.canvas.free = 1;
+        Thread thread = Thread.ofPlatform().daemon().start(rig.painter);
+        rig.painter.enqueue(rig.canvas, List.of(
+                new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1),
+                new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
+        await(rig, 1);
+        rig.regulator.tick(List.of(rig.session)); // closes the first entry's tick
+        Thread.sleep(400);
+        rig.canvas.book().settle(seurat.proto.Ranges.of(2));
+        rig.painter.unpark(rig.canvas);
+        await(rig, 2);
+        TestKit.check(rig.mapping.deliveries.size() == 2, "credit releases the parked entry");
+        rig.regulator.tick(List.of(rig.session));
+        TestKit.check(!rig.regulator.congested(), "waiting on its own window is not server queueing");
+        thread.interrupt();
     }
 
     private static void await(PainterTest.Rig rig, int n) throws InterruptedException {

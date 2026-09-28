@@ -75,6 +75,7 @@ public final class PainterTest {
         Session session;
         RecordingMapping mapping;
         TestKit.FixedStore store;
+        Regulator regulator;
     }
 
     static Rig rig() throws Exception {
@@ -87,7 +88,8 @@ public final class PainterTest {
         rig.store.put(new BrushId(1, 1, 0), new byte[]{20}, new byte[]{21},
                 new byte[]{22}, new byte[]{23});
         rig.mapping = new RecordingMapping();
-        rig.painter = new Painter(new Regulator(),
+        rig.regulator = new Regulator();
+        rig.painter = new Painter(rig.regulator,
                 new BrushBudget(root.resolve("cov")), new Metrics());
         var sessions = new Sessions();
         rig.session = new Session(1, "p", "autenticado", 256, 3, rig.mapping,

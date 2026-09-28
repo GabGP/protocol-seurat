@@ -36,12 +36,19 @@ final class Opener {
         this.queue = queue;
     }
 
-    /** (c) and (e) plus the receiver/rate gates: cheap, leaf locks only (PaintQueue monitor). */
-    boolean ready(Canvas canvas) {
+    /**
+     * The session's own gates: (c), its (e) slots, rate and cola_ms. Cheap, leaf locks only
+     * (PaintQueue monitor). Waiting on these is flow control, not server queueing (spec 6.3).
+     */
+    boolean eligible(Canvas canvas) {
         Session s = canvas.session();
         return s != null && canvas.book().size() < canvas.concession().maxBrushes()
-                && canvas.book().unsettled() < canvas.free && s.canOpen()
-                && globalSlots.availablePermits() > 0;
+                && canvas.book().unsettled() < canvas.free && s.canOpen();
+    }
+
+    /** (e)'s global half: one of the 512 server-wide slots. */
+    boolean slotFree() {
+        return globalSlots.availablePermits() > 0;
     }
 
     void serve(Pending x) {
@@ -56,8 +63,8 @@ final class Opener {
                 PlanEvents.resolved(canvas, x.generation()); // (a)(b): planned on a stale state
                 return;
             }
-            if (!ready(canvas) || !session.takeSlot()) {
-                queue.pushFront(x);
+            if (!eligible(canvas) || !session.takeSlot()) {
+                queue.pushFront(x.unready());
                 return;
             }
             if (!globalSlots.tryAcquire()) {
@@ -107,7 +114,7 @@ final class Opener {
         Delivery delivery;
         try {
             int bytes = (int) Math.min(Integer.MAX_VALUE, canvas.store().bytes(e.brush(), e.from(), e.through()));
-            regulator.onStart(session, System.nanoTime() - x.queuedNs());
+            regulator.onStart(session, System.nanoTime() - x.readyNs());
             delivery = canvas.book().log(e.brush(), e.from(), e.through(), bytes, canvas.concession().epoch());
         } catch (Exception ex) {
             Log.warn("paint", "Cannot open brush " + e.brush() + " on canvas " + canvas.handle() + ": " + ex.getMessage());

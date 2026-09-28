@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import seurat.session.Canvas;
 
@@ -64,14 +65,29 @@ final class PaintQueue {
         notifyAll();
     }
 
-    /** Blocks until a canvas passes ready and has a head entry; pops the best head. */
-    synchronized Pending take(Predicate<Canvas> ready, long recheckMs) throws InterruptedException {
+    /**
+     * Blocks until a canvas passes eligible, a global slot is free and it has a head entry;
+     * pops the best head. An eligible head is stamped ready (CoDel dwell start) even while
+     * it loses to other sessions or waits for a global slot: that wait is server queueing.
+     */
+    synchronized Pending take(Predicate<Canvas> eligible, BooleanSupplier slotFree, long recheckMs)
+            throws InterruptedException {
         for (;;) {
             long now = System.nanoTime();
+            boolean slot = slotFree.getAsBoolean();
             Pending best = null;
             for (var e : byCanvas.entrySet()) {
-                Pending head = e.getValue().peekFirst();
-                if (head != null && ready.test(e.getKey()) && better(head, best, now)) {
+                ArrayDeque<Pending> q = e.getValue();
+                Pending head = q.peekFirst();
+                if (head == null || !eligible.test(e.getKey())) {
+                    continue;
+                }
+                if (!head.isReady()) {
+                    q.pollFirst();
+                    head = head.readyAt(now);
+                    q.addFirst(head);
+                }
+                if (slot && better(head, best, now)) {
                     best = head;
                 }
             }

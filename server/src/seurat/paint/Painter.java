@@ -91,7 +91,7 @@ public final class Painter implements Runnable {
     public void run() {
         for (;;) {
             try {
-                opener.serve(queue.take(opener::ready, SeuratConstants.PAINTER_WAIT_MS));
+                opener.serve(queue.take(opener::eligible, opener::slotFree, SeuratConstants.PAINTER_WAIT_MS));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 return;
