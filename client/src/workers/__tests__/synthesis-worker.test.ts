@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
-import type { SynthRequest, SynthResult } from '@/workers/protocol';
+import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 
 /** Deterministic xorshift32 so the golden hashes never drift. */
 function rng(seed: number): () => number {
@@ -118,5 +118,17 @@ describe('synthesis worker decode (golden)', () => {
     expect(parent.ok).toBe(true);
     const child = await run(base({ qC: 0, parentRef: key, bands: [bandBytes(1, r)], brush: 'kid/1' }));
     expect(child.ok).toBe(true);
+  });
+
+  it('a planes-only decode brings the same planes, no RGBA, and keeps nothing for children', async () => {
+    const seed = (): ArrayBuffer => seedBytes(13, 9, rng(11));
+    const full = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seed()], brush: 'full/1' }));
+    const bare = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seed()], brush: 'bare/1', planesOnly: true }));
+    expect(bare.ok).toBe(true);
+    expect(bare.rgba).toBeNull();
+    expect(bare.bitmap ?? null).toBeNull();
+    expect(fnv(...(bare.planes ?? []))).toBe(fnv(...(full.planes ?? [])));
+    const child = await run(base({ qC: 0, parentRef: 'bare/1', bands: [bandBytes(1, rng(3))], brush: 'kid/2' }));
+    expect(child.error).toBe(STALE_PARENT);
   });
 });

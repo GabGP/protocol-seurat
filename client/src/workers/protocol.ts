@@ -23,6 +23,8 @@ export interface SynthRequest {
   parentX?: number;
   parentY?: number;
   bands: ArrayBuffer[];
+  /** Reply with the planes alone: no RGBA, no bitmap, nothing kept in the parent cache. */
+  planesOnly?: boolean;
 }
 
 export interface SynthResult {

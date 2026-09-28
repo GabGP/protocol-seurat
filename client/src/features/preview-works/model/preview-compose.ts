@@ -59,7 +59,7 @@ function request(loan: PreviewLoan, head: PreviewPiece, run: PreviewPiece[]) {
   return {
     delivery: head.delivery, stratum: head.stratum, qY: head.qY, qC: head.qC, seed: false, seedWidth: 0, seedHeight: 0,
     brush: `preview:${loan.handle}:${brushKey(head.brushId, head.edition)}`, edition: head.edition,
-    bands: run.flatMap((p) => p.bands.map((b) => b.slice().buffer)),
+    bands: run.flatMap((p) => p.bands.map((b) => b.slice().buffer)), planesOnly: true,
   };
 }
 

@@ -1,6 +1,7 @@
 import type { SynthRequest, SynthResult } from './protocol';
 import { STALE_PARENT, SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL } from './protocol';
 import { ParentPlaneCache, type PlaneSet } from './synth-cache';
+import { planesToRgba, toBitmap } from './planes-rgba';
 
 /** Parent planes this worker synthesized or received: ref hits skip transfers. */
 const parents = new ParentPlaneCache(SYNTH_CACHE_SMALL, SYNTH_CACHE_MAIN, SYNTH_CACHE_GHOST);
@@ -125,15 +126,6 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   await w.write(data as unknown as Uint8Array<ArrayBuffer>);
   await w.close();
   return p;
-}
-
-async function toBitmap(rgba: Uint8ClampedArray, w: number, h: number): Promise<ImageBitmap | null> {
-  if (typeof createImageBitmap !== 'function' || typeof ImageData === 'undefined') return null;
-  try {
-    return await createImageBitmap(new ImageData(rgba as Uint8ClampedArray<ArrayBuffer>, w, h));
-  } catch {
-    return null;
-  }
 }
 
 function miss(req: SynthRequest, t0: number): void {
@@ -268,31 +260,16 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
       }
     }
 
-    // Retain a copy for future children: the transferred buffers detach below.
-    parents.store(ownKey(req), snapshot(planes));
-
-    const rgba = new Uint8ClampedArray(px * 4);
-    for (let i = 0; i < px; i++) {
-      const y = planes.Y[i] ?? 0;
-      const co = planes.Co[i] ?? 0;
-      const cg = planes.Cg[i] ?? 0;
-      const t = y - (cg >> 1);
-      const g = cg + t;
-      const b = t - (co >> 1);
-      const off = i * 4;
-      rgba[off] = b + co;
-      rgba[off + 1] = g;
-      rgba[off + 2] = b;
-      rgba[off + 3] = 255;
-    }
-
-    // Build the bitmap here, not on the main thread (it copies + decodes there); bytes are the fallback.
-    const bitmap = await toBitmap(rgba, w, h);
+    // Retain a copy for future children: the transferred buffers detach below. A planes-only decode
+    // (a gallery thumbnail, composed by its caller) needs neither that copy nor the RGBA.
+    if (!req.planesOnly) parents.store(ownKey(req), snapshot(planes));
+    const rgba = req.planesOnly ? null : planesToRgba(planes.Y, planes.Co, planes.Cg, px);
+    const bitmap = rgba ? await toBitmap(rgba, w, h) : null;
     const out: SynthResult = {
       delivery: req.delivery,
       synthesisId: req.synthesisId,
       ok: true,
-      rgba: bitmap ? null : (rgba.buffer as ArrayBuffer),
+      rgba: bitmap || !rgba ? null : (rgba.buffer as ArrayBuffer),
       bitmap,
       planes: [
         planes.Y.buffer as ArrayBuffer,
