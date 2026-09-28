@@ -96,7 +96,7 @@ Accounts live in `seurat.conf` as `auth.accounts=name:key:role,...`. To sign in,
 Images can be ingested into the pyramid store in two ways:
 
 ### Option A: Local Inbox Drop (Automatic Ingest)
-Place any PNG, JPEG, TIFF image, or `.zip` archive directly into the `.seurat/runtime/inbox/` directory:
+Place any PNG, JPEG, TIFF/BigTIFF, PSB/PSD image, or `.zip` archive of them directly into the `.seurat/runtime/inbox/` directory. The reader is picked by content: streaming parallel readers for PNG, baseline JPEG, 8-bit TIFF (none/LZW/Deflate/PackBits) and 8-bit RGB/gray Photoshop (raw/RLE), ImageIO for the rest. Embedded ICC profiles are ignored. See `docs/adr-03-ingest-decoders.md` for the benchmarks behind these choices.
 ```bash
 cp /path/to/my-image.png .seurat/runtime/inbox/mona-lisa.png
 ```
