@@ -6,6 +6,7 @@ import {
   LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, PREVIEW_OPEN_TIMEOUT_MS,
 } from '@/shared/config/constants';
 import type { SessionClient } from '@/app/providers/session-client';
+import type { WorkerFactory } from '@/entities/delivery/worker-pool';
 import { brushDelivery, inlineWorkers, seedDelivery, settle } from './preview-fixtures';
 
 /** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
@@ -14,7 +15,7 @@ const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): W
 });
 const FLAT = [120, 140, 200, 255];
 
-function recorder() {
+function recorder(workers = inlineWorkers) {
   const log = {
     opened: [] as string[], closed: [] as number[], receipts: [] as Array<{ completed: number[]; free: number }>,
     released: [] as Array<{ reason: number; ranges: number[] }>, scraped: [] as Array<{ count: number; kept: number[] }>,
@@ -29,12 +30,12 @@ function recorder() {
     sendScraped: (...a: unknown[]) => log.scraped.push({ count: a[4] as number, kept: a[6] as number[] }),
     sendInventory: (...a: unknown[]) => log.inventory.push(a[5] as number[]),
   } as unknown as SessionClient;
-  return { log, manager: new PreviewManager(() => client, inlineWorkers) };
+  return { log, manager: new PreviewManager(() => client, workers) };
 }
 
 /** Opens work-a as handle 101 and delivers its seed and three stratum-9 brushes. */
-async function fullPreview() {
-  const r = recorder();
+async function fullPreview(workers = inlineWorkers) {
+  const r = recorder(workers);
   r.manager.enqueue(['work-a', 'work-b']);
   r.manager.onWorkOpened('work-a', opened(101));
   r.manager.onDelivery(seedDelivery(101, 1, 300, 4));
@@ -84,6 +85,26 @@ describe('PreviewManager', () => {
     expect(img).toMatchObject({ width: 300, height: 4 });
     expect(Array.from(img?.rgba.subarray(0, 4) ?? [])).toEqual(FLAT);
     expect(log.released).toEqual([]);
+    manager.dispose();
+  });
+
+  it('decodes again only the brushes a new piece stands under', async () => {
+    const decoded: string[] = [];
+    const counting: WorkerFactory = () => {
+      const w = inlineWorkers();
+      const post = w.postMessage.bind(w);
+      w.postMessage = (req, ...rest) => { decoded.push(req.brush); post(req, ...rest); };
+      return w;
+    };
+    const { manager } = await fullPreview(counting);
+    decoded.length = 0;
+    for (let bx = 0; bx < 5; bx++) manager.onDelivery(brushDelivery(101, 5 + bx, 8, bx, 0));
+    await settle();
+    expect(decoded.length).toBe(5); // seed and stratum 9 kept: only stratum 8 is new
+    decoded.length = 0;
+    manager.onDelivery(brushDelivery(101, 10, 8, 0, 0, 0x12));
+    await settle();
+    expect(decoded.length).toBe(1); // the retouched brush alone
     manager.dispose();
   });
 
