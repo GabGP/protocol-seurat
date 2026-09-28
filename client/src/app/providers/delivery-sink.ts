@@ -5,6 +5,7 @@ import { receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
 import { AttentionHeat } from '@/entities/delivery/attention-heat';
 import { collectCandidates, inCore, ownedBrushes, type EvictView } from '@/entities/delivery/evict-candidate';
+import { Departures, type Departure } from '@/entities/delivery/departures';
 import { PaintedCones } from '@/entities/delivery/painted-cones';
 import { GazeMotion } from '@/entities/delivery/gaze-motion';
 import { rankHorizon } from '@/entities/delivery/horizon-rank';
@@ -83,6 +84,8 @@ export class DeliverySink {
   private view: EvictView | null = null;
   /** This view and the past ones the server may still be painting: never evicted from. */
   private readonly cones = new PaintedCones();
+  /** Why brushes left the book, for the refusal log. */
+  private readonly departures = new Departures();
   /** When `view` went on screen (s), so its brushes get the dwell as attention heat. */
   private viewSince = 0;
   private readonly gaze = new GazeMotion();
@@ -309,7 +312,8 @@ export class DeliverySink {
     const total = bands.reduce((n, b) => n + b.length, 0);
     const refusal = this.refuse(probe, total);
     if (refusal !== null) {
-      console.warn('Seurat: delivery ' + h.delivery + ' refused (' + refusal + '): a server fault');
+      console.warn(`Seurat: delivery ${h.delivery} (stratum ${probe.stratum}, bands [${h.from},${h.through})) `
+        + `refused (${refusal[0]}): ${refusal[1]}`);
       this.release([h.delivery], RELEASE_BUDGET);
       return;
     }
@@ -460,11 +464,14 @@ export class DeliverySink {
     return out;
   }
 
-  private removeSubtree(root: number, reason: number): number[] {
+  private removeSubtree(root: number, reason: number, why: Departure): number[] {
     const all = [root, ...this.descendants(root)];
     const removed = new Set(all);
     this.book.pendingReceipt = this.book.pendingReceipt.filter((n) => !removed.has(n));
+    const [held, max, at] = [this.book.byDelivery.size, this.maxBrushes(), performance.now()];
     for (const n of all) {
+      const gone = this.book.byDelivery.get(n);
+      if (gone) this.departures.note(brushKey(gone.brushId, gone.edition), why, n, at, held, max);
       this.settlement.mark(n); // it was held, so it arrived: settled whatever happens to it now
       this.pending.delete(n);
       this.inflight.delete(n);
@@ -488,7 +495,7 @@ export class DeliverySink {
     this.failed.add(delivery);
     if (!rec) return;
     this.book.pendingReceipt = this.book.pendingReceipt.filter((n) => n !== delivery);
-    const removed = this.removeSubtree(delivery, 0);
+    const removed = this.removeSubtree(delivery, 0, 'failed synthesis');
     this.release(removed, 2);
   }
 
@@ -524,6 +531,8 @@ export class DeliverySink {
   private replaceOlderEditions(rec: DeliveryRecord): void {
     const old = [...this.book.byDelivery.values()].filter((r) => r.brushId === rec.brushId && r.edition < rec.edition);
     for (const r of old) {
+      const [held, max] = [this.book.byDelivery.size, this.maxBrushes()];
+      this.departures.note(brushKey(r.brushId, r.edition), 'replaced', r.delivery, performance.now(), held, max);
       this.settlement.mark(r.delivery);
       r.rgba?.close();
       this.origin.delete(brushKey(r.brushId, r.edition));
@@ -548,10 +557,10 @@ export class DeliverySink {
       this.cancelled.add(n);
       this.settle(n);
       const brushId = this.book.byDelivery.get(n)?.brushId;
-      this.removeSubtree(n, 0);
+      this.removeSubtree(n, 0, 'cancelled');
       if (brushId !== undefined) {
         for (const [delivery, item] of this.pending) {
-          if (item.parentId === brushId) this.removeSubtree(delivery, 0);
+          if (item.parentId === brushId) this.removeSubtree(delivery, 0, 'cancelled');
         }
       }
     }
@@ -573,7 +582,7 @@ export class DeliverySink {
           pending.scraped += 1;
         }
       }
-      this.removeSubtree(n, 0);
+      this.removeSubtree(n, 0, 'scraped');
     }
     this.scrapes.push(pending);
     this.lastScrape = { through: r.through, epoch: r.epoch };
@@ -623,18 +632,25 @@ export class DeliverySink {
     this.scrapes = [];
   }
 
-  /** Spec 5.4: why this arrival cannot be held, or null. */
-  private refuse(rec: DeliveryRecord, bytes: number): string | null {
+  /** Spec 5.4: why this arrival cannot be held (the check, and what it found), or null. */
+  private refuse(rec: DeliveryRecord, bytes: number): [string, string] | null {
     const g = this.grant;
     if (g !== null) {
-      if (rec.stratum < g.minStratum || (rec.stratum === g.minStratum && rec.through > g.maxBands)) return 'concession';
+      if (rec.stratum < g.minStratum || (rec.stratum === g.minStratum && rec.through > g.maxBands)) {
+        return ['concession', `the concession allows stratum ${g.minStratum} with ${g.maxBands} bands at best, a server fault`];
+      }
       const s = this.lastScrape;
-      if (s !== null && rec.delivery > s.through && rec.epoch < s.epoch) return 'epoch';
+      if (s !== null && rec.delivery > s.through && rec.epoch < s.epoch) {
+        return ['epoch', `epoch ${rec.epoch} is older than the scrape of epoch ${s.epoch}, a server fault`];
+      }
     }
     const fits = (): boolean => this.book.byDelivery.size < this.maxBrushes()
       && ownedBytes(this.book) + bytes <= this.maxKiB() * 1024;
     if (!fits()) this.relieve(); // at capacity the pressure trigger holds: make room first (spec 5.2.3)
-    if (!fits()) return 'capacity';
+    if (!fits()) {
+      return ['capacity', `${this.book.byDelivery.size} of ${this.maxBrushes()} brushes and `
+        + `${Math.ceil(ownedBytes(this.book) / 1024)} of ${this.maxKiB()} KiB held, a server fault`];
+    }
     if (g === null || rec.stratum >= 10) return null;
     const { bx, by } = splitBrushId(rec.brushId);
     const seed = makeBrushId(10, 0, 0);
@@ -646,7 +662,7 @@ export class DeliverySink {
     if (held >= rec.through || !this.settlement.settledBelow(rec.delivery, (n) => this.book.byDelivery.has(n))) {
       return null; // parent held with ≥ b1 bands, or still on its way: the child waits for it
     }
-    return 'parent';
+    return ['parent', this.departures.parentMissing(brushKey(parentId, rec.edition), held, rec.through, performance.now())];
   }
 
   applyRenew(ranges: number[], order: number, leaseS: number, now: () => number): void {
@@ -673,7 +689,7 @@ export class DeliverySink {
       .map(([n]) => n);
     for (const n of expired) {
       if (!this.book.byDelivery.has(n)) continue;
-      const removed = this.removeSubtree(n, 0);
+      const removed = this.removeSubtree(n, 0, 'expired');
       this.expiredQueue.push(...removed);
     }
     if (this.expiredQueue.length > 0 && this.releaseTimer === 0) {
@@ -744,7 +760,7 @@ export class DeliverySink {
       if (candidates.length === 0) break;
       for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
         if (!over()) break;
-        for (const r of recs) if (this.book.byDelivery.has(r.delivery)) released.push(...this.removeSubtree(r.delivery, 0));
+        for (const r of recs) if (this.book.byDelivery.has(r.delivery)) released.push(...this.removeSubtree(r.delivery, 0, 'evicted'));
       }
     }
     if (released.length > 0) this.heat.prune(new Set(ownedBrushes(this.book).keys()));
