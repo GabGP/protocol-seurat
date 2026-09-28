@@ -9,7 +9,7 @@ import seurat.kit.TestKit;
  * their residuals.
  */
 public final class BrushEncoderTest {
-    private static final int N = Bands.PARENTS;
+    private static final int N = Geometry.PARENTS;
     private static final int SIDE = 128;
 
     public static void main(String[] args) {

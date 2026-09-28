@@ -19,6 +19,7 @@ import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
 import seurat.observe.LogLevel;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
@@ -39,12 +40,12 @@ public final class SeuratServer {
         Path base = Path.of(args.length > 0 ? args[0] : ".");
         SeuratConfig config = SeuratConfig.load(base.resolve("seurat.conf"));
         Log.setLevel(LogLevel.fromString(config.logLevel, LogLevel.INFO));
-        Log.info("server", "server starting protocol=Seurat/1 port=" + config.httpPort);
+        Log.info(LogTags.SERVER, "server starting protocol=Seurat/1 port=" + config.httpPort);
         Catalog catalog = new Catalog(config.works);
         Sessions sessions = new Sessions();
         catalog.observe(new Broadcast(sessions));
         catalog.load();
-        catalog.all().forEach(w -> Log.info("catalog", "work=" + w.meta.id() + " loaded size=" + w.meta.width()
+        catalog.all().forEach(w -> Log.info(LogTags.CATALOG, LogTags.work(w.meta.id()) + " loaded size=" + w.meta.width()
                 + "x" + w.meta.height() + " strata=" + w.meta.strata()));
         Regulator regulator = new Regulator();
         Painter painter = new Painter(regulator, new BrushBudget(config.coverage), new Metrics());
@@ -68,7 +69,8 @@ public final class SeuratServer {
                 });
         intake.watch();
         ScheduledExecutorService clock = Executors.newSingleThreadScheduledExecutor();
-        clock.scheduleAtFixedRate(() -> regulator.tick(sessions.all()), 250, 250, TimeUnit.MILLISECONDS);
+        clock.scheduleAtFixedRate(() -> regulator.tick(sessions.all()), SeuratConstants.CODEL_TICK_MS,
+                SeuratConstants.CODEL_TICK_MS, TimeUnit.MILLISECONDS);
         clock.scheduleAtFixedRate(guarded(liveness::tick), 1, 1, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(guarded(reaper::sweep), 1, 1, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(guarded(gazes::tick), SeuratConstants.GAZE_TICK_MS,
@@ -101,7 +103,7 @@ public final class SeuratServer {
             try {
                 tick.run();
             } catch (Throwable ex) {
-                Log.error("server", "timer tick failed: " + LogUnits.cause(ex), ex);
+                Log.error(LogTags.SERVER, "timer tick failed: " + LogUnits.cause(ex), ex);
             }
         };
     }

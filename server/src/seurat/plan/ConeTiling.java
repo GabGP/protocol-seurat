@@ -23,7 +23,7 @@ public final class ConeTiling {
     static List<BrushId> tile(int stratum, long x0, long y0, long x1, long y1,
             long width, long height) {
         List<BrushId> out = new ArrayList<>();
-        if (x1 <= x0 || y1 <= y0 || stratum > 10) {
+        if (x1 <= x0 || y1 <= y0 || stratum > SeuratConstants.SEED_STRATUM) {
             return out;
         }
         long f = 256L << stratum;
@@ -49,7 +49,7 @@ public final class ConeTiling {
     /** Opening sketch: seed + coarsest allowed brushes, coarse first. */
     public static List<PlanEntry> sketch(WorkMeta meta, int minStratum, BookView book) {
         List<PlanEntry> out = new ArrayList<>();
-        BrushId seed = new BrushId(SeuratConstants.SEED_STRATUM, 0, 0);
+        BrushId seed = BrushId.seed();
         if (book.bands(seed) < 1) {
             out.add(new PlanEntry(seed, 0, 1, 1));
         }

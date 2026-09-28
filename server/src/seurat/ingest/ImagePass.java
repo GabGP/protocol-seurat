@@ -10,9 +10,11 @@ import seurat.catalog.Catalog;
 import seurat.codec.SeedCodec;
 import seurat.codec.YCoCgR;
 import seurat.config.Units;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
 import seurat.store.FileBrushStore;
+import seurat.store.StoreFiles;
 
 /** The single full-resolution pass: bands in, brushes + seed out. */
 final class ImagePass {
@@ -94,13 +96,13 @@ final class ImagePass {
     private void progress(MasterReader reader) {
         double fraction = reader.fraction();
         catalog.progress(id, (int) (fraction * Units.PERCENT));
-        Progress.update("ingest", "work=" + id, "painting", (int) (fraction * Units.PERCENT), " rate="
+        Progress.update(LogTags.INGEST, LogTags.work(id), "painting", (int) (fraction * Units.PERCENT), " rate="
                 + LogUnits.pixelRate((long) (fraction * height) * width, System.currentTimeMillis() - start));
     }
 
     /** Every band is read: what is left is draining the strata, waiting on the brushes and the seed. */
     private void finishing() {
-        Progress.phase("ingest", "work=" + id, "finishing", "");
+        Progress.phase(LogTags.INGEST, LogTags.work(id), "finishing", "");
     }
 
     private void writeSeed(List<short[][]> seed, int seedW, int seedH) throws Exception {
@@ -113,7 +115,7 @@ final class ImagePass {
                 }
             }
         }
-        Files.write(worksDir.resolve(id).resolve("semilla.bin"),
+        Files.write(worksDir.resolve(id).resolve(StoreFiles.SEED),
                 SeedCodec.encode(planes, seedW, seedH));
     }
 }

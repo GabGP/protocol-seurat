@@ -5,10 +5,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import seurat.codec.Geometry;
 import seurat.ingest.IngestJob;
 import seurat.ingest.MasterFormats;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
+import seurat.store.StoreFiles;
 
 /** Restart recovery: read meta.json per work and rebuild LISTA stores. */
 final class WorkRecovery {
@@ -21,9 +23,9 @@ final class WorkRecovery {
         if (!Files.exists(worksDir)) return found;
         java.util.List<Path> doomed = new java.util.ArrayList<>(); // no book survives a restart
         try (var walk = Files.walk(worksDir)) {
-            for (Path meta : walk.filter(p -> p.getFileName().toString().equals("meta.json")).toList()) {
+            for (Path meta : walk.filter(p -> p.getFileName().toString().equals(StoreFiles.META)).toList()) {
                 Path dir = meta.getParent();
-                if (dir.getFileName().toString().equals("ed1")) continue;
+                if (dir.getFileName().toString().equals(StoreFiles.SKETCH_DIR)) continue;
                 String defaultId = worksDir.relativize(dir).toString().replace('\\', '/');
                 String json = Files.readString(meta);
                 var info = MetaJson.read(defaultId, json);
@@ -31,8 +33,8 @@ final class WorkRecovery {
                     doomed.add(dir); // withdrawn: its files can go now (spec 7.4)
                     continue;
                 }
-                if (info.state() == ProtoCodes.ST_LISTA && Files.isDirectory(dir.resolve("ed1"))) {
-                    doomed.add(dir.resolve("ed1")); // superseded sketch nobody uses (spec 7.2)
+                if (info.state() == ProtoCodes.ST_LISTA && Files.isDirectory(dir.resolve(StoreFiles.SKETCH_DIR))) {
+                    doomed.add(dir.resolve(StoreFiles.SKETCH_DIR)); // superseded sketch nobody uses (spec 7.2)
                 }
                 String normId = normalize(info.id());
                 if (!info.id().equals(normId) && found.containsKey(normId)) {
@@ -70,13 +72,13 @@ final class WorkRecovery {
         int[] nx = new int[top];
         int[] ny = new int[top];
         for (int stratum = 0; stratum < top; stratum++) {
-            nx[stratum] = IngestJob.div256(IngestJob.padTo(info.width(), top) >> stratum);
-            ny[stratum] = IngestJob.div256(IngestJob.padTo(info.height(), top) >> stratum);
+            nx[stratum] = Geometry.tiles(IngestJob.padTo(info.width(), top) >> stratum);
+            ny[stratum] = Geometry.tiles(IngestJob.padTo(info.height(), top) >> stratum);
         }
-        Path storeDir = info.edition() == 1 && Files.exists(dir.resolve("ed1"))
-                ? dir.resolve("ed1")
+        Path storeDir = info.edition() == 1 && Files.exists(dir.resolve(StoreFiles.SKETCH_DIR))
+                ? dir.resolve(StoreFiles.SKETCH_DIR)
                 : dir;
-        Path seed = storeDir.resolve("semilla.bin");
+        Path seed = storeDir.resolve(StoreFiles.SEED);
         if (Files.isRegularFile(seed) && Files.size(seed) > 4) {
             work.store = new FileBrushStore(storeDir, info, nx, ny);
         }

@@ -6,6 +6,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLongArray;
+import seurat.config.Units;
 
 /**
  * Ingest write path: persistent channels per stratum, bytes first and the
@@ -27,14 +28,14 @@ final class StoreWriter {
     /** Crash rule: truncate every .pinc to the max indexed end. */
     static void recover(Path dir, int[] nx) throws IOException {
         for (int stratum = 0; stratum < nx.length; stratum++) {
-            Path pi = dir.resolve("E" + stratum + ".idx");
-            Path pp = dir.resolve("E" + stratum + ".pinc");
+            Path pi = StoreFiles.idx(dir, stratum);
+            Path pp = StoreFiles.pinc(dir, stratum);
             if (!java.nio.file.Files.exists(pi) || !java.nio.file.Files.exists(pp)) {
                 continue;
             }
             long max = 0;
             try (FileChannel ch = FileChannel.open(pi, StandardOpenOption.READ)) {
-                ByteBuffer b = ByteBuffer.allocate(64 * 1024);
+                ByteBuffer b = ByteBuffer.allocate(Units.BYTES_PER_KIB * 64);
                 while (ch.read(b) > 0) {
                     b.flip();
                     while (b.remaining() >= IndexEntry.BYTES) {
@@ -61,12 +62,12 @@ final class StoreWriter {
             pincEnds = new AtomicLongArray(nx.length);
         }
         if (pincChannels[stratum] == null) {
-            FileChannel pinc = FileChannel.open(dir.resolve("E" + stratum + ".pinc"),
+            FileChannel pinc = FileChannel.open(StoreFiles.pinc(dir, stratum),
                     StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                     StandardOpenOption.READ);
             pincEnds.set(stratum, pinc.size());
             pincChannels[stratum] = pinc;
-            idxChannels[stratum] = FileChannel.open(dir.resolve("E" + stratum + ".idx"),
+            idxChannels[stratum] = FileChannel.open(StoreFiles.idx(dir, stratum),
                     StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                     StandardOpenOption.READ);
         }

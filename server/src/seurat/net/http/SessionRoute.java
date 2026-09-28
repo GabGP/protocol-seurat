@@ -10,6 +10,7 @@ import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.config.ViewerAccounts;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.session.Sessions;
 
 /**
@@ -42,7 +43,7 @@ final class SessionRoute {
         if (!auth.isEmpty()) {
             account = auth.startsWith(BEARER) ? config.accounts.find(auth.substring(BEARER.length()).trim()) : null;
             if (account == null || !WorkRecord.ROLES.contains(account.role())) {
-                Log.warn("session", "token refused: unknown Bearer key");
+                Log.warn(LogTags.SESSION, "token refused: unknown Bearer key");
                 return HttpSurface.json(401, "{\"error\":\"autenticacion\"}");
             }
         }
@@ -54,7 +55,7 @@ final class SessionRoute {
         String role = account != null ? account.role() : WorkRecord.ANONYMOUS;
         String principal = account != null ? "user-" + account.name() : "anon-" + anon; // names a coverage directory
         String token = sessions.issueToken(principal, role, memMib, SeuratConstants.TOKEN_TTL_S * Units.MS_PER_S);
-        Log.info("session", "token issued principal=" + principal + " role=" + role);
+        Log.info(LogTags.SESSION, "token issued principal=" + principal + " role=" + role);
         String host = req.host();
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
         String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + ws
@@ -63,7 +64,7 @@ final class SessionRoute {
         Map<String, String> headers = fresh
                 ? Map.of("Set-Cookie", ANON_COOKIE + "=" + anon + "; Path=/; HttpOnly; SameSite=Strict")
                 : Map.of();
-        return new HttpSurface.Response(201, "application/json", json.getBytes(StandardCharsets.UTF_8), headers);
+        return new HttpSurface.Response(HttpConstants.CREATED, HttpConstants.JSON, json.getBytes(StandardCharsets.UTF_8), headers);
     }
 
     private byte[] bytes() {

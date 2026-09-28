@@ -8,6 +8,7 @@ import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.proto.MsgHandshake;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
@@ -64,7 +65,7 @@ final class ResumeAdopter {
             closeQuietly(holder); // a retry while the adopter still looked alive
         }
         ctx.sessions().adopted(request.previousSession(), r, session);
-        Log.info("session", "s" + session.id() + " resumed canvases=" + handles.size());
+        Log.info(LogTags.SESSION, "s" + session.id() + " resumed canvases=" + handles.size());
         return new Result(handles, reissued);
     }
 

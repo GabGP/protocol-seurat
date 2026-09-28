@@ -12,18 +12,18 @@ public final class AuditLog {
 
     public static void alert(String msg) {
         keep("ALERT", msg);
-        Log.warn("audit", msg);
+        Log.warn(LogTags.AUDIT, msg);
     }
 
     /** A failure with a cause: one ERROR line with the stack, never a second copy elsewhere. */
     public static void alert(String msg, Throwable cause) {
         keep("ALERT", msg);
-        Log.error("audit", msg, cause);
+        Log.error(LogTags.AUDIT, msg, cause);
     }
 
     public static void info(String msg) {
         keep("INFO", msg);
-        Log.info("audit", msg);
+        Log.info(LogTags.AUDIT, msg);
     }
 
     public static String[] dump() {

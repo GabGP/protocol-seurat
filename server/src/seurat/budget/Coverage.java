@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import seurat.codec.BrushId;
+import seurat.codec.Geometry;
 import seurat.store.WorkMeta;
 
 /** Persistent coverage: 4 bits per E0/E1 brush (max bands delivered), mmap. Redelivery is free. */
@@ -18,10 +19,10 @@ final class Coverage {
     private final int w1;
 
     Coverage(Path path, WorkMeta meta) throws IOException {
-        w0 = (meta.width() + 255) / 256;
-        w1 = (meta.width() / 2 + 255) / 256;
-        total[0] = w0 * ((meta.height() + 255) / 256);
-        total[1] = w1 * ((meta.height() / 2 + 255) / 256);
+        w0 = Geometry.tiles(meta.width());
+        w1 = Geometry.tiles(meta.width() / 2);
+        total[0] = w0 * Geometry.tiles(meta.height());
+        total[1] = w1 * Geometry.tiles(meta.height() / 2);
         long bytes = (4L * (total[0] + total[1]) + 1) / 2;
         boolean fresh = !Files.exists(path);
         try (FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE,

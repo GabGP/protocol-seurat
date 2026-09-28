@@ -6,6 +6,7 @@ import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.plan.ConeTiling;
@@ -117,7 +118,7 @@ public final class GrantController {
             Ranges cancelled = painter.purge(canvas, next);
             send(session, FrameType.CONCESION, Concessions.message(canvas).encode());
             scrape(canvas, n, next.epoch(), cancelled, cuts, then);
-            Log.info("concession", canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
+            Log.info(LogTags.CONCESSION, canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
                     + " epoch=" + next.epoch() + " minStratum=" + next.minStratum() + " maxBands=" + next.maxBands());
         }
     }

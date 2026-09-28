@@ -21,13 +21,13 @@ final class ConePasses {
             BrushId parent = brush.parentCapped(top);
             while (true) {
                 core.add(parent);
-                if (parent.stratum() >= 10) {
+                if (parent.stratum() >= SeuratConstants.SEED_STRATUM) {
                     break;
                 }
                 parent = parent.parentCapped(top);
             }
         }
-        core.add(new BrushId(10, 0, 0));
+        core.add(BrushId.seed());
         Map<BrushId, Integer> held = new HashMap<>();
         List<PlanEntry> pass1 = new ArrayList<>();
         List<PlanEntry> pass2 = new ArrayList<>();

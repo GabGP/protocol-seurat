@@ -21,7 +21,7 @@ public final class BandsTest {
 
     private static void ordering() {
         ordering(256);
-        ordering(Bands.PARENTS);
+        ordering(Geometry.PARENTS);
     }
 
     private static void ordering(int n) {

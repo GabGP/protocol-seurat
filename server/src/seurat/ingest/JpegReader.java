@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.stream.IntStream;
+import seurat.codec.Geometry;
 import seurat.config.SeuratConstants;
 
 /**
@@ -22,7 +23,6 @@ import seurat.config.SeuratConstants;
  */
 final class JpegReader implements MasterReader {
     private static final int HEADER_BUFFER = 1 << 16;
-    private static final int BAND = 256;
 
     private final InputStream stream;
     private final JpegHeader j;
@@ -45,7 +45,7 @@ final class JpegReader implements MasterReader {
         this.scan = new JpegScan(j, stream);
         this.mcuHeight = 8 * j.vMax;
         this.mcuRows = (j.height + mcuHeight - 1) / mcuHeight;
-        this.per = Math.min(SeuratConstants.INGEST_JPEG_ROWS_IN_FLIGHT, BAND / mcuHeight);
+        this.per = Math.min(SeuratConstants.INGEST_JPEG_ROWS_IN_FLIGHT, Geometry.SIDE / mcuHeight);
         this.slots = new JpegMcuRow[2 * per];
         for (int i = 0; i < slots.length; i++) {
             slots[i] = new JpegMcuRow(j, scan.blocksPerRow);
@@ -76,15 +76,15 @@ final class JpegReader implements MasterReader {
     @Override
     public int[][] next() throws IOException {
         if (row >= j.height) return null;
-        int n = Math.min(BAND, j.height - row);
-        if (bands == null) bands = new int[2][BAND][j.width];
+        int n = Math.min(Geometry.SIDE, j.height - row);
+        if (bands == null) bands = new int[2][Geometry.SIDE][j.width];
         int until = Math.min(mcuRows, (row + n + mcuHeight - 1) / mcuHeight);
         while (emitted < until) {
             step();
         }
-        int[][] band = bands[(row / BAND) & 1];
+        int[][] band = bands[(row / Geometry.SIDE) & 1];
         row += n;
-        return n == BAND ? band : Arrays.copyOf(band, n);
+        return n == Geometry.SIDE ? band : Arrays.copyOf(band, n);
     }
 
     /** IDCT and emit the scanned group while the scan decodes the next one. */
@@ -117,7 +117,7 @@ final class JpegReader implements MasterReader {
         int top = m * mcuHeight;
         for (int y = 0; y < mcuHeight && top + y < j.height; y++) {
             int at = top + y;
-            slot(m).emit(m, y, bands[(at / BAND) & 1][at % BAND], prev, next);
+            slot(m).emit(m, y, bands[(at / Geometry.SIDE) & 1][at % Geometry.SIDE], prev, next);
         }
     }
 

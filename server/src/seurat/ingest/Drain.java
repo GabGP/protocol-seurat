@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import seurat.codec.BrushEncoder;
+import seurat.codec.Geometry;
 import seurat.codec.Quant;
 import seurat.codec.TransformS;
 import seurat.config.SeuratConstants;
@@ -25,12 +26,12 @@ final class Drain {
     void drain() {
         Accumulator a = ctx.acc()[stratum];
         int w2 = a.width / 2;
-        int[][] ps = new int[3][128 * w2];
-        int[][] hd = new int[3][128 * w2];
-        int[][] vd = new int[3][128 * w2];
-        int[][] dd = new int[3][128 * w2];
+        int[][] ps = new int[3][Geometry.HALF * w2];
+        int[][] hd = new int[3][Geometry.HALF * w2];
+        int[][] vd = new int[3][Geometry.HALF * w2];
+        int[][] dd = new int[3][Geometry.HALF * w2];
         forwardAll(a, ps, vd, hd, dd);
-        int nx = (a.width + 255) / 256;
+        int nx = Geometry.tiles(a.width);
         int by = ctx.drainCounts()[stratum]++;
         int qy = Quant.qy(stratum);
         int qc = Quant.qc(stratum);
@@ -43,7 +44,7 @@ final class Drain {
                 int[][][] hw = Window.details(hd, w2, col);
                 int[][][] vw = Window.details(vd, w2, col);
                 int[][][] dw = Window.details(dd, w2, col);
-                var bb = BrushEncoder.encode(pw, hw, vw, dw, 16384, 128, qy, qc);
+                var bb = BrushEncoder.encode(pw, hw, vw, dw, Geometry.PARENTS, Geometry.HALF, qy, qc);
                 ctx.store().append(level, col, row, bb.bands(), bb.crcs());
                 return null;
             }));
@@ -60,8 +61,8 @@ final class Drain {
         for (int c = 0; c < 3; c++) {
             for (int s = 0; s < slices; s++) {
                 final int ch = c;
-                final int y0 = 2 * (s * 128 / slices);
-                final int y1 = 2 * ((s + 1) * 128 / slices);
+                final int y0 = 2 * (s * Geometry.HALF / slices);
+                final int y1 = 2 * ((s + 1) * Geometry.HALF / slices);
                 jobs.add(() -> {
                     TransformS.blockForward(a.plane[ch], a.width, y0, y1, ps[ch], vd[ch], hd[ch], dd[ch]);
                     return null;
@@ -83,7 +84,7 @@ final class Drain {
 
     private void pushUp(int[][] ps, int w2) {
         if (stratum + 1 >= ctx.top()) {
-            for (int y = 0; y < 128; y++) {
+            for (int y = 0; y < Geometry.HALF; y++) {
                 short[][] f = new short[3][w2];
                 for (int c = 0; c < 3; c++) {
                     for (int x = 0; x < w2; x++) {
@@ -95,7 +96,7 @@ final class Drain {
             return;
         }
         Accumulator up = ctx.acc()[stratum + 1];
-        for (int y = 0; y < 128; y++) {
+        for (int y = 0; y < Geometry.HALF; y++) {
             if (up.full()) {
                 new Drain(stratum + 1, ctx).drain();
             }

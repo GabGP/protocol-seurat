@@ -3,6 +3,7 @@ package seurat.concession;
 import java.util.List;
 import seurat.catalog.WorkRecord;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.proto.FrameType;
@@ -72,6 +73,6 @@ final class WorkLifecycle {
                 ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.RASPADO, "handle " + canvas.handle()).encode());
         session.canvases().remove(canvas.handle(), canvas);
         painter.drop(canvas);
-        Log.info("concession", canvas.subject() + " withdrawn");
+        Log.info(LogTags.CONCESSION, canvas.subject() + " withdrawn");
     }
 }

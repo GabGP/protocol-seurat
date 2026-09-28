@@ -8,11 +8,13 @@ import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
+import seurat.ingest.FormatMarkers;
 import seurat.ingest.IngestJob;
 import seurat.ingest.MasterFormats;
 import seurat.ingest.MasterHome;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
 import seurat.session.Canvas;
@@ -43,11 +45,11 @@ public final class MasterIntake implements Closeable {
 
     public void offer(String id, Path file) {
         if (closed) {
-            Log.info("ingest", "work=" + id + " offer ignored: shutting down");
+            Log.info(LogTags.INGEST, LogTags.work(id) + " offer ignored: shutting down");
             return;
         }
         Thread.ofVirtual().start(() -> {
-            if (!file.toString().endsWith(".zip") && isLista(id)) {
+            if (!file.toString().endsWith(FormatMarkers.ZIP_EXTENSION) && isLista(id)) {
                 skipped(id);
                 watcher.done(file);
                 return;
@@ -56,20 +58,20 @@ public final class MasterIntake implements Closeable {
                 watcher.done(file);
                 return;
             }
-            Log.info("ingest", "work=" + id + " ingest queued file=" + file.getFileName());
-            Progress.queue("ingest", "work=" + id);
+            Log.info(LogTags.INGEST, LogTags.work(id) + " ingest queued file=" + file.getFileName());
+            Progress.queue(LogTags.INGEST, LogTags.work(id));
             try {
                 ingest.execute(() -> {
                     try {
                         launch(id, file);
                     } finally {
-                        Progress.done("work=" + id);
+                        Progress.done(LogTags.work(id));
                         watcher.done(file);
                     }
                 });
             } catch (RejectedExecutionException ex) {
-                Log.info("ingest", "work=" + id + " ingest dropped: shutting down");
-                Progress.done("work=" + id);
+                Log.info(LogTags.INGEST, LogTags.work(id) + " ingest dropped: shutting down");
+                Progress.done(LogTags.work(id));
                 watcher.done(file);
             }
         });
@@ -77,15 +79,15 @@ public final class MasterIntake implements Closeable {
 
     private void launch(String id, Path file) {
         try {
-            if (file.toString().endsWith(".zip")) {
-                Progress.done("work=" + id); // the zip's own queued segment: its works take over
+            if (file.toString().endsWith(FormatMarkers.ZIP_EXTENSION)) {
+                Progress.done(LogTags.work(id)); // the zip's own queued segment: its works take over
                 // a work whose master is already home is resumed from there (watch), not unpacked again
                 ZipIntake.run(file, w -> isLista(w) || MasterHome.find(config.works, w).isPresent(), this::ingest);
                 return;
             }
             ingest(id, MasterFormats.stem(file.getFileName().toString()), file);
         } catch (Throwable ex) {
-            AuditLog.alert("work=" + id + " ingest failed: " + LogUnits.cause(ex), ex);
+            AuditLog.alert(LogTags.work(id) + " ingest failed: " + LogUnits.cause(ex), ex);
         }
     }
 
@@ -104,14 +106,14 @@ public final class MasterIntake implements Closeable {
     }
 
     private static void skipped(String id) {
-        Log.info("ingest", "work=" + id + " skipped: already ready");
+        Log.info(LogTags.INGEST, LogTags.work(id) + " skipped: already ready");
     }
 
     /** Edition swap (spec 7.1 [6], 7.3): every open canvas of the work moves to ed2. */
     private void substitute(String id) {
         WorkRecord work = catalog.get(id);
         if (work == null) return;
-        Log.info("ingest", "work=" + id + " edition swap ed=" + work.meta.edition());
+        Log.info(LogTags.INGEST, LogTags.work(id) + " edition swap ed=" + work.meta.edition());
         for (Session session : sessions.all()) {
             for (Canvas canvas : session.canvases().values()) {
                 if (canvas.workId().equals(id) && canvas.meta().edition() != work.meta.edition()) {

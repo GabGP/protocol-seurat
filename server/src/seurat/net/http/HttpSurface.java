@@ -10,6 +10,7 @@ import seurat.catalog.Catalog;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.session.Sessions;
 
@@ -65,10 +66,10 @@ public final class HttpSurface {
             if (req.path().startsWith("/seurat/v1/obras/")) {
                 return routes.route(req);
             }
-            return json(404, "{\"error\":\"no existe\"}");
+            return json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
         } catch (Exception ex) {
-            Log.error("http", req.method() + " " + req.path() + " failed: " + LogUnits.cause(ex), ex);
-            return json(500, "{\"error\":\"interno\"}");
+            Log.error(LogTags.HTTP, req.method() + " " + req.path() + " failed: " + LogUnits.cause(ex), ex);
+            return json(HttpConstants.INTERNAL, HttpConstants.INTERNAL_BODY);
         }
     }
 
@@ -77,14 +78,14 @@ public final class HttpSurface {
         String path = query < 0 ? target : target.substring(0, query); // `?` names no file
         byte[] body = files.get(path);
         if (body == null) {
-            return json(404, "{\"error\":\"no existe\"}");
+            return json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
         }
         String type = (!path.contains(".") || path.equals("/"))
-                ? "text/html; charset=utf-8"
+                ? HttpConstants.HTML
                 : StaticFiles.contentType(path);
         return files.hashed(path)
-                ? new Response(200, type, body, Map.of(CACHE_CONTROL, IMMUTABLE))
-                : new Response(200, type, body);
+                ? new Response(HttpConstants.OK, type, body, Map.of(CACHE_CONTROL, IMMUTABLE))
+                : new Response(HttpConstants.OK, type, body);
     }
 
     static long number(String json, String key, long dflt) {
@@ -120,6 +121,6 @@ public final class HttpSurface {
     }
 
     static Response json(int code, String body) {
-        return new Response(code, "application/json", body.getBytes(StandardCharsets.UTF_8));
+        return new Response(code, HttpConstants.JSON, body.getBytes(StandardCharsets.UTF_8));
     }
 }

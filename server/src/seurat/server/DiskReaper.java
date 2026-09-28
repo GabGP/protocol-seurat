@@ -9,10 +9,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import seurat.catalog.Catalog;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.session.Canvas;
 import seurat.session.Session;
 import seurat.session.Sessions;
+import seurat.store.StoreFiles;
 
 /**
  * Deferred deletes on disk. A withdrawn work's files go once its last canvas is closed
@@ -51,7 +53,7 @@ public final class DiskReaper {
             }
         }
         for (String id : List.copyOf(sketches)) {
-            if (!referenced(id, 1) && delete(works.resolve(id).resolve("ed1"))) {
+            if (!referenced(id, 1) && delete(works.resolve(id).resolve(StoreFiles.SKETCH_DIR))) {
                 sketches.remove(id);
             }
         }
@@ -79,10 +81,10 @@ public final class DiskReaper {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(p);
             }
-            Log.info("reaper", "deleted path=" + dir);
+            Log.info(LogTags.REAPER, "deleted path=" + dir);
             return true;
         } catch (Exception ex) {
-            Log.warn("reaper", "delete failed path=" + dir + ": " + LogUnits.cause(ex));
+            Log.warn(LogTags.REAPER, "delete failed path=" + dir + ": " + LogUnits.cause(ex));
             return false;
         }
     }

@@ -4,9 +4,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.catalog.Catalog;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
+import seurat.store.StoreFiles;
 
 /**
  * Spec 7.1 steps 2-3, before the pass: when the master carries an overview (or an interrupted
@@ -23,11 +25,11 @@ final class SketchPhase {
 
     static void run(String id, Path master, Path ed1Dir, Ed1 ed1, int top, int w, int h, Catalog catalog) {
         try {
-            Path seed = ed1Dir.resolve("semilla.bin");
+            Path seed = ed1Dir.resolve(StoreFiles.SEED);
             boolean kept = Files.isRegularFile(seed) && Files.size(seed) > 4;
             Overview.Sampled overview = kept ? null : Overview.probe(master, w, h, SketchBuilder.sampling(top));
             if (!kept && overview == null) {
-                Log.info("ingest", "work=" + id + " sketch skipped: no overview");
+                Log.info(LogTags.INGEST, LogTags.work(id) + " sketch skipped: no overview");
                 return;
             }
             FileBrushStore store = ed1.open();
@@ -36,9 +38,9 @@ final class SketchPhase {
             }
             store.close();
             catalog.sketch(id, store, ProtoCodes.ST_BOCETO, 1);
-            Log.info("ingest", "work=" + id + " sketch ready ed=1 source=" + (kept ? "kept" : "overview"));
+            Log.info(LogTags.INGEST, LogTags.work(id) + " sketch ready ed=1 source=" + (kept ? "kept" : "overview"));
         } catch (Exception ex) {
-            Log.warn("ingest", "work=" + id + " sketch skipped: " + LogUnits.cause(ex));
+            Log.warn(LogTags.INGEST, LogTags.work(id) + " sketch skipped: " + LogUnits.cause(ex));
         }
     }
 }

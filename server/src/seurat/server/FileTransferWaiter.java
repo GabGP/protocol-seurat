@@ -6,8 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.ZipFile;
+import seurat.ingest.FormatMarkers;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
 
@@ -50,7 +52,7 @@ final class FileTransferWaiter {
             long now = System.currentTimeMillis();
             if (size <= 0) {
                 if (now - lastGrowth >= emptyTimeoutMs) {
-                    Log.warn("ingest", key + " skipped: still empty");
+                    Log.warn(LogTags.INGEST, key + " skipped: still empty");
                     return false;
                 }
                 if (!pause(pollMs)) return false;
@@ -59,16 +61,16 @@ final class FileTransferWaiter {
             if (size != lastSize) {
                 lastSize = size;
                 lastGrowth = now;
-                Progress.phase("ingest", key, "waiting", " written=" + LogUnits.bytes(size));
+                Progress.phase(LogTags.INGEST, key, "waiting", " written=" + LogUnits.bytes(size));
                 if (now - lastLog >= LOG_INTERVAL_MS) {
-                    Log.info("ingest", key + " waiting written=" + LogUnits.bytes(size));
+                    Log.info(LogTags.INGEST, key + " waiting written=" + LogUnits.bytes(size));
                     lastLog = now;
                 }
             } else if (isComplete(file, size)) {
-                Log.info("ingest", key + " ready size=" + LogUnits.bytes(size));
+                Log.info(LogTags.INGEST, key + " ready size=" + LogUnits.bytes(size));
                 return true;
             } else if (now - lastGrowth >= stallTimeoutMs) {
-                Log.warn("ingest", key + " skipped: transfer stalled incomplete");
+                Log.warn(LogTags.INGEST, key + " skipped: transfer stalled incomplete");
                 return false;
             }
             if (!pause(pollMs)) return false;
@@ -77,14 +79,14 @@ final class FileTransferWaiter {
 
     static boolean isComplete(Path file, long size) {
         String lower = file.getFileName().toString().toLowerCase();
-        if (lower.endsWith(".zip")) return isZipComplete(file, size);
+        if (lower.endsWith(FormatMarkers.ZIP_EXTENSION)) return isZipComplete(file, size);
         if (lower.endsWith(".png")) return isPngComplete(file, size);
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return isJpgComplete(file, size);
         return MasterFormats.isWhole(file, size);
     }
 
     private static boolean isZipComplete(Path file, long size) {
-        if (size < 22) return false;
+        if (size < FormatMarkers.ZIP_EOCD_BYTES) return false;
         try (var zf = new ZipFile(file.toFile())) {
             return zf.size() >= 0;
         } catch (Exception ex) {
@@ -93,13 +95,13 @@ final class FileTransferWaiter {
     }
 
     private static boolean isPngComplete(Path file, long size) {
-        if (size < 12) return false;
+        if (size < FormatMarkers.PNG_TAIL_BYTES) return false;
         try (var ch = FileChannel.open(file, StandardOpenOption.READ)) {
-            ByteBuffer buf = ByteBuffer.allocate(12);
-            ch.position(size - 12);
+            ByteBuffer buf = ByteBuffer.allocate(FormatMarkers.PNG_TAIL_BYTES);
+            ch.position(size - FormatMarkers.PNG_TAIL_BYTES);
             ch.read(buf);
             buf.flip();
-            return buf.getInt() == 0 && buf.getInt() == 0x49454E44 && buf.getInt() == 0xAE426082;
+            return buf.getInt() == 0 && buf.getInt() == FormatMarkers.PNG_IEND && buf.getInt() == FormatMarkers.PNG_IEND_CRC;
         } catch (Exception ex) {
             return false;
         }

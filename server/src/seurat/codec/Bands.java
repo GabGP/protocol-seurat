@@ -15,17 +15,16 @@ import seurat.proto.Leb128;
 public final class Bands {
     private Bands() {}
 
-    public static final int PARENTS = 16384;
-    public static final int[] CUTS = {0, 2048, 4096, 8192, 16384};
+    public static final int[] CUTS = {0, Geometry.PARENTS / 8, Geometry.PARENTS / 4, Geometry.PARENTS / 2, Geometry.PARENTS};
     /** Band of a parent with E = 0: in none, it costs nothing (spec 2.1). */
-    public static final byte NONE = 4;
+    public static final byte NONE = Geometry.BANDS;
 
     private static final ThreadLocal<Deflater> DEFLATERS =
             ThreadLocal.withInitial(() -> new Deflater(seurat.config.SeuratConstants.DEFLATE_LEVEL, true));
     private static final ThreadLocal<byte[]> RAW_BUFS =
-            ThreadLocal.withInitial(() -> new byte[512 * 1024]);
+            ThreadLocal.withInitial(() -> new byte[Geometry.SCRATCH_BYTES]);
     private static final ThreadLocal<byte[]> COMP_BUFS =
-            ThreadLocal.withInitial(() -> new byte[512 * 1024]);
+            ThreadLocal.withInitial(() -> new byte[Geometry.SCRATCH_BYTES]);
 
     /** Order of parents: E desc, morton asc. Returns rank per parent index. */
     public static int[] order(int[] energy, int n) {

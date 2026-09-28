@@ -1,6 +1,7 @@
 package seurat.paint;
 
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
@@ -28,7 +29,7 @@ final class PlanEvents {
         try {
             canvas.session().mapping().sendControl(new Frame(FrameType.PLAN, payload).encode());
         } catch (Exception ex) {
-            Log.debug("paint", canvas.subject() + " PLAN not sent: " + LogUnits.cause(ex));
+            Log.debug(LogTags.PAINT, canvas.subject() + " PLAN not sent: " + LogUnits.cause(ex));
         }
     }
 }

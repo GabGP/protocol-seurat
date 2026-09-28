@@ -3,6 +3,7 @@ package seurat.session;
 import java.util.concurrent.BlockingQueue;
 import seurat.net.Mapping;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
@@ -46,12 +47,12 @@ public final class Easel implements Runnable {
             reason = "disconnect";
         } catch (FatalProtocol fail) {
             reason = ProtoCodes.errorName(fail.code);
-            Log.warn("session", subject(session) + " fatal error=" + reason
+            Log.warn(LogTags.SESSION, subject(session) + " fatal error=" + reason
                     + " ref=" + FrameType.name(fail.refType) + ": " + fail.getMessage());
             fail(fail.code, fail.refType, fail.getMessage());
         } catch (Throwable ex) {
             reason = "error";
-            Log.error("session", subject(session) + " failed: " + LogUnits.cause(ex), ex);
+            Log.error(LogTags.SESSION, subject(session) + " failed: " + LogUnits.cause(ex), ex);
             fail(ProtoCodes.ERR_INTERNO, 0, "interno");
         } finally {
             close(session, reason);
@@ -77,7 +78,7 @@ public final class Easel implements Runnable {
             mapping.close();
         } catch (Exception ignored) {
         }
-        Log.info("session", subject(session) + " closed reason=" + reason + (session == null ? "" : " books=kept"));
+        Log.info(LogTags.SESSION, subject(session) + " closed reason=" + reason + (session == null ? "" : " books=kept"));
         if (session != null) {
             session.canvases().values().forEach(ctx.grants()::drop);
             ctx.gazes().forget(session);
@@ -99,7 +100,7 @@ public final class Easel implements Runnable {
             Frame f = Wire.parse(0, () -> Frame.decodeExact(raw));
             long type = f.type();
             if (Log.isDebugEnabled()) {
-                Log.debug("proto", "s" + session.id() + " received " + FrameType.name(type));
+                Log.debug(LogTags.PROTO, "s" + session.id() + " received " + FrameType.name(type));
             }
             if (type == FrameType.MIRADA) {
                 service.gaze(session, f);

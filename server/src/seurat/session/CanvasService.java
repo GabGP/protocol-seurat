@@ -6,6 +6,7 @@ import seurat.config.Units;
 import seurat.net.Mapping;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.proto.Buf;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
@@ -30,7 +31,7 @@ final class CanvasService {
     private Canvas canvas(Session session, long handle, long type) {
         Canvas canvas = session.canvases().get(handle);
         if (canvas == null) {
-            Log.warn("session", "s" + session.id() + " invalid handle=" + handle);
+            Log.warn(LogTags.SESSION, "s" + session.id() + " invalid handle=" + handle);
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_HANDLE, 0, type, "handle " + handle).encode());
         }
@@ -129,7 +130,7 @@ final class CanvasService {
             return;
         }
         ctx.grants().drop(closed);
-        Log.info("session", "s" + session.id() + "/c" + handle + " closed");
+        Log.info(LogTags.SESSION, "s" + session.id() + "/c" + handle + " closed");
     }
 
     void echo(Session session, Frame f) {

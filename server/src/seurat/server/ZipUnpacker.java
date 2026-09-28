@@ -14,8 +14,10 @@ import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import seurat.config.Units;
+import seurat.ingest.FormatMarkers;
 import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
 
@@ -28,8 +30,8 @@ final class ZipUnpacker {
 
     static List<Path> unpack(Path zip, Predicate<String> skip) throws Exception {
         String subject = "zip=" + zip.getFileName();
-        if (!Files.exists(zip) || Files.size(zip) < 22) {
-            Log.warn("ingest", subject + " skipped: empty or incomplete");
+        if (!Files.exists(zip) || Files.size(zip) < FormatMarkers.ZIP_EOCD_BYTES) {
+            Log.warn(LogTags.INGEST, subject + " skipped: empty or incomplete");
             return List.of();
         }
         Path dir = zip.getParent().resolve(zip.getFileName() + ".d");
@@ -52,31 +54,31 @@ final class ZipUnpacker {
                 }
                 String workId = MasterFormats.stem(base);
                 if (skip != null && skip.test(workId)) {
-                    Log.info("ingest", subject + " entry skipped work=" + workId + ": already ready");
+                    Log.info(LogTags.INGEST, subject + " entry skipped work=" + workId + ": already ready");
                     skipped++;
                     continue;
                 }
                 Path out = dir.resolve(base);
                 if (Files.exists(out) && Files.size(out) == entry.getSize()) {
-                    Log.info("ingest", subject + " entry reused file=" + base + " size=" + LogUnits.bytes(entry.getSize()));
+                    Log.info(LogTags.INGEST, subject + " entry reused file=" + base + " size=" + LogUnits.bytes(entry.getSize()));
                     list.add(out);
                     skipped++;
                     continue;
                 }
-                extract(in, entry, out, "work=" + workId);
+                extract(in, entry, out, LogTags.work(workId));
                 list.add(out);
                 extracted++;
             }
         } catch (java.util.zip.ZipException ex) {
-            Log.warn("ingest", subject + " skipped: unreadable: " + LogUnits.cause(ex));
+            Log.warn(LogTags.INGEST, subject + " skipped: unreadable: " + LogUnits.cause(ex));
             return List.of();
         }
         String counts = " extracted=" + extracted + " skipped=" + skipped;
         if (extracted > 0) {
-            Log.info("ingest", subject + " unpacked" + counts
+            Log.info(LogTags.INGEST, subject + " unpacked" + counts
                     + " took=" + LogUnits.duration(System.currentTimeMillis() - totalStart));
         } else {
-            Log.info("ingest", subject + " up to date" + counts);
+            Log.info(LogTags.INGEST, subject + " up to date" + counts);
         }
         list.sort(Comparator.comparingLong(p -> {
             try { return Files.size(p); } catch (Exception e) { return 0L; }
@@ -89,13 +91,13 @@ final class ZipUnpacker {
         String name = out.getFileName().toString();
         long size = entry.getSize();
         Path tmp = out.resolveSibling(name + ".tmp");
-        Log.info("ingest", key + " extracting file=" + name + " size=" + LogUnits.bytes(size));
+        Log.info(LogTags.INGEST, key + " extracting file=" + name + " size=" + LogUnits.bytes(size));
         long start = System.currentTimeMillis();
         long written;
         try {
             for (int attempt = 1; ; attempt++) {
                 written = copy(in, entry, tmp, key, start);
-                Progress.phase("ingest", key, "verifying", "");
+                Progress.phase(LogTags.INGEST, key, "verifying", "");
                 if (entry.getCrc() == -1 || FileCrc.of(tmp) == entry.getCrc()) {
                     break;
                 }
@@ -104,14 +106,14 @@ final class ZipUnpacker {
                 if (attempt == EXTRACT_ATTEMPTS) {
                     throw new IOException(why + ": zip damaged or disk/memory faulty");
                 }
-                Log.warn("ingest", key + " " + why + ", extracting again");
+                Log.warn(LogTags.INGEST, key + " " + why + ", extracting again");
             }
         } finally {
             Progress.done(key);
         }
         Files.move(tmp, out, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         long elapsed = System.currentTimeMillis() - start;
-        Log.info("ingest", key + " extracted file=" + name + " size=" + LogUnits.bytes(written) + " took="
+        Log.info(LogTags.INGEST, key + " extracted file=" + name + " size=" + LogUnits.bytes(written) + " took="
                 + LogUnits.duration(elapsed) + " rate=" + LogUnits.rate(written, elapsed));
     }
 
@@ -126,7 +128,7 @@ final class ZipUnpacker {
                 os.write(buf, 0, read);
                 written += read;
                 if (size > 0) {
-                    Progress.update("ingest", key, "unzipping", (int) (written * Units.PERCENT / size),
+                    Progress.update(LogTags.INGEST, key, "unzipping", (int) (written * Units.PERCENT / size),
                             " rate=" + LogUnits.rate(written, System.currentTimeMillis() - start));
                 }
             }

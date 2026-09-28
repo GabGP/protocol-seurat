@@ -2,10 +2,12 @@ package seurat.ingest;
 
 import java.nio.file.Files;
 import seurat.codec.BrushEncoder;
+import seurat.codec.Geometry;
 import seurat.codec.Quant;
 import seurat.codec.SeedCodec;
 import seurat.codec.TransformS;
 import seurat.store.FileBrushStore;
+import seurat.store.StoreFiles;
 
 /**
  * ed1 sketch (spec 7.1 step 3): the master's overview -> S-pyramid -> zero-detail brushes for the
@@ -42,7 +44,7 @@ final class SketchBuilder {
             sh /= 2;
             stratum++;
         }
-        Files.write(store.dir().resolve("semilla.bin"),
+        Files.write(store.dir().resolve(StoreFiles.SEED),
                 SeedCodec.encode(e, sw, sh));
     }
 
@@ -57,22 +59,22 @@ final class SketchBuilder {
 
     private static void paintLevel(int[][] padres, int w, int h, int stratum,
             FileBrushStore store) throws Exception {
-        int nx = (w + 127) / 128;
-        int ny = (h + 127) / 128;
-        int[][][] cero = new int[3][1][16384];
+        int nx = Geometry.ceilDiv(w, Geometry.HALF);
+        int ny = Geometry.ceilDiv(h, Geometry.HALF);
+        int[][][] cero = new int[3][1][Geometry.PARENTS];
         for (int by = 0; by < ny; by++) {
             for (int bx = 0; bx < nx; bx++) {
-                int[][] pw = new int[3][16384];
+                int[][] pw = new int[3][Geometry.PARENTS];
                 for (int c = 0; c < 3; c++) {
-                    for (int y = 0; y < 128; y++) {
-                        for (int x = 0; x < 128; x++) {
-                            int sx = Math.min(bx * 128 + x, w - 1);
-                            int sy = Math.min(by * 128 + y, h - 1);
-                            pw[c][y * 128 + x] = padres[c][sy * w + sx];
+                    for (int y = 0; y < Geometry.HALF; y++) {
+                        for (int x = 0; x < Geometry.HALF; x++) {
+                            int sx = Math.min(bx * Geometry.HALF + x, w - 1);
+                            int sy = Math.min(by * Geometry.HALF + y, h - 1);
+                            pw[c][y * Geometry.HALF + x] = padres[c][sy * w + sx];
                         }
                     }
                 }
-                var bb = BrushEncoder.encode(pw, cero, cero, cero, 16384, 128,
+                var bb = BrushEncoder.encode(pw, cero, cero, cero, Geometry.PARENTS, Geometry.HALF,
                         Quant.qy(stratum), Quant.qc(stratum));
                 store.append(stratum, bx, by, bb.bands(), bb.crcs());
             }

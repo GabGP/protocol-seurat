@@ -9,6 +9,11 @@ import java.util.Map;
 
 /** Loads seurat.conf (key=value). All knobs have LAN-sane defaults. */
 public final class SeuratConfig {
+    /** Defaults when seurat.conf leaves a knob out. */
+    private static final int DEFAULT_SESSION_MAX_BRUSHES = 1024;
+    private static final String DEFAULT_RATE_BYTES_PER_S = "25000000";
+    private static final String DEFAULT_ADMIN_TOKEN = "cambia-esto";
+
     public final int httpPort;
     public final Path inbox;
     public final Path works;
@@ -32,9 +37,9 @@ public final class SeuratConfig {
         inbox = dir(base, props.getOrDefault("inbox", ".seurat/runtime/inbox"));
         works = dir(base, props.getOrDefault("works", ".seurat/runtime/obras"));
         coverage = dir(base, props.getOrDefault("coverage", ".seurat/runtime/cobertura"));
-        adminToken = props.getOrDefault("admin.token", "cambia-esto");
-        sessionMaxBrushes = intOf(props, "session.max_brushes", 1024);
-        rateBytesPerSec = Long.parseLong(props.getOrDefault("rate.bytes_per_s", "25000000"));
+        adminToken = props.getOrDefault("admin.token", DEFAULT_ADMIN_TOKEN);
+        sessionMaxBrushes = intOf(props, "session.max_brushes", DEFAULT_SESSION_MAX_BRUSHES);
+        rateBytesPerSec = Long.parseLong(props.getOrDefault("rate.bytes_per_s", DEFAULT_RATE_BYTES_PER_S));
         logLevel = props.getOrDefault("log.level", "INFO");
         String ks = props.getOrDefault("tls.keystore", "");
         tlsKeystore = ks.isBlank() ? null : base.resolve(ks);

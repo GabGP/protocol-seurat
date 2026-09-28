@@ -4,6 +4,7 @@ import java.util.function.Predicate;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
@@ -33,7 +34,7 @@ public final class Liveness {
         long now = System.nanoTime();
         for (Session session : sessions.all()) {
             if (now - session.lastEchoNs > SeuratConstants.HEARTBEAT_MISSES * SeuratConstants.HEARTBEAT_S * Units.NANOS_PER_S) {
-                Log.warn("liveness", "s" + session.id() + " closing: no ECO for "
+                Log.warn(LogTags.LIVENESS, "s" + session.id() + " closing: no ECO for "
                         + SeuratConstants.HEARTBEAT_MISSES + " LATIDO");
                 close(session, null);
                 continue;
@@ -42,11 +43,11 @@ public final class Liveness {
                 try {
                     tickCanvas(session, canvas, now);
                 } catch (FatalProtocol fail) {
-                    Log.warn("liveness", canvas.subject() + " closing: " + fail.getMessage());
+                    Log.warn(LogTags.LIVENESS, canvas.subject() + " closing: " + fail.getMessage());
                     close(session, fail);
                     break;
                 } catch (RuntimeException ex) {
-                    Log.info("liveness", "s" + session.id() + " closing: unreachable: " + LogUnits.cause(ex));
+                    Log.info(LogTags.LIVENESS, "s" + session.id() + " closing: unreachable: " + LogUnits.cause(ex));
                     close(session, null);
                     break;
                 }

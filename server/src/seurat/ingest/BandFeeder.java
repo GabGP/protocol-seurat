@@ -3,6 +3,7 @@ package seurat.ingest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import seurat.codec.Geometry;
 import seurat.codec.YCoCgR;
 import seurat.config.SeuratConstants;
 
@@ -18,8 +19,8 @@ final class BandFeeder {
         Accumulator a = ctx.acc()[0];
         int k = 0;
         while (k < band.length) {
-            int base = row % 256;
-            int n = Math.min(band.length - k, 256 - base);
+            int base = row % Geometry.SIDE;
+            int n = Math.min(band.length - k, Geometry.SIDE - base);
             convert(ctx, band, k, n, a, base, width);
             a.rows = Math.max(a.rows, base + n);
             row += n;
@@ -35,7 +36,7 @@ final class BandFeeder {
     static void pad(PassContext ctx, int row, int paddedH) {
         Accumulator a = ctx.acc()[0];
         for (; row < paddedH; row++) {
-            a.copyRow((row - 1) % 256, row % 256);
+            a.copyRow((row - 1) % Geometry.SIDE, row % Geometry.SIDE);
             if (a.full()) {
                 new Drain(0, ctx).drain();
             }

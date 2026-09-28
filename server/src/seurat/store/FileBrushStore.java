@@ -29,7 +29,7 @@ public final class FileBrushStore implements BrushStore {
         this.dir = dir;
         this.meta = meta;
         this.nx = nx.clone();
-        Path q = dir.resolve("quant");
+        Path q = dir.resolve(StoreFiles.QUANT);
         quantTable = Files.exists(q) ? Integer.parseInt(Files.readString(q).trim()) : 1;
         Files.createDirectories(dir);
         StoreWriter.recover(dir, nx);
@@ -41,11 +41,11 @@ public final class FileBrushStore implements BrushStore {
     }
 
     private Path pincPath(int stratum) {
-        return dir.resolve("E" + stratum + ".pinc");
+        return StoreFiles.pinc(dir, stratum);
     }
 
     private Path idxPath(int stratum) {
-        return dir.resolve("E" + stratum + ".idx");
+        return StoreFiles.idx(dir, stratum);
     }
 
     /** Append path for ingest: bytes then index entry. */
@@ -65,7 +65,7 @@ public final class FileBrushStore implements BrushStore {
     }
 
     private Path seedPath() {
-        return dir.resolve("semilla.bin");
+        return dir.resolve(StoreFiles.SEED);
     }
 
     @Override

@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.InflaterInputStream;
+import seurat.codec.Geometry;
 
 /**
  * Sequential streaming PNG reader (O(1) memory, zero rewind) for 8-bit gray, RGB and RGBA
@@ -52,7 +53,7 @@ final class PngReader implements MasterReader {
             DataInputStream dis = new DataInputStream(is);
             byte[] sig = new byte[8];
             dis.readFully(sig);
-            if (!isPng(sig) || dis.readInt() < 13 || dis.readInt() != 0x49484452) {
+            if (!FormatMarkers.isPng(sig) || dis.readInt() < 13 || dis.readInt() != FormatMarkers.PNG_IHDR) {
                 is.close();
                 return null;
             }
@@ -73,11 +74,6 @@ final class PngReader implements MasterReader {
         }
     }
 
-    private static boolean isPng(byte[] s) {
-        return (s[0] & 0xFF) == 0x89 && s[1] == 0x50 && s[2] == 0x4E && s[3] == 0x47
-                && s[4] == 0x0D && s[5] == 0x0A && s[6] == 0x1A && s[7] == 0x0A;
-    }
-
     @Override
     public int width() { return width; }
 
@@ -87,9 +83,9 @@ final class PngReader implements MasterReader {
     @Override
     public int[][] next() throws IOException {
         if (row >= height) return null;
-        int n = Math.min(256, height - row);
-        if (bandBuffer == null) bandBuffer = new int[256][width];
-        int[][] band = (n == 256) ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
+        int n = Math.min(Geometry.SIDE, height - row);
+        if (bandBuffer == null) bandBuffer = new int[Geometry.SIDE][width];
+        int[][] band = (n == Geometry.SIDE) ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
         int rowBytes = width * bpp;
         for (int y = 0; y < n; y++) {
             int filter = scanlines.readUnsignedByte();

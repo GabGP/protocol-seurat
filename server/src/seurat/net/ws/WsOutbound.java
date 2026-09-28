@@ -6,6 +6,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 
 /**
@@ -97,7 +98,7 @@ final class WsOutbound implements Runnable {
             }
             WsFraming.close(out, closeCode);
         } catch (Exception ex) {
-            Log.debug("ws", "writer stopped: " + LogUnits.cause(ex));
+            Log.debug(LogTags.WS, "writer stopped: " + LogUnits.cause(ex));
         } finally {
             stop();
         }

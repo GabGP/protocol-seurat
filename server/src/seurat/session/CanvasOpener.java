@@ -4,6 +4,7 @@ import seurat.catalog.WorkRecord;
 import seurat.concession.Concessions;
 import seurat.net.Mapping;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgCatalog;
@@ -19,14 +20,14 @@ final class CanvasOpener {
         MsgCatalog.OpenWork request = Wire.parse(f.type(), () -> MsgCatalog.OpenWork.parse(f.payload()));
         WorkRecord work = ctx.catalog().get(request.id());
         if (work == null || work.meta.state() == ProtoCodes.ST_RETIRADA) {
-            Log.warn("session", "s" + session.id() + " open failed work=" + request.id() + ": no such work");
+            Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id() + ": no such work");
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
         int state = work.meta.state();
         if (work.store == null || state == ProtoCodes.ST_RECIBIENDO || state == ProtoCodes.ST_FALLIDA) {
-            Log.warn("session", "s" + session.id() + " open failed work=" + request.id()
+            Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id()
                     + ": not ready state=" + ProtoCodes.stateName(state));
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, request.id()).encode());
@@ -42,7 +43,7 @@ final class CanvasOpener {
         canvas.auditNs = System.nanoTime();
         long paddedW = ((long) work.meta.width() + (1L << top) - 1) >> top << top;
         long paddedH = ((long) work.meta.height() + (1L << top) - 1) >> top << top;
-        Log.info("session", "s" + session.id() + "/c" + handle + " opened work=" + request.id()
+        Log.info(LogTags.SESSION, "s" + session.id() + "/c" + handle + " opened work=" + request.id()
                 + " size=" + work.meta.width() + "x" + work.meta.height() + " strata="
                 + work.meta.strata() + " ed=" + work.meta.edition());
         synchronized (canvas) {

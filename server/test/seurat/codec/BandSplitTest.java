@@ -5,7 +5,7 @@ import seurat.kit.TestKit;
 
 /** BandSplit: the same bands as ranking every parent with BandsOrder (E desc, Morton asc); E = 0 in none. */
 public final class BandSplitTest {
-    private static final int N = Bands.PARENTS;
+    private static final int N = Geometry.PARENTS;
 
     public static void main(String[] args) {
         Random rnd = new Random(7);

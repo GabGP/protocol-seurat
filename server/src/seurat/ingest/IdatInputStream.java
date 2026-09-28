@@ -21,9 +21,9 @@ final class IdatInputStream extends InputStream {
             }
             int len = in.readInt();
             int type = in.readInt();
-            if (type == 0x49444154) { // IDAT
+            if (type == FormatMarkers.PNG_IDAT) {
                 remaining = len;
-            } else if (type == 0x49454E44) { // IEND
+            } else if (type == FormatMarkers.PNG_IEND) {
                 eof = true;
                 return;
             } else {

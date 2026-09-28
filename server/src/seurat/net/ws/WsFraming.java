@@ -10,6 +10,12 @@ import java.io.OutputStream;
 public final class WsFraming {
     private WsFraming() {}
 
+    private static final int FIN_BIT = 0x80;
+    private static final int MASK_BIT = 0x80;
+    private static final int LEN_MASK = 0x7F;
+    private static final int LEN_16 = 126;
+    private static final int LEN_64 = 127;
+    private static final int MAX_16 = 65536;
     public static final int CONTINUATION = 0x0;
     public static final int BINARY = 0x2;
     public static final int CLOSE = 0x8;
@@ -32,12 +38,12 @@ public final class WsFraming {
             if (b0 < 0 || b1 < 0) {
                 throw new EOFException("ws closed");
             }
-            boolean fin = (b0 & 0x80) != 0;
+            boolean fin = (b0 & FIN_BIT) != 0;
             int op = b0 & 0xF;
-            long len = b1 & 0x7F;
-            if (len == 126) {
+            long len = b1 & LEN_MASK;
+            if (len == LEN_16) {
                 len = ((long) in.read() << 8) | in.read();
-            } else if (len == 127) {
+            } else if (len == LEN_64) {
                 len = 0;
                 for (int i = 0; i < 8; i++) {
                     len = (len << 8) | in.read();
@@ -47,7 +53,7 @@ public final class WsFraming {
                 return new Msg(OVERSIZE, new byte[0]); // never allocated: the caller fails the session
             }
             byte[] key = new byte[4];
-            if ((b1 & 0x80) != 0) {
+            if ((b1 & MASK_BIT) != 0) {
                 readFull(in, key);
             }
             byte[] data = new byte[(int) len];
@@ -86,15 +92,15 @@ public final class WsFraming {
     }
 
     public static void write(OutputStream out, int opcode, byte[] data) throws IOException {
-        out.write(0x80 | opcode);
-        if (data.length < 126) {
+        out.write(FIN_BIT | opcode);
+        if (data.length < LEN_16) {
             out.write(data.length);
-        } else if (data.length < 65536) {
-            out.write(126);
+        } else if (data.length < MAX_16) {
+            out.write(LEN_16);
             out.write(data.length >> 8);
             out.write(data.length);
         } else {
-            out.write(127);
+            out.write(LEN_64);
             for (int i = 7; i >= 0; i--) {
                 out.write((int) ((long) data.length >> (8 * i)));
             }

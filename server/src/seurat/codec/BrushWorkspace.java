@@ -5,12 +5,12 @@ import java.util.zip.Deflater;
 
 /** Reusable thread-local workspace for zero-allocation brush encoding. */
 final class BrushWorkspace {
-    static final int N = 16384;
+    static final int N = Geometry.PARENTS;
     static final int[] MORTON_16K = new int[N];
 
     static {
         for (int i = 0; i < N; i++) {
-            MORTON_16K[i] = (int) Morton.encode(i % 128, i / 128);
+            MORTON_16K[i] = (int) Morton.encode(i % Geometry.HALF, i / Geometry.HALF);
         }
     }
 
@@ -24,8 +24,8 @@ final class BrushWorkspace {
     /** Start of each band's members, NONE included: bands 0..NONE plus the end. */
     final int[] from = new int[Bands.NONE + 2];
     final int[] fill = new int[Bands.NONE + 2];
-    final byte[] rawBuf = new byte[512 * 1024];
-    final byte[] compBuf = new byte[512 * 1024];
+    final byte[] rawBuf = new byte[Geometry.SCRATCH_BYTES];
+    final byte[] compBuf = new byte[Geometry.SCRATCH_BYTES];
     final CRC32C crc = new CRC32C();
     final Deflater deflater = new Deflater(seurat.config.SeuratConstants.DEFLATE_LEVEL, true);
 

@@ -10,6 +10,14 @@ public final class Quant {
     /** Table new stores are encoded with; IngestJob writes it beside the store. */
     public static final int TABLE = 2;
 
+    /** First table whose strata above 0 are lossless (spec 2.2). */
+    private static final int LOSSLESS_FROM = 2;
+    /** q per stratum, the last entry covering every coarser one. Table 1 luma / chroma, table 2 luma / chroma. */
+    private static final int[] Y_TABLE_1 = {6, 4, 2, 1};
+    private static final int[] C_TABLE_1 = {0, 6, 3, 2};
+    private static final int[] Y_TABLE_2 = {2, 1};
+    private static final int[] C_TABLE_2 = {2, 1};
+
     private Quant() {}
 
     public static int quantize(int x, int q) {
@@ -33,16 +41,14 @@ public final class Quant {
     }
 
     public static int qy(int table, int stratum) {
-        if (table >= 2) {
-            return stratum <= 0 ? 2 : 1;
-        }
-        return stratum <= 0 ? 6 : stratum == 1 ? 4 : stratum == 2 ? 2 : 1;
+        return pick(table >= LOSSLESS_FROM ? Y_TABLE_2 : Y_TABLE_1, stratum);
     }
 
     public static int qc(int table, int stratum) {
-        if (table >= 2) {
-            return stratum <= 0 ? 2 : 1;
-        }
-        return stratum <= 0 ? 0 : stratum == 1 ? 6 : stratum == 2 ? 3 : 2;
+        return pick(table >= LOSSLESS_FROM ? C_TABLE_2 : C_TABLE_1, stratum);
+    }
+
+    private static int pick(int[] q, int stratum) {
+        return q[Math.min(Math.max(stratum, 0), q.length - 1)];
     }
 }

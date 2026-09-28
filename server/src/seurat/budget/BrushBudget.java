@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import seurat.codec.BrushId;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.plan.PlanEntry;
 import seurat.store.WorkMeta;
@@ -56,7 +57,7 @@ public final class BrushBudget {
             global.mark(key, p, seen.width(p.stratum()));
             return true;
         } catch (IOException ex) {
-            Log.warn("budget", "work=" + work + " coverage unavailable: " + LogUnits.cause(ex));
+            Log.warn(LogTags.BUDGET, LogTags.work(work) + " coverage unavailable: " + LogUnits.cause(ex));
             return false;
         }
     }
@@ -72,7 +73,7 @@ public final class BrushBudget {
                 seen.set(p, through);
             }
         } catch (IOException ex) {
-            Log.warn("budget", "work=" + work + " coverage unavailable: " + LogUnits.cause(ex));
+            Log.warn(LogTags.BUDGET, LogTags.work(work) + " coverage unavailable: " + LogUnits.cause(ex));
         }
     }
 

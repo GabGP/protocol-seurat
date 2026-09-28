@@ -9,9 +9,11 @@ import java.nio.file.WatchService;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
+import seurat.ingest.FormatMarkers;
 import seurat.ingest.MasterFormats;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 
 /** Watches inbox directory and scans for incoming master images and archives. */
@@ -36,7 +38,7 @@ final class InboxWatcher {
                 watch = watcher;
                 inbox.register(watcher, StandardWatchEventKinds.ENTRY_CREATE,
                         StandardWatchEventKinds.ENTRY_MODIFY);
-                Log.info("ingest", "inbox watching path=" + inbox.toAbsolutePath());
+                Log.info(LogTags.INGEST, "inbox watching path=" + inbox.toAbsolutePath());
                 for (;;) {
                     var key = takeQuietly(watcher);
                     if (key == null) return;
@@ -57,7 +59,7 @@ final class InboxWatcher {
             return watcher.take();
         } catch (ClosedWatchServiceException ex) {
             if (closed) {
-                Log.info("ingest", "inbox watch stopped");
+                Log.info(LogTags.INGEST, "inbox watch stopped");
                 return null;
             }
             throw ex;
@@ -85,7 +87,7 @@ final class InboxWatcher {
                 }
             }
         } catch (Throwable ex) {
-            Log.error("ingest", "inbox scan failed path=" + root + ": " + LogUnits.cause(ex));
+            Log.error(LogTags.INGEST, "inbox scan failed path=" + root + ": " + LogUnits.cause(ex));
         }
     }
 
@@ -107,6 +109,6 @@ final class InboxWatcher {
     }
 
     private static boolean isMaster(String lower) {
-        return MasterFormats.isMaster(lower) || lower.endsWith(".zip");
+        return MasterFormats.isMaster(lower) || lower.endsWith(FormatMarkers.ZIP_EXTENSION);
     }
 }

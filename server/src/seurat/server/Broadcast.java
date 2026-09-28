@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
@@ -31,13 +32,13 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
 
     private void log(MsgCatalog.WorkMessage m) {
         Integer before = states.put(m.id(), m.state());
-        String line = "work=" + m.id() + " " + ProtoCodes.eventName(m.event()) + " state="
+        String line = LogTags.work(m.id()) + " " + ProtoCodes.eventName(m.event()) + " state="
                 + ProtoCodes.stateName(m.state()) + " progress=" + m.progress() + "% ed=" + m.edition();
         if (m.event() == ProtoCodes.OBRA_ESTADO && before != null && before == m.state()) {
-            Log.debug("catalog", line); // the ingest's own progress bar shows the ticks
+            Log.debug(LogTags.CATALOG, line); // the ingest's own progress bar shows the ticks
             return;
         }
-        Log.info("catalog", line);
+        Log.info(LogTags.CATALOG, line);
         if (m.event() == ProtoCodes.OBRA_BAJA) {
             states.remove(m.id());
         }
@@ -53,7 +54,7 @@ public final class Broadcast implements Consumer<MsgCatalog.WorkMessage> {
             try {
                 session.mapping().sendControl(frame);
             } catch (Exception ex) {
-                Log.debug("server", "s" + session.id() + " push failed: " + LogUnits.cause(ex));
+                Log.debug(LogTags.SERVER, "s" + session.id() + " push failed: " + LogUnits.cause(ex));
             }
         }
     }

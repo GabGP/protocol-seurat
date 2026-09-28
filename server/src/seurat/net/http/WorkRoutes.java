@@ -15,6 +15,7 @@ import seurat.catalog.RolePolicy;
 import seurat.catalog.WorkRecord;
 import seurat.config.SeuratConfig;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 
 /** PUT/DELETE /seurat/v1/obras/{id} + PUT .../politica (spec 3.1). Admin only. */
@@ -47,16 +48,16 @@ final class WorkRoutes {
         String id = slash < 0 ? rest : rest.substring(0, slash);
         String tail = slash < 0 ? "" : rest.substring(slash);
         if (!req.headers().getOrDefault("x-admin-token", "").equals(config.adminToken)) {
-            Log.warn("admin", req.method() + " " + req.path() + " refused: bad admin token");
+            Log.warn(LogTags.ADMIN, req.method() + " " + req.path() + " refused: bad admin token");
             return HttpSurface.json(403, "{\"error\":\"admin\"}");
         }
         if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
-            return HttpSurface.json(404, "{\"error\":\"no existe\"}");
+            return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
         }
         if (req.method().equals("PUT") && tail.isEmpty()) {
             Path file = config.inbox.resolve(id);
             long bytes = store(req, file);
-            Log.info("admin", "work=" + id + " master uploaded size=" + LogUnits.bytes(bytes));
+            Log.info(LogTags.ADMIN, LogTags.work(id) + " master uploaded size=" + LogUnits.bytes(bytes));
             onMaster.accept(id, file);
             return HttpSurface.json(202, "{\"estado\":\"recibiendo\"}");
         }
@@ -64,11 +65,11 @@ final class WorkRoutes {
             return applyPolicy(id, new String(req.body(), StandardCharsets.UTF_8));
         }
         if (req.method().equals("DELETE") && tail.isEmpty()) {
-            Log.info("admin", "work=" + id + " withdrawn");
+            Log.info(LogTags.ADMIN, LogTags.work(id) + " withdrawn");
             onWithdraw.accept(id);
             return HttpSurface.json(200, "{\"ok\":true}");
         }
-        return HttpSurface.json(404, "{\"error\":\"no existe\"}");
+        return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
     }
 
     /** Streaming upload (spec 3.1): at most one buffer of the master is ever in memory. */
@@ -97,7 +98,7 @@ final class WorkRoutes {
     private HttpSurface.Response applyPolicy(String id, String body) throws IOException {
         WorkRecord work = catalog.get(id);
         if (work == null) {
-            return HttpSurface.json(404, "{\"error\":\"no existe\"}");
+            return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
         }
         Map<String, long[]> changes = new HashMap<>();
         for (String role : WorkRecord.ROLES) {
@@ -111,7 +112,7 @@ final class WorkRoutes {
             return HttpSurface.json(400, "{\"error\":\"politica\"}");
         }
         catalog.policy(work, next);
-        Log.info("admin", "work=" + id + " policy updated");
+        Log.info(LogTags.ADMIN, LogTags.work(id) + " policy updated");
         onPolicy.accept(id);
         return HttpSurface.json(200, "{\"ok\":true}");
     }

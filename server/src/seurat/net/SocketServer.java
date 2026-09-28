@@ -18,6 +18,7 @@ import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
+import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 
 /**
@@ -44,7 +45,7 @@ public final class SocketServer implements Closeable {
     public void start() throws Exception {
         try (ServerSocket server = Listeners.open(config)) {
             bound = server;
-            Log.info("net", "listening port=" + config.httpPort + " tls=" + config.tls());
+            Log.info(LogTags.NET, "listening port=" + config.httpPort + " tls=" + config.tls());
             while (!closed) {
                 Socket socket;
                 try {
@@ -58,7 +59,7 @@ public final class SocketServer implements Closeable {
                     try {
                         handle(socket, remote);
                     } catch (Throwable ex) {
-                        Log.debug("net", "remote=" + remote + " connection ended: " + LogUnits.cause(ex));
+                        Log.debug(LogTags.NET, "remote=" + remote + " connection ended: " + LogUnits.cause(ex));
                         try {
                             socket.close();
                         } catch (Throwable alsoIgnored) {
@@ -86,7 +87,7 @@ public final class SocketServer implements Closeable {
         }
         String[] parts = head.split(" ", 3);
         if (parts.length < 2) {
-            Log.warn("http", "remote=" + remote + " bad request line: " + head);
+            Log.warn(LogTags.HTTP, "remote=" + remote + " bad request line: " + head);
             Listeners.refuse(socket, 400);
             return;
         }
@@ -110,7 +111,7 @@ public final class SocketServer implements Closeable {
                 host, streamed ? in : null, length);
         long t0 = System.nanoTime();
         var response = http.route(request);
-        Log.info("http", "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
+        Log.info(LogTags.HTTP, "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
                 + " took=" + LogUnits.duration((System.nanoTime() - t0) / Units.NANOS_PER_MS));
         Listeners.respond(socket, response);
     }
@@ -126,7 +127,7 @@ public final class SocketServer implements Closeable {
     private void upgrade(Socket socket, Map<String, String> headers, String remote) throws Exception {
         OutputStream out = socket.getOutputStream();
         if (!WsHandshake.offersSubprotocol(headers) || !WsHandshake.originAllowed(headers, config.origins)) {
-            Log.warn("ws", "remote=" + remote + " upgrade refused: subprotocol or Origin");
+            Log.warn(LogTags.WS, "remote=" + remote + " upgrade refused: subprotocol or Origin");
             Listeners.refuse(socket, 403);
             return;
         }
@@ -136,7 +137,7 @@ public final class SocketServer implements Closeable {
                 + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
         out.flush();
         BlockingQueue<byte[]> control = new ArrayBlockingQueue<>(SeuratConstants.INPUT_QUEUE_FRAMES);
-        Log.info("ws", "remote=" + remote + " upgraded subprotocol=" + WsHandshake.SUBPROTOCOL);
+        Log.info(LogTags.WS, "remote=" + remote + " upgraded subprotocol=" + WsHandshake.SUBPROTOCOL);
         acceptor.accept(new WsMapping(socket, control), control);
     }
 }

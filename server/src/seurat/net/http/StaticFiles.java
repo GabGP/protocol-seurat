@@ -65,16 +65,16 @@ final class StaticFiles {
 
     static String contentType(String path) {
         if (path.endsWith(".html")) {
-            return "text/html; charset=utf-8";
+            return HttpConstants.HTML;
         }
         if (path.endsWith(".js")) {
-            return "text/javascript; charset=utf-8";
+            return HttpConstants.JAVASCRIPT;
         }
         if (path.endsWith(".css")) {
-            return "text/css; charset=utf-8";
+            return HttpConstants.CSS;
         }
         if (path.endsWith(".json")) {
-            return "application/json";
+            return HttpConstants.JSON;
         }
         if (path.endsWith(".png")) {
             return "image/png";
@@ -88,6 +88,6 @@ final class StaticFiles {
         if (path.endsWith(".woff2")) {
             return "font/woff2";
         }
-        return "application/octet-stream";
+        return HttpConstants.BINARY;
     }
 }

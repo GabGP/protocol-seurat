@@ -1,5 +1,7 @@
 package seurat.ingest;
 
+import seurat.codec.Geometry;
+
 /** 256-row int16 accumulator for one stratum. Not thread-safe. */
 final class Accumulator {
     final short[][][] plane = new short[3][][];
@@ -9,7 +11,7 @@ final class Accumulator {
     Accumulator(int width) {
         this.width = width;
         for (int c = 0; c < 3; c++) {
-            plane[c] = new short[256][width];
+            plane[c] = new short[Geometry.SIDE][width];
         }
     }
 
@@ -33,7 +35,7 @@ final class Accumulator {
     }
 
     void replicate() {
-        while (rows > 0 && rows < 256) {
+        while (rows > 0 && rows < Geometry.SIDE) {
             int src = rows - 1;
             for (int c = 0; c < 3; c++) {
                 System.arraycopy(plane[c][src], 0, plane[c][rows], 0, width);
@@ -43,7 +45,7 @@ final class Accumulator {
     }
 
     boolean full() {
-        return rows >= 256;
+        return rows >= Geometry.SIDE;
     }
 
     void clear() {

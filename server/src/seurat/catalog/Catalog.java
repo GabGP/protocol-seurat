@@ -11,14 +11,14 @@ import java.util.function.Consumer;
 import seurat.proto.MsgCatalog;
 import seurat.proto.ProtoCodes;
 import seurat.store.BrushStore;
+import seurat.store.StoreFiles;
 
 /** id -> work map + meta.json. Every change is pushed as OBRA to its observers (spec 7.3). */
 public final class Catalog {
     private final Path worksDir;
     private final Map<String, WorkRecord> records = new ConcurrentHashMap<>();
     private final Map<String, Integer> lastPct = new ConcurrentHashMap<>();
-    private final List<Consumer<MsgCatalog.WorkMessage>> listeners =
-            new CopyOnWriteArrayList<>();
+    private final List<Consumer<MsgCatalog.WorkMessage>> listeners = new CopyOnWriteArrayList<>();
 
     public Catalog(Path worksDir) throws IOException {
         this.worksDir = worksDir;
@@ -144,6 +144,6 @@ public final class Catalog {
     private void persist(WorkRecord work) throws IOException {
         Path dir = worksDir.resolve(work.meta.id());
         Files.createDirectories(dir);
-        Files.writeString(dir.resolve("meta.json"), MetaJson.write(work));
+        Files.writeString(dir.resolve(StoreFiles.META), MetaJson.write(work));
     }
 }

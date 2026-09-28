@@ -10,6 +10,7 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import seurat.codec.Geometry;
 import seurat.config.SeuratConstants;
 
 /**
@@ -48,8 +49,8 @@ final class ImageIoReader implements MasterReader {
         this.jpeg = JPEG.equalsIgnoreCase(reader.getFormatName()) && reader.canReadRaster();
         this.useRaster = jpeg && (long) width * height > Integer.MAX_VALUE - 2;
         int rows = SeuratConstants.INGEST_CHUNK_ROWS;
-        while (rows > 256 && (long) rows * width * 4 > SeuratConstants.INGEST_CHUNK_BYTES) {
-            rows -= 256;
+        while (rows > Geometry.SIDE && (long) rows * width * 4 > SeuratConstants.INGEST_CHUNK_BYTES) {
+            rows -= Geometry.SIDE;
         }
         this.chunkRows = rows;
     }
@@ -66,9 +67,9 @@ final class ImageIoReader implements MasterReader {
             if (row >= height) return null;
             fillChunk();
         }
-        int n = Math.min(256, chunkLen - chunkOff);
-        if (bandBuffer == null) bandBuffer = new int[256][width];
-        int[][] band = (n == 256) ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
+        int n = Math.min(Geometry.SIDE, chunkLen - chunkOff);
+        if (bandBuffer == null) bandBuffer = new int[Geometry.SIDE][width];
+        int[][] band = (n == Geometry.SIDE) ? bandBuffer : java.util.Arrays.copyOf(bandBuffer, n);
         for (int y = 0; y < n; y++) {
             System.arraycopy(chunk[chunkOff + y], 0, band[y], 0, width);
         }

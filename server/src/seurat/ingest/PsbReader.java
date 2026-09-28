@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.stream.IntStream;
+import seurat.codec.Geometry;
 
 /**
  * Streaming Photoshop master, PSB or PSD ({@link PsbLayout} says which): the merged image data,
@@ -15,7 +16,6 @@ import java.util.stream.IntStream;
  * Photoshop plugin, so files this reader rejects (ZIP data, 16/32-bit, CMYK, Lab, indexed) fail.
  */
 final class PsbReader implements MasterReader {
-    private static final int BAND = 256;
 
     private final FileChannel ch;
     private final PsbLayout l;
@@ -53,13 +53,13 @@ final class PsbReader implements MasterReader {
     @Override
     public int[][] next() throws IOException {
         if (row >= l.height()) return null;
-        int n = Math.min(BAND, l.height() - row);
-        if (bandBuffer == null) bandBuffer = new int[BAND][w];
+        int n = Math.min(Geometry.SIDE, l.height() - row);
+        if (bandBuffer == null) bandBuffer = new int[Geometry.SIDE][w];
         for (int c = 0; c < planes.length; c++) {
-            if (planes[c] == null) planes[c] = new byte[BAND * w];
+            if (planes[c] == null) planes[c] = new byte[Geometry.SIDE * w];
             channel(c, n);
         }
-        int[][] band = n == BAND ? bandBuffer : Arrays.copyOf(bandBuffer, n);
+        int[][] band = n == Geometry.SIDE ? bandBuffer : Arrays.copyOf(bandBuffer, n);
         byte[] r = planes[0];
         byte[] g = planes[planes.length / 2];
         byte[] b = planes[planes.length - 1];

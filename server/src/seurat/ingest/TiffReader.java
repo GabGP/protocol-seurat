@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import seurat.codec.Geometry;
 
 /**
  * Streaming TIFF/BigTIFF master ({@link TiffLayout} says which): each band decodes the strip or
@@ -17,7 +18,6 @@ import java.util.stream.IntStream;
  * applies the embedded ICC profile, which this reader ignores like every other ingest path.
  */
 final class TiffReader implements MasterReader {
-    private static final int BAND = 256;
 
     private final TiffFile file;
     private final TiffLayout l;
@@ -54,7 +54,7 @@ final class TiffReader implements MasterReader {
     @Override
     public int[][] next() throws IOException {
         if (row >= l.height()) return null;
-        int n = Math.min(BAND, l.height() - row);
+        int n = Math.min(Geometry.SIDE, l.height() - row);
         int ch = l.chunkH();
         int cy0 = row / ch;
         int cy1 = (row + n - 1) / ch;

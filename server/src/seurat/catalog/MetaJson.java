@@ -2,6 +2,7 @@ package seurat.catalog;
 
 import java.util.HashMap;
 import java.util.Map;
+import seurat.codec.Geometry;
 import seurat.store.WorkMeta;
 
 /** Minimal meta.json reader/writer. No dependencies. Ids are filenames and may hold commas. */
@@ -51,7 +52,7 @@ final class MetaJson {
         return new WorkMeta(m.getOrDefault("id", id), m.getOrDefault("name", id),
                 Integer.parseInt(m.getOrDefault("width", "0")),
                 Integer.parseInt(m.getOrDefault("height", "0")),
-                Integer.parseInt(m.getOrDefault("side", "256")),
+                Integer.parseInt(m.getOrDefault("side", Integer.toString(Geometry.SIDE))),
                 Integer.parseInt(m.getOrDefault("strata", "0")),
                 Integer.parseInt(m.getOrDefault("state", "3")),
                 Long.parseLong(m.getOrDefault("edition", "2")), 0, 2);
