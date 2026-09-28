@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shrinkTo } from '../model/preview-resample';
+import { shrinkTo } from '@/workers/plane-shrink';
 
 const planes = (w: number, h: number, v: (x: number, y: number) => number) => ({
   planes: [0, 1, 2].map(() => Int16Array.from({ length: w * h }, (_, i) => v(i % w, Math.floor(i / w)))),

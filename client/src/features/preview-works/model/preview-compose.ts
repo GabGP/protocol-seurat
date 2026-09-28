@@ -1,12 +1,11 @@
 import type { WorkPreview } from '@/entities/work/previews';
 import { brushKey, makeBrushId } from '@/shared/proto/brush';
 import { TILE } from '@/shared/config/constants';
-import { planesToRgba } from '@/workers/planes-rgba';
 import { PARENTS_PER_SIDE, type PreviewLoan } from './preview-loan';
 import type { PreviewPiece } from './preview-piece';
 import type { DecodedPlanes, PreviewDecoder } from './preview-decoder';
 import type { BrushMemo } from './preview-memo';
-import { shrinkTo } from './preview-resample';
+import type { PreviewFinisher } from './preview-finisher';
 
 /** One stratum down doubles each side. */
 const LEVEL_SCALE = TILE / PARENTS_PER_SIDE;
@@ -20,9 +19,12 @@ interface Level extends DecodedPlanes {
  * The thumbnail a loan shows: the seed, then each stratum under it down to the finest one held,
  * over the whole area. A brush not (or no longer) held is predicted from its parent with zero
  * detail, as the viewer paints before bands arrive. Brushes whose pieces did not change since the
- * last compose come from `memo`, not the decoder. Kept at the card's width, not the stratum's.
+ * last compose come from `memo`, not the decoder. Kept at the card's width, not the stratum's,
+ * by `finisher`, which takes the level's planes.
  */
-export async function composePreview(loan: PreviewLoan, decoder: PreviewDecoder, memo: BrushMemo): Promise<WorkPreview | null> {
+export async function composePreview(
+  loan: PreviewLoan, decoder: PreviewDecoder, memo: BrushMemo, finisher: PreviewFinisher,
+): Promise<WorkPreview | null> {
   const seed = loan.seed;
   if (!seed) return null;
   const sig = String(seed.delivery);
@@ -32,10 +34,9 @@ export async function composePreview(loan: PreviewLoan, decoder: PreviewDecoder,
   let level: Level = { ...planes, sigs: new Map([['seed', sig]]) };
   for (let s = loan.top - 1; s >= Math.max(loan.level, loan.finest()); s--) level = await stratum(loan, decoder, memo, seed, level, s);
   memo.sweep();
-  const shown = shrinkTo(level, loan.vw);
-  const [Y, Co, Cg] = shown.planes;
-  if (!Y || !Co || !Cg) return null;
-  return { rgba: planesToRgba(Y, Co, Cg, shown.width * shown.height), width: shown.width, height: shown.height };
+  // The seed alone is the memo's own: the finisher gets a copy of it.
+  const own = level.planes === planes.planes ? { ...level, planes: level.planes.map((p) => p.slice()) } : level;
+  return finisher.finish(own, loan.vw);
 }
 
 /** Stratum `s` over the whole work, each brush decoded on its 128² crop of `parent`, all at once. */

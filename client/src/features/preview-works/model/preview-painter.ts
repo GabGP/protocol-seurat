@@ -4,6 +4,7 @@ import type { PreviewLoan } from './preview-loan';
 import type { PreviewDecoder } from './preview-decoder';
 import { composePreview } from './preview-compose';
 import { BrushMemo } from './preview-memo';
+import { PreviewFinisher } from './preview-finisher';
 
 /**
  * Composes each held loan's thumbnail through the decoder and shows it. A loan that changes
@@ -21,6 +22,7 @@ export class PreviewPainter {
     private readonly decoder: PreviewDecoder,
     private readonly live: (loan: PreviewLoan) => boolean,
     private readonly idle: () => void,
+    private readonly finisher = new PreviewFinisher(),
   ) {}
 
   /** Loans being composed now. */
@@ -34,7 +36,7 @@ export class PreviewPainter {
       return;
     }
     this.drawing.add(loan);
-    composePreview(loan, this.decoder, this.memo(loan))
+    composePreview(loan, this.decoder, this.memo(loan), this.finisher)
       .then((img) => {
         if (img && loan.seed && this.live(loan)) setWorkPreview(loan.id, img);
       })
@@ -66,6 +68,7 @@ export class PreviewPainter {
   dispose(): void {
     for (const loan of [...this.memos.keys()]) this.forget(loan);
     this.decoder.dispose();
+    this.finisher.dispose();
   }
 
   /** The loan's kept brushes (new when none are), no longer due to be dropped. */

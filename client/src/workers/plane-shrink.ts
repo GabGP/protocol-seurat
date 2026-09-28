@@ -1,4 +1,9 @@
-import type { DecodedPlanes } from './preview-decoder';
+/** Y, Co, Cg planes, `width × height` each. */
+export interface Planes {
+  planes: Int16Array[];
+  width: number;
+  height: number;
+}
 
 /** One output sample's source span: first index and the weight of each source sample it covers. */
 interface Span {
@@ -48,7 +53,7 @@ function shrinkPlane(src: Int16Array, sw: number, sh: number, dw: number, dh: nu
  * The composite at the card's width (height kept in proportion): what the thumbnail keeps is the
  * card's pixels, not the stratum's. Already narrower than `width`, it is kept as it is.
  */
-export function shrinkTo(d: DecodedPlanes, width: number): DecodedPlanes {
+export function shrinkTo(d: Planes, width: number): Planes {
   if (width <= 0 || d.width <= width) return d;
   const height = Math.max(1, Math.round((d.height * width) / d.width));
   return { planes: d.planes.map((p) => shrinkPlane(p, d.width, d.height, width, height)), width, height };
