@@ -5,6 +5,7 @@ import seurat.budget.BrushBudget;
 import seurat.codec.BrushId;
 import seurat.config.SeuratConstants;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.plan.PlanEntry;
 import seurat.proto.ProtoCodes;
 import seurat.regulate.Regulator;
@@ -117,7 +118,7 @@ final class Opener {
             regulator.onStart(session, System.nanoTime() - x.readyNs());
             delivery = canvas.book().log(e.brush(), e.from(), e.through(), bytes, canvas.concession().epoch());
         } catch (Exception ex) {
-            Log.warn("paint", "Cannot open brush " + e.brush() + " on canvas " + canvas.handle() + ": " + ex.getMessage());
+            Log.warn("paint", canvas.subject() + " open failed brush=" + e.brush() + ": " + LogUnits.cause(ex));
             session.releaseSlot();
             globalSlots.release();
             PlanEvents.resolved(canvas, x.generation());

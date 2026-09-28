@@ -6,6 +6,7 @@ import java.util.concurrent.Semaphore;
 import java.util.zip.CRC32C;
 import seurat.codec.Quant;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.observe.Metrics;
 import seurat.proto.Headers;
 import seurat.proto.Ranges;
@@ -69,11 +70,12 @@ final class DeliveryWriter {
             }
             metrics.deliveries.increment();
             metrics.bytes.add(delivery.bytes());
-            Log.debug("paint", "Delivered brush " + delivery.brush().id() + " (#" + delivery.number()
-                    + ") to session " + session.id() + " canvas " + canvas.handle());
+            if (Log.isDebugEnabled()) {
+                Log.debug("paint", canvas.subject() + " delivered brush=" + delivery.brush().id()
+                        + " n=" + delivery.number());
+            }
         } catch (Throwable ex) {
-            Log.warn("paint", "Delivery failed on canvas " + canvas.handle() + " delivery #"
-                    + delivery.number() + ": " + ex.getMessage());
+            Log.warn("paint", canvas.subject() + " delivery failed n=" + delivery.number() + ": " + LogUnits.cause(ex));
             synchronized (canvas) {
                 canvas.book().cancel(delivery.number());
                 if (onWire) {

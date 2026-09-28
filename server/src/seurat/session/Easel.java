@@ -3,6 +3,7 @@ package seurat.session;
 import java.util.concurrent.BlockingQueue;
 import seurat.net.Mapping;
 import seurat.observe.Log;
+import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
@@ -36,20 +37,24 @@ public final class Easel implements Runnable {
     @Override
     public void run() {
         Session session = null;
+        String reason = "disconnect";
         try {
             session = new SessionHandshake(mapping, entry, ctx).hello();
             loop(session, new CanvasService(mapping, ctx));
+            reason = "ADIOS"; // the loop only returns on ADIOS
         } catch (java.io.EOFException ex) {
-            Log.info("session", "Session " + (session == null ? "?" : session.id()) + " disconnected");
+            reason = "disconnect";
         } catch (FatalProtocol fail) {
-            Log.warn("session", "Fatal [session " + (session == null ? "?" : session.id()) + "]: "
-                    + ProtoCodes.errorName(fail.code) + " (ref=" + FrameType.name(fail.refType) + "): " + fail.getMessage());
+            reason = ProtoCodes.errorName(fail.code);
+            Log.warn("session", subject(session) + " fatal error=" + reason
+                    + " ref=" + FrameType.name(fail.refType) + ": " + fail.getMessage());
             fail(fail.code, fail.refType, fail.getMessage());
         } catch (Throwable ex) {
-            Log.error("session", "Session error [session " + (session == null ? "?" : session.id()) + "]", ex);
+            reason = "error";
+            Log.error("session", subject(session) + " failed: " + LogUnits.cause(ex), ex);
             fail(ProtoCodes.ERR_INTERNO, 0, "interno");
         } finally {
-            close(session);
+            close(session, reason);
         }
     }
 
@@ -62,13 +67,18 @@ public final class Easel implements Runnable {
         mapping.fail();
     }
 
-    private void close(Session session) {
+    private static String subject(Session session) {
+        return session == null ? "handshake" : "s" + session.id();
+    }
+
+    /** One line per close, whatever ended it; a session's books stay L + delta for REANUDAR. */
+    private void close(Session session, String reason) {
         try {
             mapping.close();
         } catch (Exception ignored) {
         }
+        Log.info("session", subject(session) + " closed reason=" + reason + (session == null ? "" : " books=kept"));
         if (session != null) {
-            Log.info("session", "Session " + session.id() + " closed; books kept L + delta");
             session.canvases().values().forEach(ctx.grants()::drop);
             ctx.gazes().forget(session);
             ctx.sessions().retire(session);
@@ -88,7 +98,9 @@ public final class Easel implements Runnable {
             byte[] raw = take();
             Frame f = Wire.parse(0, () -> Frame.decodeExact(raw));
             long type = f.type();
-            Log.debug("proto", "Session " + session.id() + " received " + FrameType.name(type));
+            if (Log.isDebugEnabled()) {
+                Log.debug("proto", "s" + session.id() + " received " + FrameType.name(type));
+            }
             if (type == FrameType.MIRADA) {
                 service.gaze(session, f);
             } else if (type == FrameType.RECIBO) {
@@ -108,7 +120,6 @@ public final class Easel implements Runnable {
             } else if (type == FrameType.ECO) {
                 service.echo(session, f);
             } else if (type == FrameType.ADIOS) {
-                Log.info("session", "Session " + session.id() + " sent ADIOS, closing cleanly");
                 return;
             } else if (Frame.mandatory(type)) {
                 // Known S->C types (BIENVENIDA, CONCESION, ...) are just as invalid from a client.

@@ -72,6 +72,6 @@ final class WorkLifecycle {
                 ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.RASPADO, "handle " + canvas.handle()).encode());
         session.canvases().remove(canvas.handle(), canvas);
         painter.drop(canvas);
-        Log.info("concession", "Session " + session.id() + " canvas " + canvas.handle() + " withdrawn");
+        Log.info("concession", canvas.subject() + " withdrawn");
     }
 }

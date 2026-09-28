@@ -73,6 +73,11 @@ public final class Canvas {
         session = value;
     }
 
+    /** Log subject: s7/c3. */
+    public String subject() {
+        return "s" + (session == null ? "?" : session.id()) + "/c" + handle;
+    }
+
     public LoanBook book() {
         return book;
     }

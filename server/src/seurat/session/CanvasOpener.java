@@ -19,15 +19,15 @@ final class CanvasOpener {
         MsgCatalog.OpenWork request = Wire.parse(f.type(), () -> MsgCatalog.OpenWork.parse(f.payload()));
         WorkRecord work = ctx.catalog().get(request.id());
         if (work == null || work.meta.state() == ProtoCodes.ST_RETIRADA) {
-            Log.warn("session", "Session " + session.id() + " open failed: no work '" + request.id() + "'");
+            Log.warn("session", "s" + session.id() + " open failed work=" + request.id() + ": no such work");
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
         int state = work.meta.state();
         if (work.store == null || state == ProtoCodes.ST_RECIBIENDO || state == ProtoCodes.ST_FALLIDA) {
-            Log.warn("session", "Session " + session.id() + " open failed: '" + request.id()
-                    + "' not ready (state=" + ProtoCodes.stateName(state) + ")");
+            Log.warn("session", "s" + session.id() + " open failed work=" + request.id()
+                    + ": not ready state=" + ProtoCodes.stateName(state));
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, request.id()).encode());
             return;
@@ -42,9 +42,9 @@ final class CanvasOpener {
         canvas.auditNs = System.nanoTime();
         long paddedW = ((long) work.meta.width() + (1L << top) - 1) >> top << top;
         long paddedH = ((long) work.meta.height() + (1L << top) - 1) >> top << top;
-        Log.info("session", "Session " + session.id() + " opened canvas " + handle + " for work '"
-                + request.id() + "' (" + work.meta.width() + "x" + work.meta.height() + ", strata="
-                + work.meta.strata() + ", ed=" + work.meta.edition() + ")");
+        Log.info("session", "s" + session.id() + "/c" + handle + " opened work=" + request.id()
+                + " size=" + work.meta.width() + "x" + work.meta.height() + " strata="
+                + work.meta.strata() + " ed=" + work.meta.edition());
         synchronized (canvas) {
             session.canvases().put(handle, canvas);
             Easel.send(mapping, FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,

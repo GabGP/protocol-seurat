@@ -2,7 +2,7 @@ package seurat.concession;
 
 import java.util.List;
 import java.util.function.Predicate;
-import seurat.observe.Log;
+import seurat.observe.AuditLog;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
@@ -42,8 +42,7 @@ final class LoanVerifier {
             }
             Ranges expected = canvas.book().expected(order.through(), scrape, cancelled.build());
             if (!expected.equals(scraped.kept())) {
-                Log.warn("audit", "Scrape possession mismatch on canvas " + canvas.handle()
-                        + ": expected " + expected + ", got " + scraped.kept());
+                AuditLog.alert(canvas.subject() + " RASPADO mismatch expected=" + expected + " got=" + scraped.kept());
                 throw new FatalProtocol(ProtoCodes.ERR_POSESION, FrameType.RASPADO, "POSESION_DISCREPANTE");
             }
             canvas.book().retainOnly(order.through(), scraped.kept());
@@ -65,9 +64,8 @@ final class LoanVerifier {
             }
             var expected = canvas.book().numbersThrough(inventory.through());
             if (!expected.equals(inventory.ranges())) {
-                Log.warn("audit", "Inventory audit mismatch on canvas " + canvas.handle()
-                        + ": order=" + inventory.order() + " through=" + inventory.through()
-                        + " expected " + expected + ", got " + inventory.ranges());
+                AuditLog.alert(canvas.subject() + " INVENTARIO mismatch order=" + inventory.order()
+                        + " through=" + inventory.through() + " expected=" + expected + " got=" + inventory.ranges());
                 throw new FatalProtocol(ProtoCodes.ERR_POSESION, FrameType.INVENTARIO, "POSESION_DISCREPANTE");
             }
         }

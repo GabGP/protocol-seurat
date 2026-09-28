@@ -116,10 +116,8 @@ public final class GrantController {
             Ranges cancelled = painter.purge(canvas, next);
             send(session, FrameType.CONCESION, Concessions.message(canvas).encode());
             scrape(canvas, n, next.epoch(), cancelled, cuts, then);
-            Log.info("concession", "Session " + session.id() + " canvas " + canvas.handle()
-                    + " concession narrowed: " + ProtoCodes.motiveName(next.reason())
-                    + " (epoch=" + next.epoch() + ", minStratum=" + next.minStratum()
-                    + ", maxBands=" + next.maxBands() + ")");
+            Log.info("concession", canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
+                    + " epoch=" + next.epoch() + " minStratum=" + next.minStratum() + " maxBands=" + next.maxBands());
         }
     }
 

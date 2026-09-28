@@ -63,7 +63,7 @@ final class ResumeAdopter {
             closeQuietly(holder); // a retry while the adopter still looked alive
         }
         ctx.sessions().adopted(request.previousSession(), r, session);
-        Log.info("session", "Session " + session.id() + " resumed " + handles.size() + " canvas(es)");
+        Log.info("session", "s" + session.id() + " resumed canvases=" + handles.size());
         return new Result(handles, reissued);
     }
 

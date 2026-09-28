@@ -41,7 +41,7 @@ final class SessionHandshake {
         }
         Sessions.Token token = ctx.sessions().consumeToken(Hex.hex(hello.token()));
         if (token == null) {
-            Log.warn("session", "Handshake failed: token invalid or expired");
+            Log.warn("session", "handshake rejected: token invalid or expired");
             throw new FatalProtocol(ProtoCodes.ERR_AUTENTICACION, f.type(), "token");
         }
         long offered = ProtoCodes.CAP_REANUDAR | (mapping.datagrams() ? ProtoCodes.CAP_DATAGRAMAS : 0);
@@ -52,15 +52,15 @@ final class SessionHandshake {
         if (hello.resume() != null) {
             resumed = new ResumeAdopter(ctx).adopt(session, hello.resume());
             if (resumed == null) {
-                Log.warn("session", "Session " + session.id() + " resume rejected");
+                Log.warn("session", "s" + session.id() + " resume rejected");
                 Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                         ProtoCodes.ERR_REANUDACION, 0, FrameType.SALUDO, "REANUDAR").encode());
             }
         }
         ctx.sessions().add(session);
         List<Long> handles = resumed == null ? List.of() : resumed.handles();
-        Log.info("session", "Session " + session.id() + " established for " + token.principal()
-                + " [role=" + token.role() + ", mem=" + token.memMib() + "MiB, caps=0x" + Long.toHexString(caps) + "]");
+        Log.info("session", "s" + session.id() + " established principal=" + token.principal()
+                + " role=" + token.role() + " mem=" + token.memMib() + " MiB caps=0x" + Long.toHexString(caps));
         Easel.send(mapping, FrameType.BIENVENIDA, new MsgHandshake.Welcome(1, caps, session.id(),
                 SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S, SeuratConstants.HEARTBEAT_S,
                 SeuratConstants.MAX_IN_FLIGHT, ctx.sessionMax(), session.ticket(), handles).encode());

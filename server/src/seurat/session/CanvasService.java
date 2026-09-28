@@ -29,7 +29,7 @@ final class CanvasService {
     private Canvas canvas(Session session, long handle, long type) {
         Canvas canvas = session.canvases().get(handle);
         if (canvas == null) {
-            Log.warn("session", "Session " + session.id() + " invalid handle " + handle);
+            Log.warn("session", "s" + session.id() + " invalid handle=" + handle);
             Easel.send(mapping, FrameType.ERROR, new MsgHandshake.ProtocolError(
                     ProtoCodes.ERR_HANDLE, 0, type, "handle " + handle).encode());
         }
@@ -83,8 +83,8 @@ final class CanvasService {
                     if (canvas.retryOnce(d.brush())) {
                         ctx.grants().resend(canvas, d); // spec 5.3: resent once, then unusable
                     } else if (release.reason() == ProtoCodes.SOLTAR_CRC) {
-                        AuditLog.alert("CRC failed twice on " + d.brush() + " (canvas " + canvas.handle()
-                                + ", session " + session.id() + "): unusable in this session");
+                        AuditLog.alert("s" + session.id() + "/c" + canvas.handle() + " CRC failed twice on "
+                                + d.brush() + ": unusable in this session");
                     }
                 });
             }
@@ -128,7 +128,7 @@ final class CanvasService {
             return;
         }
         ctx.grants().drop(closed);
-        Log.info("session", "Session " + session.id() + " closed canvas handle=" + handle);
+        Log.info("session", "s" + session.id() + "/c" + handle + " closed");
     }
 
     void echo(Session session, Frame f) {
