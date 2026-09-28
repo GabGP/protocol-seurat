@@ -13,6 +13,7 @@ import seurat.config.SeuratConstants;
  */
 public final class Progress {
     private static final int UNKNOWN = -1;
+    private static final String QUEUED = "queued";
     private static final Map<String, Job> JOBS = new ConcurrentSkipListMap<>();
     private static volatile boolean live = Log.TTY
             && !"false".equalsIgnoreCase(System.getProperty("seurat.log.progress"));
@@ -40,9 +41,14 @@ public final class Progress {
         track(tag, key, phase, Math.max(0, Math.min(100, pct)), suffix);
     }
 
-    /** A phase with no total yet ("waiting", "queued", "sketching"): an open-ended [~] segment. */
+    /** A phase with no total yet ("waiting", "sketching"): an open-ended [~] segment. */
     public static void phase(String tag, String key, String phase, String suffix) {
         track(tag, key, phase, UNKNOWN, suffix);
+    }
+
+    /** Waiting for the ingest thread: the sticky line counts these in one "queued=N" segment. */
+    public static void queue(String tag, String key) {
+        phase(tag, key, QUEUED, "");
     }
 
     private static void track(String tag, String key, String phase, int pct, String suffix) {
@@ -79,13 +85,23 @@ public final class Progress {
         }
     }
 
-    /** The sticky line, cut to the terminal width; empty when nothing runs or output is not a console. */
+    /** The sticky line, running jobs then "queued=N", cut to the terminal width; empty when nothing runs. */
     static String line() {
         if (!live() || JOBS.isEmpty()) {
             return "";
         }
         StringJoiner all = new StringJoiner(" | ");
-        JOBS.forEach((key, job) -> all.add(job.text(key, "")));
+        int queued = 0;
+        for (Map.Entry<String, Job> e : JOBS.entrySet()) {
+            if (e.getValue().phase.equals(QUEUED)) {
+                queued++;
+            } else {
+                all.add(e.getValue().text(e.getKey(), ""));
+            }
+        }
+        if (queued > 0) {
+            all.add(QUEUED + "=" + queued);
+        }
         String text = all.toString();
         int cols = columns() - 1;
         return text.length() > cols ? text.substring(0, cols) : text;

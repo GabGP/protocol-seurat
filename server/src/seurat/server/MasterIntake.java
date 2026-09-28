@@ -57,7 +57,7 @@ public final class MasterIntake implements Closeable {
                 return;
             }
             Log.info("ingest", "work=" + id + " ingest queued file=" + file.getFileName());
-            Progress.phase("ingest", "work=" + id, "queued", "");
+            Progress.queue("ingest", "work=" + id);
             try {
                 ingest.execute(() -> {
                     try {

@@ -61,13 +61,17 @@ public final class ProgressTest {
 
     private static void sticky(ByteArrayOutputStream bytes) {
         Progress.setLive(true);
+        Progress.queue("ingest", "work=0");
         Progress.update("ingest", "work=a", "painting", 40, "");
         Progress.update("ingest", "work=b", "unzipping", 70, "");
-        Progress.phase("ingest", "work=c", "queued", "");
-        String bar = "work=a painting [####------] 40% | work=b unzipping [#######---] 70% | work=c queued [~]";
+        Progress.queue("ingest", "work=c");
+        String bar = "work=a painting [####------] 40% | work=b unzipping [#######---] 70% | queued=2";
         String line = Progress.line();
         TestKit.check(bar.startsWith(line) && line.contains("| work=b unzipping [#######---] 70%"),
-                "one segment per job, sorted, cut to the terminal width: " + line);
+                "running jobs sorted, queued ones counted last, cut to the terminal width: " + line);
+        System.setProperty("seurat.log.columns", "200");
+        TestKit.check(Progress.line().equals(bar), "whole line on a wide terminal: " + Progress.line());
+        System.clearProperty("seurat.log.columns");
         bytes.reset();
         Log.info("test", "hello");
         String out = bytes.toString(StandardCharsets.UTF_8);
@@ -77,6 +81,8 @@ public final class ProgressTest {
         Progress.done("work=a");
         Progress.done("work=b");
         Progress.done("work=c");
+        TestKit.check(Progress.line().equals("queued=1"), "the count follows done: " + Progress.line());
+        Progress.done("work=0");
         bytes.reset();
         Log.info("test", "after");
         out = bytes.toString(StandardCharsets.UTF_8);

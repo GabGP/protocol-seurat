@@ -27,7 +27,7 @@ final class ZipIntake {
         }
         Log.info("ingest", subject + " ingest started works=" + imgs.size());
         long start = System.currentTimeMillis();
-        imgs.forEach(img -> Progress.phase("ingest", "work=" + id(img), "queued", ""));
+        imgs.forEach(img -> Progress.queue("ingest", "work=" + id(img)));
         try {
             for (Path img : imgs) {
                 ingest.run(id(img), id(img), img);
