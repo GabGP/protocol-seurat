@@ -32,11 +32,18 @@ export function hudFor(s: number, minS: number, maxS: number, dotsOn: boolean, t
   return { pct: s * 100, frac, inDots: dotsOn && s >= th, dotThreshold: th };
 }
 
+/**
+ * The view in image px, clipped to the image. MIRADA needs x0 ≤ x1 and y0 ≤ y1 (the server
+ * rejects an inverted rectangle as fatal), so a view dragged off the image becomes the 1 px strip
+ * at the nearest edge.
+ */
 export function viewToRoi(s: number, tx: number, ty: number, vp: Viewport, iw: number, ih: number): Roi {
+  const x0 = clamp(Math.floor(-tx / s), 0, Math.max(0, iw - 1));
+  const y0 = clamp(Math.floor(-ty / s), 0, Math.max(0, ih - 1));
   return {
-    x0: Math.max(0, Math.floor(-tx / s)),
-    y0: Math.max(0, Math.floor(-ty / s)),
-    x1: Math.min(iw, Math.ceil((vp.vw - tx) / s)),
-    y1: Math.min(ih, Math.ceil((vp.vh - ty) / s)),
+    x0,
+    y0,
+    x1: clamp(Math.ceil((vp.vw - tx) / s), Math.min(iw, x0 + 1), iw),
+    y1: clamp(Math.ceil((vp.vh - ty) / s), Math.min(ih, y0 + 1), ih),
   };
 }
