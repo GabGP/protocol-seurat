@@ -38,6 +38,7 @@ final class DeliveryWriter {
         Canvas canvas = flow.canvas();
         Delivery delivery = flow.delivery();
         var session = canvas.session();
+        boolean onWire = false; // a store failure is not retried: the same bytes would fail again
         try {
             byte[][] bands = flow.store().servable(delivery.brush(), delivery.from(), delivery.through());
             if (bands.length == 0) {
@@ -59,6 +60,7 @@ final class DeliveryWriter {
             var head = new Headers.BrushHead(canvas.handle(), delivery.number(), delivery.brush().id(),
                     delivery.from(), delivery.through(), delivery.epoch(), Quant.qy(table, stratum),
                     Quant.qc(table, stratum), delivery.edition(), crcs, lengths);
+            onWire = true;
             try (OutputStream out = session.mapping().openDelivery(canvas, delivery)) {
                 out.write(head.encode());
                 for (byte[] band : bands) {
@@ -74,6 +76,9 @@ final class DeliveryWriter {
                     + delivery.number() + ": " + ex.getMessage());
             synchronized (canvas) {
                 canvas.book().cancel(delivery.number());
+                if (onWire) {
+                    canvas.plan().lost(); // spec 8: cut before its FIN, planned again with another number
+                }
                 PlanEvents.cancelled(canvas, Ranges.of(delivery.number())); // every number settles (spec 4.2.4c)
             }
         } finally {

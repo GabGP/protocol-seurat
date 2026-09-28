@@ -5,7 +5,9 @@ import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
+import seurat.plan.ConePlanner;
 import seurat.proto.MsgAudit;
+import seurat.proto.MsgGaze;
 import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -63,6 +65,11 @@ public final class Liveness {
                 canvas.floored = true;
                 grants.apply(canvas, Concessions.target(grants.ceiling(canvas), true, canvas.meta().strata() - 1),
                         ProtoCodes.MOT_INACTIVIDAD, false);
+            }
+            MsgGaze.Gaze gaze = canvas.gaze();
+            boolean hidden = gaze != null && (gaze.flags() & MsgGaze.M_OCULTA) != 0;
+            if (!canvas.retiring && !hidden && canvas.plan().stale(ConePlanner.rung(session.share))) {
+                grants.plans.replan(canvas, grants.sketch(canvas)); // spec 6.3, 8
             }
             if (now - canvas.renewNs > SeuratConstants.RENEW_S * S) {
                 canvas.renewNs = now;

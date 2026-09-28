@@ -7,6 +7,7 @@ import seurat.net.RecordingMapping;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgAudit;
+import seurat.proto.MsgGaze;
 import seurat.proto.MsgHandshake;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
@@ -16,12 +17,16 @@ import seurat.session.Session;
 import seurat.session.Sessions;
 import seurat.store.WorkMeta;
 
-/** Liveness (spec 4.2.6-7, 8): 3 LATIDO without ECO, RENOVAR only what is permitted, ERROR 8. */
+/**
+ * Liveness (spec 4.2.6-7, 6.3, 8): 3 LATIDO without ECO, RENOVAR only what is permitted, ERROR 8,
+ * and the live MIRADA planned again when load recovers or a delivery is cut before its FIN.
+ */
 public final class LivenessTest {
     public static void main(String[] args) throws Exception {
         testHeartbeatTimeout();
         testRenewalAck();
         testScrapeDeadline();
+        testReplan();
         System.out.println("LivenessTest OK");
     }
 
@@ -62,6 +67,42 @@ public final class LivenessTest {
         s.canvas.orders().takeRenewalsThrough(Long.MAX_VALUE).forEach(r ->
                 s.canvas.book().acknowledge(r, now, 120_000_000_000L, 1_000_000_000L));
         TestKit.check(s.canvas.book().pruneExpired(now + 60_000_000_000L).isEmpty(), "renewed within lease");
+    }
+
+    private static void testReplan() throws Exception {
+        var s = GrantControllerTest.setup();
+        s.session.share = 0.3; // e_i in [1/4, 1/2): the plan is cut (spec 6.3)
+        s.grants.gaze(s.session, s.canvas, new MsgGaze.Gaze(1, 5, 0, 0, 512, 384, 512, 384, 0));
+        TestKit.check((lastStart(s).throttle() & ProtoCodes.REG_CARGA) != 0, "cut plan says CARGA");
+        s.mapping.control.clear();
+        Liveness liveness = new Liveness(s.grants, s.sessions);
+        liveness.tick();
+        TestKit.check(lastStart(s) == null, "no recovery, no new plan");
+        s.session.share = 1.0;
+        liveness.tick();
+        MsgGaze.Plan again = lastStart(s);
+        TestKit.check(again != null && again.gazeSeq() == 5 && (again.throttle() & ProtoCodes.REG_CARGA) == 0,
+                "load recovered: the same MIRADA planned again, uncut");
+        s.mapping.control.clear();
+        liveness.tick();
+        TestKit.check(lastStart(s) == null, "planned once per recovery");
+        synchronized (s.canvas) {
+            s.canvas.plan().lost();
+        }
+        liveness.tick();
+        TestKit.check(lastStart(s) != null, "a delivery cut before its FIN: planned again (spec 8)");
+    }
+
+    private static MsgGaze.Plan lastStart(GrantControllerTest.Setup s) {
+        MsgGaze.Plan out = null;
+        for (byte[] f : s.mapping.control) {
+            Frame fr = Frame.decode(ByteBuffer.wrap(f));
+            if (fr.type() == FrameType.PLAN) {
+                MsgGaze.Plan p = MsgGaze.Plan.parse(fr.payload());
+                out = p.event() == ProtoCodes.PLAN_INICIO ? p : out;
+            }
+        }
+        return out;
     }
 
     private static void testScrapeDeadline() throws Exception {

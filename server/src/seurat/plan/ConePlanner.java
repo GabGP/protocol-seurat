@@ -16,6 +16,11 @@ public final class ConePlanner {
 
     public record ConePlan(List<PlanEntry> entries, int throttle) {}
 
+    /** Spec 6.3's staircase on e_i: 3 normal, 2 no ring 2, 1 focus <= 2 bands, 0 focus one stratum coarser. */
+    public static int rung(double share) {
+        return share >= 0.75 ? 3 : share >= 0.5 ? 2 : share >= 0.25 ? 1 : 0;
+    }
+
     public static ConePlan plan(MsgGaze.Gaze gaze, Concession concession, BookView book,
             seurat.store.WorkMeta meta, double share, long queueMs) {
         int top = meta.strata() - 1;
@@ -40,15 +45,16 @@ public final class ConePlanner {
         boolean ring2 = true;
         int ring1Bands = 2;
         int focusCap = 4;
-        if (share < 0.75) {
+        int rung = rung(share);
+        if (rung < 3) {
             flags |= ProtoCodes.REG_CARGA;
             ring2 = false;
             ring1Bands = 1;
         }
-        if (share < 0.5) {
+        if (rung < 2) {
             focusCap = 2;
         }
-        if (share < 0.25) {
+        if (rung < 1) {
             focusStratum = Math.min(top - 1 < 0 ? 0 : top - 1, focusStratum + 1);
             focusBands = 4;
             if (focusStratum == concession.minStratum()) {
