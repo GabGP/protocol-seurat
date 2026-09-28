@@ -12,6 +12,7 @@ import type { TelemetryInput } from '@/entities/telemetry/sections';
 import { ViewerTopBar } from '@/widgets/ViewerTopBar';
 import { LiveStatusPill } from '@/widgets/StatusPill';
 import { LoadError } from '@/widgets/LoadError';
+import { SlowScriptNotice } from '@/widgets/SlowScriptNotice';
 import { buildPresets } from '@/widgets/ZoomMenu';
 import { useSeurat } from '@/app/providers/SeuratProvider';
 import { patchUi, useUi } from '@/app/store';
@@ -136,6 +137,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         <div className={styles.loadingNotice}>Loading {title} · {dims} px</div>
       )}
       {err && <LoadError onRetry={retry} />}
+      <SlowScriptNotice />
       <LiveStatusPill feed={feeds.readout} />
       <ViewerToolbar
         pctLabel={fmtPct(pct)}

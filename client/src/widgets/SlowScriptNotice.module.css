@@ -1,0 +1,55 @@
+.card {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(560px, calc(100% - 32px));
+  padding: 14px 12px 14px 16px;
+  border-radius: 20px;
+  background: var(--surface-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-on-container);
+}
+
+.icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--pill);
+}
+
+.message {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: -6px 0 0;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-subtle);
+}
+
+@media (max-width: 640px) {
+  .card {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 72px);
+  }
+
+  .message {
+    font-size: 13px;
+  }
+}

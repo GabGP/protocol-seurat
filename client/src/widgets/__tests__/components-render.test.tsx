@@ -3,6 +3,7 @@ import { renderToString } from 'react-dom/server';
 import { Icon } from '@/shared/ui/Icon';
 import { StatusPill } from '@/widgets/StatusPill';
 import { LoadError } from '@/widgets/LoadError';
+import { SlowScriptCard, SlowScriptNotice } from '@/widgets/SlowScriptNotice';
 import { ZoomMenu } from '@/widgets/ZoomMenu';
 import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
 
@@ -45,6 +46,19 @@ describe('LoadError component', () => {
     const html = renderToString(<LoadError onRetry={() => {}} />);
     expect(html).toContain('Could not load this image.');
     expect(html).toContain('Retry');
+  });
+});
+
+describe('SlowScriptNotice', () => {
+  it('names no browser and offers a dismiss control', () => {
+    const html = renderToString(<SlowScriptCard onDismiss={() => {}} />);
+    expect(html).toContain('without optimizations');
+    expect(html).toContain('aria-label="Dismiss"');
+    expect(html).not.toMatch(/Edge|Chrome|Firefox|Safari/);
+  });
+
+  it('renders nothing before the probe has run', () => {
+    expect(renderToString(<SlowScriptNotice />)).toBe('');
   });
 });
 
