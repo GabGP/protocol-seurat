@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipView, INSTANCE_FLOATS, packTiles } from '../gl-instances';
+import { arrayRuns, clipView, INSTANCE_FLOATS, packTiles } from '../gl-instances';
 import type { BrushGeom } from '../brush-cull';
 
 function tile(stratum: number, bx: number, by: number): BrushGeom {
@@ -49,5 +49,28 @@ describe('packTiles', () => {
 
   it('clipView returns null when the image is off screen', () => {
     expect(clipView(5000, 0, 1, 100, 100, 0, 0, 800, 600, 1)).toBeNull();
+  });
+});
+
+describe('arrayRuns', () => {
+  it('keeps coarse tiles before fine ones across texture arrays', () => {
+    const coarseInB = tile(2, 0, 0);
+    const midInA = tile(1, 0, 0);
+    const fineInA = tile(0, 0, 0);
+    const fineInB = tile(0, 1, 0);
+    const array = new Map([[coarseInB, 1], [midInA, 0], [fineInA, 0], [fineInB, 1]]);
+    const runs = arrayRuns([coarseInB, midInA, fineInA, fineInB], (b) => array.get(b));
+    const order = runs.flatMap((r) => r.tiles);
+    expect(order.map((b) => b.stratum)).toEqual([2, 1, 0, 0]);
+    expect(runs.map((r) => r.array)).toEqual([1, 0, 1]);
+  });
+
+  it('groups one stratum by array and leaves out tiles with no slot', () => {
+    const a = tile(0, 0, 0);
+    const b = tile(0, 1, 0);
+    const c = tile(0, 2, 0);
+    const array = new Map([[a, 1], [b, 0], [c, 1]]);
+    const runs = arrayRuns([a, b, c, tile(0, 3, 0)], (t) => array.get(t));
+    expect(runs.map((r) => [r.array, r.tiles.length])).toEqual([[0, 1], [1, 2]]);
   });
 });

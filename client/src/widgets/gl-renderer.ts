@@ -9,7 +9,7 @@ import { clamp } from '@/shared/lib/clamp';
 import { dotParams, dotsPerSide } from './pointillism';
 import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from './brush-cull';
 import { TileAtlas } from './tile-atlas';
-import { clipView, INSTANCE_FLOATS, packTiles, type PackView } from './gl-instances';
+import { arrayRuns, clipView, INSTANCE_FLOATS, packTiles, type PackView } from './gl-instances';
 import { link, rgb, rgba, type GLProgram } from './gl-context';
 import { BG_FS, DISC_FS, OUTLINE_FS, RECT_VS, SHADOW_FS, TILE_FS, TILE_VS } from './gl-shaders';
 import type { FrameState, LoaderState, ViewRenderer } from './view-renderer';
@@ -274,7 +274,7 @@ export class WebGL2Renderer implements ViewRenderer {
     gl.disable(gl.BLEND);
   }
 
-  /** Sketch, then tiles grouped by texture array, coarse → fine; returns draws issued. */
+  /** Sketch, then tiles coarse → fine, one draw per run of tiles sharing a texture array; returns draws issued. */
   private drawBrushes(list: readonly BrushGeom[], v: PackView, s: number, opts: LayerOpts): number {
     const gl = this.gl;
     const need = (list.length + 1) * INSTANCE_FLOATS;
@@ -284,10 +284,9 @@ export class WebGL2Renderer implements ViewRenderer {
     const groups: Array<{ first: number; count: number; array: number }> = [];
     let total = sketch ? packTiles([sketch], v, () => 0, this.inst) : 0;
     const sketchCount = total;
-    for (let a = 0; a < this.atlas.arrayCount; a++) {
-      const inArray = tiles.filter((b) => this.atlas.slotOf(b.bmp)?.array === a);
-      const count = packTiles(inArray, v, (b) => this.atlas.slotOf(b.bmp)?.layer ?? 0, this.inst, total);
-      if (count > 0) groups.push({ first: total, count, array: a });
+    for (const run of arrayRuns(tiles, (b) => this.atlas.slotOf(b.bmp)?.array)) {
+      const count = packTiles(run.tiles, v, (b) => this.atlas.slotOf(b.bmp)?.layer ?? 0, this.inst, total);
+      if (count > 0) groups.push({ first: total, count, array: run.array });
       total += count;
     }
     if (total === 0) return 0;

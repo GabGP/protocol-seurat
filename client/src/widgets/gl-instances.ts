@@ -58,6 +58,26 @@ export function packTiles(list: readonly BrushGeom[], v: PackView, layerOf: (b: 
   return n - start;
 }
 
+/**
+ * Draw runs for tiles spread over several texture arrays, keeping painter's order coarse → fine:
+ * a coarse tile drawn after a finer one would cover it. Tiles of one stratum never overlap, so
+ * within a stratum they are grouped by array (stable sort); tiles with no slot are left out.
+ */
+export function arrayRuns(tiles: readonly BrushGeom[], arrayOf: (b: BrushGeom) => number | undefined):
+  Array<{ array: number; tiles: BrushGeom[] }> {
+  const slotted = tiles.flatMap((b) => {
+    const array = arrayOf(b);
+    return array === undefined ? [] : [{ b, array }];
+  }).sort((p, q) => q.b.stratum - p.b.stratum || p.array - q.array);
+  const runs: Array<{ array: number; tiles: BrushGeom[] }> = [];
+  for (const { b, array } of slotted) {
+    const last = runs[runs.length - 1];
+    if (last?.array === array) last.tiles.push(b);
+    else runs.push({ array, tiles: [b] });
+  }
+  return runs;
+}
+
 /** CSS clip of the view ∩ the image, plus the integer image origin for `packTiles`. */
 export function clipView(tx: number, ty: number, s: number, iw: number, ih: number,
   cx0: number, cy0: number, cx1: number, cy1: number, dpr: number): PackView | null {
