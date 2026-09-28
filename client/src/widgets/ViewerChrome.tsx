@@ -342,6 +342,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       st.v = next;
       const now = performance.now();
       markMotion(now, moving);
+      p.sink?.checkExpiry(now); // spec 5.2.2: nothing expired is painted; a removal bumps the revision
       const revision = p.sink?.revision ?? -1;
       if (renderer.needsFrame?.()) dirty = true; // uploads still landing
       if (revision !== drawnRevision) {

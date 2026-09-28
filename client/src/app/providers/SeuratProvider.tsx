@@ -230,6 +230,11 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       onStatus: (s) => {
         if (alive) setStatus(s);
       },
+      onIncoming: () => {
+        const now = performance.now();
+        sinkRef.current?.checkExpiry(now);
+        previewRef.current?.sweep(now);
+      },
     };
     const concessionRef: { current: Concession | null } = { current: null };
     const client = new SessionClient(events);
@@ -245,10 +250,10 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     );
     // pagehide sends nothing (spec 5.3): the book survives L + delta and pageshow resumes it.
     // visibilitychange -> MIRADA OCULTA is sent by the viewer (useViewerWork).
-    const sweep = window.setInterval(() => {
-      sinkRef.current?.sweepExpiry(() => performance.now());
-      previewRef.current?.sweep(performance.now());
-    }, 1000);
+    // The viewer's leases are checked before each paint (ViewerChrome) and on every incoming
+    // message (onIncoming). A gallery thumbnail is painted once and stays on screen, so it is
+    // also dropped when its lease ends even if the connection has gone quiet (spec 5.2.2).
+    const sweep = window.setInterval(() => previewRef.current?.sweep(performance.now()), 1000);
     return () => {
       alive = false;
       bumpPaint.cancel();

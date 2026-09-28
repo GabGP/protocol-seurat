@@ -448,4 +448,27 @@ describe('DeliverySink', () => {
     sink.dispose();
     vi.unstubAllGlobals();
   });
+
+  it('checkExpiry before a paint drops a lease the moment it ends, and a renewal defers it (spec 5.2.2)', () => {
+    vi.stubGlobal('Worker', class {
+      postMessage = vi.fn();
+      terminate = vi.fn();
+      set onmessage(_value: unknown) { /* dispatched only */ }
+    });
+    const sink = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    sink.ingest(makeDeliveryBytes({
+      handle: 1, delivery: 10, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
+    }), () => 1000, () => {}, 120); // vence = 121 000
+    sink.checkExpiry(120_999);
+    expect(sink.book.byDelivery.has(10)).toBe(true);
+    sink.applyRenew([10], 1, 120, () => 60_000); // vence = 180 000
+    sink.checkExpiry(121_000);
+    expect(sink.book.byDelivery.has(10)).toBe(true);
+    const r = sink.revision;
+    sink.checkExpiry(180_000);
+    expect(sink.book.byDelivery.has(10)).toBe(false);
+    expect(sink.revision).not.toBe(r); // the frame that checked repaints without it
+    sink.dispose();
+    vi.unstubAllGlobals();
+  });
 });

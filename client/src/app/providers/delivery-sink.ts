@@ -60,6 +60,8 @@ export class DeliverySink {
   private receiptTimer = 0;
   private releaseTimer = 0;
   private expiredQueue: number[] = [];
+  /** The earliest lease end in the book (renewals only push it later): no sweep is due before it. */
+  private nextExpiry = Infinity;
   private readonly decode = new DecodeQueue();
   private scrapes: PendingScrape[] = [];
   private lastScrape: { through: number; epoch: number } | null = null;
@@ -340,6 +342,7 @@ export class DeliverySink {
       receiptSent: false,
     };
     this.book.byDelivery.set(h.delivery, rec);
+    this.nextExpiry = Math.min(this.nextExpiry, rec.expires);
     this.book.inFlight.add(h.delivery);
     this.revision++;
     const req: SynthRequest = {
@@ -682,6 +685,14 @@ export class DeliverySink {
     return { brushCount: new Set([...this.book.byDelivery.values()].map((r) => r.brushId.toString())).size, kib: Math.ceil(ownedBytes(this.book) / 1024), ranges };
   }
 
+  /**
+   * Spec 5.2.2, before each paint and with each incoming message (never on a timer): nothing
+   * expired is painted. Free until the earliest lease in the book ends.
+   */
+  checkExpiry(now: number): void {
+    if (now >= this.nextExpiry) this.sweepExpiry(() => now);
+  }
+
   sweepExpiry(now: () => number): void {
     const t = now();
     const expired = [...this.book.byDelivery.entries()]
@@ -692,6 +703,8 @@ export class DeliverySink {
       const removed = this.removeSubtree(n, 0, 'expired');
       this.expiredQueue.push(...removed);
     }
+    this.nextExpiry = Infinity; // min over the book of vence = min of vence_efectivo
+    for (const rec of this.book.byDelivery.values()) this.nextExpiry = Math.min(this.nextExpiry, rec.expires);
     if (this.expiredQueue.length > 0 && this.releaseTimer === 0) {
       this.releaseTimer = setTimeout(() => {
         this.releaseTimer = 0;

@@ -61,6 +61,8 @@ export interface SessionEvents {
   onDisconnect?(): void;
   /** POST /sesion answered: the account and role of the session about to start. */
   onAccount?(a: Account): void;
+  /** Any frame arrived, before it is handled: spec 5.2.2 checks expiry with every incoming message. */
+  onIncoming?(): void;
 }
 
 function tokenFromHex(hex: string): Uint8Array {
@@ -149,10 +151,12 @@ export class SessionClient {
     this.transport = t;
     t.onControl = (frame) => {
       this.meter.record(frame.length, performance.now());
+      this.events.onIncoming?.();
       this.routeControl(frame);
     };
     t.onDelivery = (bytes) => {
       this.meter.record(bytes.length, performance.now());
+      this.events.onIncoming?.();
       this.events.onDelivery(bytes);
     };
     t.onClose = (reason) => {
