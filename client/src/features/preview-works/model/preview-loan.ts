@@ -15,6 +15,8 @@ export const PARENTS_PER_SIDE = TILE / 2;
 export class PreviewLoan {
   seed: PreviewPiece | null = null;
   readonly kids = new Map<number, PreviewPiece>();
+  /** The kids by brush, each brush's pieces by first band: a lookup, not a scan of every kid. */
+  private readonly byBrush = new Map<bigint, PreviewPiece[]>();
   renewThrough = 0;
   handle = 0;
   seedW = 0;
@@ -54,6 +56,8 @@ export class PreviewLoan {
   take(piece: PreviewPiece): PreviewPiece[] {
     if (piece.stratum !== SEED_STRATUM) {
       this.kids.set(piece.delivery, piece);
+      const run = [...this.brush(piece.brushId), piece].sort((a, b) => a.from - b.from);
+      this.byBrush.set(piece.brushId, run);
       return [];
     }
     this.seed = piece;
@@ -84,7 +88,10 @@ export class PreviewLoan {
   remove(gone: PreviewPiece[]): void {
     for (const g of gone) {
       if (g === this.seed) this.seed = null;
-      this.kids.delete(g.delivery);
+      if (!this.kids.delete(g.delivery)) continue;
+      const run = this.brush(g.brushId).filter((k) => k !== g);
+      if (run.length > 0) this.byBrush.set(g.brushId, run);
+      else this.byBrush.delete(g.brushId);
     }
   }
 
@@ -123,7 +130,7 @@ export class PreviewLoan {
     return [...out];
   }
 
-  private brush(id: bigint): PreviewPiece[] {
-    return [...this.kids.values()].filter((k) => k.brushId === id).sort((a, b) => a.from - b.from);
+  private brush(id: bigint): readonly PreviewPiece[] {
+    return this.byBrush.get(id) ?? [];
   }
 }
