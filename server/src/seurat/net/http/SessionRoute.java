@@ -14,9 +14,10 @@ import seurat.session.Sessions;
 /**
  * POST /seurat/v1/sesion (spec 3.1, 3.4.1): authenticates (a Bearer key from
  * `auth.accounts`, 401 if unknown; without one, an anonymous cookie so the brush budget
- * is per viewer) and issues a single-use 32 B token that expires in 120 s, plus the URLs
- * of both mappings, the role (`rol`) and, when signed in, the account (`cuenta`) so the
- * viewer can say who it is. No other state is created.
+ * is per viewer) and issues a single-use 32 B token that expires in 120 s, plus the mapping
+ * URLs (only the WebSocket one is served, so `lienzo` names it too and the viewer goes straight
+ * to it, spec 8 "UDP bloqueado"), the role (`rol`) and, when signed in, the account (`cuenta`)
+ * so the viewer can say who it is. No other state is created.
  */
 final class SessionRoute {
     static final String ANON_COOKIE = "seurat_anon";
@@ -55,8 +56,7 @@ final class SessionRoute {
         Log.info("session", "Issued session token for principal=" + principal + " (role=" + role + ")");
         String host = req.host();
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
-        String wt = "https://" + host + "/seurat/v1/lienzo";
-        String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + (config.wtEnabled ? wt : ws)
+        String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + ws
                 + "\",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE
                 + ",\"rol\":\"" + role + "\"" + (account != null ? ",\"cuenta\":\"" + account.name() + "\"" : "") + "}";
         Map<String, String> headers = fresh

@@ -20,8 +20,6 @@ public final class SeuratConfig {
     /** PKCS#12 keystore for TLS (https / wss); absent = plain LAN http / ws. */
     public final Path tlsKeystore;
     public final String tlsPassword;
-    /** WebTransport mapping (spec 3.1). Off until Hito 0: `lienzo` then points at the WS mapping. */
-    public final boolean wtEnabled;
     /** Extra Origins accepted on the WS upgrade besides the server's own (spec 9.2, CSWSH). */
     public final List<String> origins;
     /** Viewer accounts behind a Bearer key (spec 3.1); without one, a viewer is anonymous. */
@@ -39,7 +37,6 @@ public final class SeuratConfig {
         String ks = props.getOrDefault("tls.keystore", "");
         tlsKeystore = ks.isBlank() ? null : base.resolve(ks);
         tlsPassword = props.getOrDefault("tls.password", "");
-        wtEnabled = Boolean.parseBoolean(props.getOrDefault("wt.enabled", "false"));
         origins = List.of(props.getOrDefault("ws.origins", "").split("\\s*,\\s*")).stream()
                 .filter(o -> !o.isBlank()).toList();
         accounts = new ViewerAccounts(props.getOrDefault("auth.accounts", ""));

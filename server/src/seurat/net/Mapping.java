@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import seurat.session.Canvas;
 import seurat.session.Delivery;
 
-/** One semantic, two mappings (spec 3.1). WS is complete; WT is Hito 0. */
+/** One semantic, two mappings (spec 3.1); this server serves the WebSocket one, complete on its own. */
 public interface Mapping {
     /** Opens one delivery flow (WT: server uni stream; WS: channel-1 message). */
     OutputStream openDelivery(Canvas canvas, Delivery e) throws IOException;
