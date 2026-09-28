@@ -116,6 +116,13 @@ public final class FileBrushStoreTest {
         } catch (java.io.IOException expected) {
             TestKit.check(true, "corrupt band trips CRC");
         }
+        BrushId seed = new BrushId(seurat.config.SeuratConstants.SEED_STRATUM, 0, 0);
+        byte[] file = seurat.codec.SeedCodec.encode(new int[3][4], 2, 2);
+        Files.write(dir.resolve("semilla.bin"), file);
+        TestKit.check(open(dir).servable(seed, 0, 1).length == 1, "an intact seed is served");
+        file[file.length - 1]++;
+        Files.write(dir.resolve("semilla.bin"), file);
+        TestKit.check(open(dir).servable(seed, 0, 1).length == 0, "a corrupt seed is never served (spec 8)");
     }
 
     /** Lock-free path: 8 threads reserve disjoint spans, every slot reads back exact. */

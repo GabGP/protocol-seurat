@@ -85,8 +85,10 @@ public final class FileBrushStore implements BrushStore {
 
     private byte[][] read(BrushId p, int b0, int b1) throws IOException {
         if (p.stratum() == SeuratConstants.SEED_STRATUM) {
-            byte[] seed = Files.readAllBytes(seedPath());
-            return new byte[][]{java.util.Arrays.copyOfRange(seed, 4, seed.length)};
+            byte[] seed = Files.readAllBytes(seedPath()); // u32 CRC-32C, then the one band
+            byte[] band = java.util.Arrays.copyOfRange(seed, 4, seed.length);
+            return valid(p, 0, band, Integer.toUnsignedLong(ByteBuffer.wrap(seed).getInt()))
+                    ? new byte[][]{band} : new byte[0][];
         }
         IndexEntry e = entry(p);
         if (e.isMissing()) {
@@ -101,10 +103,7 @@ public final class FileBrushStore implements BrushStore {
                 long from = i == 0 ? 0 : e.ends()[i - 1];
                 byte[] raw = new byte[(int) (e.ends()[i] - from)];
                 ch.read(ByteBuffer.wrap(raw), e.offset() + from);
-                CRC32C c = new CRC32C();
-                c.update(raw);
-                if (c.getValue() != e.crcs()[i]) {
-                    AuditLog.alert("band corrupta " + p + " band=" + i + ": prefijo valido");
+                if (!valid(p, i, raw, e.crcs()[i])) {
                     break;
                 }
                 out.add(raw);
@@ -113,13 +112,19 @@ public final class FileBrushStore implements BrushStore {
         return out.toArray(new byte[0][]);
     }
 
+    /** Spec 8, invariant 6: the CRC-32C written at ingest must still hold; a failure alerts the operator. */
+    private static boolean valid(BrushId p, int band, byte[] raw, long crc) {
+        CRC32C c = new CRC32C();
+        c.update(raw);
+        if (c.getValue() == crc) {
+            return true;
+        }
+        AuditLog.alert("band corrupta " + p + " band=" + band + ": prefijo valido");
+        return false;
+    }
+
     @Override
     public void copy(BrushId p, int b0, int b1, OutputStream out) throws IOException {
-        if (p.stratum() == SeuratConstants.SEED_STRATUM) {
-            byte[] seed = Files.readAllBytes(seedPath());
-            out.write(seed, 4, seed.length - 4);
-            return;
-        }
         for (byte[] band : bands(p, b0, b1)) {
             out.write(band);
         }
