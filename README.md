@@ -20,11 +20,11 @@ An asynchronous, server-authoritative protocol and viewer for streaming gigapixe
 ├── server/src/seurat/          # Java 21 backend (single-responsibility modules <150 LoC)
 ├── server/test/seurat/         # Backend test suite (wire goldens and invariant tests <300 LoC)
 ├── client/                     # Modern React + TypeScript viewer (Feature-Sliced Design)
-│   ├── src/                    # FSD layers (app, pages, widgets, features, entities, shared)
+│   ├── src/                    # FSD layers (app, pages, widgets, features, entities, shared), files <150 LoC, tests <300 LoC
 │   └── dist/                   # Compiled static production bundle
 ├── scripts/
-│   ├── run-tests.sh            # Compiles & executes backend tests + checks LoC budgets
-│   ├── check-loc.sh            # Validates strict line-of-code budgets
+│   ├── run-tests.sh            # Compiles & executes backend tests + checks LoC budgets (server and client)
+│   ├── check-loc.sh            # Validates strict line-of-code budgets for .java, .ts and .tsx
 │   ├── clean.sh                # Cleans ephemeral build artifacts without touching runtime data
 │   └── smoke-viewer.mjs        # Headless-browser smoke test of the viewer against a running server
 ├── run.sh                      # Bash server builder & launcher (Linux / macOS / WSL)
@@ -173,12 +173,12 @@ Server parameters can be customized in `seurat.conf`:
 ## Running Verification & Tests
 
 ### Backend Tests (JDK 21)
-To run all 31 unit tests, golden wire vectors, loopback tests, and LoC budget validations:
+To run all backend unit tests, golden wire vectors, loopback tests, and the LoC budget validation (server and client):
 ```bash
 bash scripts/run-tests.sh
 ```
 
-To check strict line-of-code budgets manually (`main < 150 LoC`, `test < 300 LoC`):
+To check strict line-of-code budgets manually (`main < 150 LoC`, `test < 300 LoC`, for every `.java`, `.ts` and `.tsx` file; `--server` limits it to the backend):
 ```bash
 bash scripts/check-loc.sh
 ```
@@ -187,8 +187,9 @@ bash scripts/check-loc.sh
 To run all client test suites and verify production build:
 ```bash
 cd client
-pnpm test          # Runs all 67 Vitest unit and integration tests across 12 test suites
+pnpm test          # Runs all Vitest unit and integration tests (262 tests in 52 files)
 pnpm build         # Validates TypeScript types and generates production bundle
+pnpm check         # Typecheck, tests, LoC budgets and the FSD import gate in one go
 ```
 
 ### Viewer Smoke Test (headless browser)
