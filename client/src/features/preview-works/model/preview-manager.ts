@@ -1,12 +1,13 @@
-import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
+import { splitBrushId } from '@/shared/proto/brush';
 import { dropWorkPreview, previewWidth } from '@/entities/work';
 import type { WorkerFactory } from '@/entities/delivery';
-import { LEASE_S, MS_PER_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
+import { PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/entities/session';
 import type { PreviewLoan } from './preview-loan';
-import { piecesKib, type PreviewPiece } from './preview-piece';
-import { gazeLevel, previewGaze, type PreviewGaze } from './preview-gaze';
+import { bandsIntact, readDelivery, type PreviewPiece } from './preview-piece';
+import { gazeLevel } from './preview-gaze';
+import { PreviewReplies, leaseExpiry } from './preview-replies';
 import { PreviewDecoder } from './preview-decoder';
 import { PreviewOpens } from './preview-opens';
 import { PreviewPainter } from './preview-painter';
@@ -24,12 +25,12 @@ export class PreviewManager {
   private held = new Map<number, PreviewLoan>();
   private paused = false;
   private readonly painter: PreviewPainter;
-  /** MIRADA seq, rising across every card. */
-  private gazeSeq = 0;
+  private readonly replies: PreviewReplies;
 
   constructor(private client: () => SessionClient | null, workers?: WorkerFactory) {
     const live = (loan: PreviewLoan): boolean => this.held.get(loan.handle) === loan;
     this.painter = new PreviewPainter(new PreviewDecoder(workers), live, () => this.pump());
+    this.replies = new PreviewReplies(client, this.painter);
   }
 
   enqueue(ids: string[]): void {
@@ -65,55 +66,36 @@ export class PreviewManager {
     const loan = Object.assign(opening, {
       handle: a.handle, seedW: a.seedWidth, seedH: a.seedHeight, top: a.strata - 1, workW: a.width, workH: a.height, vw: previewWidth(),
     });
-    if (loan.top > 0) loan.level = gazeLevel(this.gaze(loan, performance.now()), loan.top);
+    if (loan.top > 0) loan.level = gazeLevel(this.replies.gaze(loan, performance.now()), loan.top);
   }
 
   onDelivery(bytes: Uint8Array): boolean {
-    let h: BrushHead;
-    let bands: Uint8Array[];
-    try {
-      h = parseBrushHead(bytes);
-      bands = sliceBands(bytes, h);
-    } catch {
-      return false;
-    }
+    const read = readDelivery(bytes);
+    if (!read) return false;
+    const { h, bands } = read;
     const loan = this.opens.byHandle(h.handle) ?? this.held.get(h.handle);
     if (!loan) return false;
     const { bx, by } = splitBrushId(h.brushId);
-    if (!loan.wants(h, bx, by)) return this.release(loan, ReleaseReason.EVICTED, [h.delivery]); // finer than the card needs, or held already
-    if (bands.some((b, i) => !verifyBand(b, h.crcs[i] ?? 0))) return this.release(loan, ReleaseReason.CRC, [h.delivery]);
-    const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * MS_PER_S };
-    this.release(loan, ReleaseReason.REPLACED, loan.take(piece).map((p) => p.delivery));
-    this.client()?.sendReceipt(loan.handle, [h.delivery], 0, PREVIEW_CREDIT, 0);
+    if (!loan.wants(h, bx, by)) return this.replies.release(loan, ReleaseReason.EVICTED, [h.delivery]); // finer than the card needs, or held already
+    if (!bandsIntact(h, bands)) return this.replies.release(loan, ReleaseReason.CRC, [h.delivery]);
+    const piece: PreviewPiece = { ...h, bx, by, bands, expires: leaseExpiry(performance.now()) };
+    this.replies.release(loan, ReleaseReason.REPLACED, loan.take(piece).map((p) => p.delivery));
+    this.replies.receipt(loan, h.delivery);
     if (loan.seed && this.opens.done(loan)) this.held.set(loan.handle, loan);
     if (loan.seed) this.painter.draw(loan);
     return true;
   }
 
   onRenew(r: Renew): boolean {
-    const loan = this.held.get(r.handle);
-    if (!loan) return false;
-    loan.renew(r.ranges, r.leaseS, performance.now());
-    loan.renewThrough = Math.max(loan.renewThrough, r.order);
-    this.client()?.sendReceipt(loan.handle, [], 0, PREVIEW_CREDIT, loan.renewThrough);
-    return true;
+    return this.replies.renew(this.held.get(r.handle), r);
   }
 
   onScrape(r: Scrape): boolean {
-    const loan = this.held.get(r.handle) ?? this.opens.byHandle(r.handle);
-    if (!loan) return false;
-    const { scraped, kept } = loan.scrape(r);
-    this.client()?.sendScraped(r.handle, r.order, r.epoch, r.through, scraped.length, piecesKib(scraped), kept);
-    if (scraped.length > 0) this.painter.redraw(loan);
-    return true;
+    return this.replies.scrape(this.held.get(r.handle) ?? this.opens.byHandle(r.handle), r);
   }
 
   onAudit(a: Audit): boolean {
-    const loan = this.held.get(a.handle);
-    if (!loan) return false;
-    const held = loan.pieces().filter((p) => p.delivery <= a.through);
-    this.client()?.sendInventory(a.handle, a.order, a.through, held.length, piecesKib(held), loan.numbersThrough(a.through));
-    return true;
+    return this.replies.audit(this.held.get(a.handle), a);
   }
 
   /**
@@ -122,12 +104,12 @@ export class PreviewManager {
    */
   sweep(now: number): void {
     for (const loan of this.held.values()) {
-      if (loan.top > 0 && now - loan.gazedAt >= PREVIEW_GAZE_KEEPALIVE_MS) this.gaze(loan, now);
+      if (loan.top > 0 && now - loan.gazedAt >= PREVIEW_GAZE_KEEPALIVE_MS) this.replies.gaze(loan, now);
     }
     for (const loan of [...this.held.values()]) {
       const gone = loan.expired(now);
       if (gone.length === 0) continue;
-      this.release(loan, ReleaseReason.EXPIRED, gone.map((p) => p.delivery));
+      this.replies.release(loan, ReleaseReason.EXPIRED, gone.map((p) => p.delivery));
       loan.remove(gone);
       if (loan.seed) this.painter.redraw(loan);
       else this.close(loan);
@@ -142,18 +124,6 @@ export class PreviewManager {
   dispose(): void {
     this.pause();
     this.opens.clear();
-  }
-
-  private gaze(loan: PreviewLoan, now: number): PreviewGaze {
-    loan.gazedAt = now;
-    const g = previewGaze(loan, loan.workW, loan.workH, ++this.gazeSeq);
-    this.client()?.sendGazeReliable(g);
-    return g;
-  }
-
-  private release(loan: PreviewLoan, reason: number, numbers: number[]): true {
-    if (numbers.length > 0) this.client()?.sendRelease(loan.handle, reason, numbers);
-    return true;
   }
 
   /** A work that could not be opened, or brought no seed in time: its card keeps its placeholder. */
