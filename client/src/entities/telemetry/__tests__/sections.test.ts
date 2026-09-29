@@ -99,10 +99,10 @@ describe('telemetry formats', () => {
     expect(fmtBytes(3 * 1024 ** 3)).toBe('3.00 GiB');
   });
 
-  it('shows rates in bits and bytes at the same precision', () => {
-    expect(fmtRate(0)).toBe('0 kbit/s · 0 B/s');
-    expect(fmtRate(95_250)).toBe('762 kbit/s · 93.0 KiB/s');
-    expect(fmtRate(262_500)).toBe('2.10 Mbit/s · 256 KiB/s');
+  it('shows one downlink rate in bytes per second, led by an arrow', () => {
+    expect(fmtRate(0)).toBe('↓ 0 B/s');
+    expect(fmtRate(95_250)).toBe('↓ 93.0 KiB/s');
+    expect(fmtRate(262_500)).toBe('↓ 256 KiB/s');
   });
 
   it('shows durations in whole ms, then seconds', () => {

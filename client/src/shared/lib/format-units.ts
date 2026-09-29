@@ -1,7 +1,8 @@
 import { BYTES_PER_KIB, MS_PER_S } from '../config/units';
 
 const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB'] as const;
-const RATE_UNITS = ['kbit/s', 'Mbit/s', 'Gbit/s'] as const;
+/** Marks a download rate, the only direction this viewer measures. */
+export const DOWNLINK = '↓';
 const KIBI = BYTES_PER_KIB;
 const KILO = MS_PER_S;
 /** A value is shown in the next unit up once it would need a fourth integer digit. */
@@ -13,21 +14,21 @@ function sig3(v: number): string {
   return r === 0 ? '0' : r.toFixed(r < 10 ? 2 : r < 100 ? 1 : 0);
 }
 
-function scaled(v: number, base: number, units: readonly string[], wholeFirst: boolean): string {
+function scaled(v: number, base: number, units: readonly string[]): string {
   let u = 0;
   while (u < units.length - 1 && Number(v.toPrecision(3)) >= UNIT_CEIL) {
     v /= base;
     u += 1;
   }
-  return `${u === 0 && wholeFirst ? Math.round(v) : sig3(v)} ${units[u]}`;
+  return `${u === 0 ? Math.round(v) : sig3(v)} ${units[u]}`;
 }
 
 export function fmtBytes(n: number): string {
-  return scaled(n, KIBI, BYTE_UNITS, true);
+  return scaled(n, KIBI, BYTE_UNITS);
 }
 
 export function fmtRate(bytesPerS: number): string {
-  return `${scaled((bytesPerS * 8) / KILO, KILO, RATE_UNITS, false)} · ${fmtBytes(bytesPerS)}/s`;
+  return `${DOWNLINK} ${fmtBytes(bytesPerS)}/s`;
 }
 
 export function fmtMs(ms: number): string {
