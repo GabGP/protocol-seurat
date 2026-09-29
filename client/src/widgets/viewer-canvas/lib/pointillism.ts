@@ -1,6 +1,6 @@
 import { hash3 } from '@/shared/lib/hash3';
 import { TAU, DOT_SPACING_PX, DOT_TILE_CELLS, DOT_RADIUS_MIN, DOT_RADIUS_SPAN, DOT_JITTER_ROOM } from '@/shared/config/render';
-import { placePattern } from '../canvas2d/render-sprites';
+import { placePattern } from './place-pattern';
 
 /** Dots per image-pixel side: ~DOT_SPACING_PX apart on screen, never fewer than 2, so a pixel is always several dots. */
 export function dotsPerSide(s: number): number {

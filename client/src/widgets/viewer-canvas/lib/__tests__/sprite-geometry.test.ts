@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frameShadowSlices } from '../render-sprites';
+import { frameShadowSlices } from '../sprite-geometry';
 
 describe('frameShadowSlices (9-slice frame shadow)', () => {
   const R = 10; // reach

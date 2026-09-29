@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { snapSpan, tilesCover } from '../tile-cover';
-import { aroundHole } from '../render-sprites';
+import { aroundHole } from '../../lib/sprite-geometry';
 import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 
 function tile(stratum: number, bx: number, by: number): BrushGeom {
