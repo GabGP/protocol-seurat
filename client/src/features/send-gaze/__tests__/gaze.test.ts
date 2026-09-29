@@ -85,4 +85,14 @@ describe('send-gaze', () => {
     expect(s.lastSeq).toBe(3);
     s.dispose();
   });
+
+  it('forget drops the pending view and the remembered one: nothing goes out for a closed handle', () => {
+    const t = fakeTransport(true);
+    const s = new GazeSender(() => t as unknown as SeuratTransport);
+    s.motion({ ...base });
+    s.forget();
+    vi.advanceTimersByTime(1000);
+    s.again();
+    expect(t.datagrams.length + t.control.length).toBe(0);
+  });
 });

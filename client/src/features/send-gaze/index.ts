@@ -94,6 +94,12 @@ export class GazeSender {
     return this.lastSentAt;
   }
 
+  /** The canvas' handle is closed: nothing pending or remembered may be sent for it (the server would answer ERROR 6). */
+  forget(): void {
+    this.dispose();
+    this.last = null;
+  }
+
   dispose(): void {
     const g = globalThis as { cancelAnimationFrame?: (h: number) => void };
     if (typeof g.cancelAnimationFrame === 'function' && this.raf !== 0) g.cancelAnimationFrame(this.raf);
