@@ -8,6 +8,8 @@ export const FIT_BOTTOM_CLEARANCE_MOBILE = 80;
 
 export const MINIMAP_MAX_W = 180;
 export const MINIMAP_MAX_H = 140;
+/** The smallest minimap side in CSS px, so a very thin image still gets a grabbable panel. */
+export const MINIMAP_MIN_PX = 8;
 /** Thumbnail rebuilds at most this often while paint streams in (the viewport box is per frame). */
 export const MINIMAP_THUMB_MS = 250;
 

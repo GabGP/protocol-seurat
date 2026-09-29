@@ -1,30 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
-import { ViewerChrome, dotsPerSide, type ViewSync } from '@/widgets/viewer-canvas';
+import { ViewerChrome, type ViewSync } from '@/widgets/viewer-canvas';
 import { ViewerToolbar } from '@/widgets/viewer-toolbar';
 import { ViewerMinimap } from '@/widgets/viewer-minimap';
 import { RenderSettingsPanel, TelemetryPanel, ViewerInfoPanel } from '@/widgets/viewer-panels';
 import { ViewerTopBar } from '@/widgets/viewer-top-bar';
-import { LiveStatusPill, LoadError, SlowScriptNotice } from '@/widgets/viewer-status';
+import { LiveStatusPill } from '@/widgets/viewer-status';
 import { detailLabel } from '@/features/sign-in';
 import { buildPresets } from '@/features/zoom-view';
 import { sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect } from '@/entities/viewport';
-import type { TelemetryInput } from '@/entities/telemetry';
 import { useSeurat } from '@/app/providers/SeuratProvider';
-import { patchUi, useUi } from '@/app/store';
+import { useUi } from '@/app/store';
 import { counterLabel } from '@/features/navigate-work';
 import { fmtPct } from '@/shared/lib/zoom';
-import { Icon } from '@/shared/ui/Icon';
 import { createFeed } from '@/shared/lib/feed';
-import {
-  POINTILLIST_ZOOM_THRESHOLD_PCT,
-  VIEWER_MAX_ZOOM,
-  POINTILLIST_AUTO_ZOOM,
-  ZOOM_STEP_FACTOR,
-} from '@/shared/config/view';
+import { POINTILLIST_ZOOM_THRESHOLD_PCT, VIEWER_MAX_ZOOM } from '@/shared/config/view';
 import { useViewerWork } from './useViewerWork';
+import { useViewerControls } from './useViewerControls';
+import { ViewerNotices } from './ViewerNotices';
 import { buildViewerInfoRows } from './viewerInfoRows';
 import styles from './ViewerPage.module.css';
-import { ICON_SM } from '@/shared/config/icon';
 
 export function ViewerPage({ id }: { id: string }): JSX.Element {
   const ui = useUi();
@@ -59,23 +53,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
     [dims, mp, iw, ih, fitPct, seurat.status, workTag, detail],
   );
 
-  const handleBack = (): void => back(ui.menu, ui.info, ui.settings);
-  const toggleTelemetry = (): void => patchUi({ telemetry: !ui.telemetry });
-  // Details and settings share the right-hand slot: opening one closes the other.
-  const toggleInfo = (): void => patchUi({ info: !ui.info, settings: false });
-  const toggleSettings = (): void => patchUi({ settings: !ui.settings, info: false });
-  const readTelemetry = (): TelemetryInput => ({
-    now: performance.now(),
-    transport: seurat.client?.activeTransport?.name ?? null,
-    link: seurat.client?.meter ?? null,
-    image: seurat.telemetry,
-    sink: seurat.sink,
-    concession: seurat.concession,
-  });
-  // Dots are the view itself, never switched off: the button only dives into them.
-  const handleDiveDots = (): void => {
-    if ((view?.s ?? 1) < POINTILLIST_ZOOM_THRESHOLD_PCT / 100) api.current?.zoomTo(POINTILLIST_AUTO_ZOOM);
-  };
+  const ctl = useViewerControls({ ui, seurat, api, view, go, back });
 
   return (
     <div className={styles.container}>
@@ -91,15 +69,15 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         maxZoom={effectiveMaxZoom}
         apiRef={api}
         actions={{
-          onToggleLoupe: () => patchUi({ loupe: !ui.loupe }),
-          onDiveDots: handleDiveDots,
-          onToggleInfo: toggleInfo,
-          onToggleTelemetry: toggleTelemetry,
-          onToggleSettings: toggleSettings,
-          onPrev: () => go(-1),
-          onNext: () => go(1),
-          onBack: handleBack,
-          onCloseMenu: () => { if (ui.menu) patchUi({ menu: false }); },
+          onToggleLoupe: ctl.toggleLoupe,
+          onDiveDots: ctl.diveDots,
+          onToggleInfo: ctl.toggleInfo,
+          onToggleTelemetry: ctl.toggleTelemetry,
+          onToggleSettings: ctl.toggleSettings,
+          onPrev: ctl.prev,
+          onNext: ctl.next,
+          onBack: ctl.back,
+          onCloseMenu: ctl.closeMenu,
         }}
         onSync={(s) => {
           setView(s);
@@ -116,23 +94,14 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         infoActive={ui.info}
         telemetryActive={ui.telemetry}
         settingsActive={ui.settings}
-        onBack={handleBack}
-        onPrev={() => go(-1)}
-        onNext={() => go(1)}
-        onToggleInfo={toggleInfo}
-        onToggleTelemetry={toggleTelemetry}
-        onToggleSettings={toggleSettings}
+        onBack={ctl.back}
+        onPrev={ctl.prev}
+        onNext={ctl.next}
+        onToggleInfo={ctl.toggleInfo}
+        onToggleTelemetry={ctl.toggleTelemetry}
+        onToggleSettings={ctl.toggleSettings}
       />
-      {inDots && (
-        <div className={styles.pointillistBanner}>
-          <Icon name="blur_on" size={ICON_SM} />Pointillist view · each pixel = {dotsPerSide(view?.s ?? 1) ** 2} dots
-        </div>
-      )}
-      {loading && (
-        <div className={styles.loadingNotice}>Loading {title} · {dims} px</div>
-      )}
-      {err && <LoadError onRetry={retry} />}
-      <SlowScriptNotice />
+      <ViewerNotices inDots={inDots} s={view?.s ?? 1} loading={loading} title={title} dims={dims} err={err} onRetry={retry} />
       <LiveStatusPill feed={feeds.readout} />
       <ViewerToolbar
         pctLabel={fmtPct(pct)}
@@ -141,30 +110,24 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         presets={presets}
         loupe={ui.loupe}
         dots={inDots}
-        onZoomIn={() => api.current?.zoomTo((view?.s ?? 1) * ZOOM_STEP_FACTOR)}
-        onZoomOut={() => api.current?.zoomTo((view?.s ?? 1) / ZOOM_STEP_FACTOR)}
-        onSlide={(f) => api.current?.slideTo(f)}
-        onToggleMenu={() => patchUi({ menu: !ui.menu })}
-        onPreset={(p) => {
-          if (p.zoom === null) api.current?.fit(false);
-          else {
-            api.current?.zoomTo(p.zoom / 100);
-          }
-          patchUi({ menu: false });
-        }}
-        onFit={() => api.current?.fit(false)}
-        onOneToOne={() => api.current?.zoomTo(1)}
-        onToggleLoupe={() => patchUi({ loupe: !ui.loupe })}
-        onDiveDots={handleDiveDots}
+        onZoomIn={ctl.zoomIn}
+        onZoomOut={ctl.zoomOut}
+        onSlide={ctl.slide}
+        onToggleMenu={ctl.toggleMenu}
+        onPreset={ctl.preset}
+        onFit={ctl.fit}
+        onOneToOne={ctl.oneToOne}
+        onToggleLoupe={ctl.toggleLoupe}
+        onDiveDots={ctl.diveDots}
       />
       <ViewerMinimap api={api} feed={feeds.view} iw={iw} ih={ih} ready={ready} sink={seurat.sink} paintTick={seurat.paintTick} />
-      {ui.info && <ViewerInfoPanel rows={rows} onClose={() => patchUi({ info: false })} />}
+      {ui.info && <ViewerInfoPanel rows={rows} onClose={ctl.closeInfo} />}
       {ui.settings && <RenderSettingsPanel
-          onClose={() => patchUi({ settings: false })}
+          onClose={ctl.closeSettings}
           account={seurat.account}
           ceiling={opened ? { stratum: opened.ceilingStratum, bands: opened.ceilingBands } : null}
         />}
-      {ui.telemetry && <TelemetryPanel read={readTelemetry} onClose={() => patchUi({ telemetry: false })} />}
+      {ui.telemetry && <TelemetryPanel read={ctl.readTelemetry} onClose={ctl.closeTelemetry} />}
     </div>
   );
 }
