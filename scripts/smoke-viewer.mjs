@@ -5,6 +5,7 @@
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
+//                                [--max-tab-mib N]
 //
 // --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
 // `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
@@ -13,6 +14,10 @@
 // read from the Telemetry panel after the run. Console errors/warnings the page logs are listed and fail the run.
 // The "re-sent" line reads the Eviction telemetry (brushes Horizon evicted that the server sent again within 60 s, share
 // of the evicted, median delay) and the re-sent bytes against every flow byte received; above --max-resent-pct it fails.
+// The "memory:" line is what a reviewer reads in the browser: after the run the page's JS heap is collected (CDP
+// HeapProfiler.collectGarbage) and `performance.measureUserAgentSpecificMemory()` (the tab total, page vs workers; the server
+// serves the page cross-origin isolated and Chrome runs with ForceEagerMeasureMemory so it resolves at once) is read next to the
+// viewer's own "Estimate (sum)" telemetry row. --max-tab-mib N fails the run when the measured tab total exceeds N MiB (off by default).
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
@@ -38,6 +43,7 @@ const zoomSteps = Number(args.zoom ?? 3);
 const panSteps = Number(args.pan ?? 0);
 const maxRefusedPct = Number(args['max-refused-pct'] ?? 2);
 const maxResentPct = Number(args['max-resent-pct'] ?? 25);
+const maxTabMiB = args['max-tab-mib'] === undefined ? Infinity : Number(args['max-tab-mib']);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const dpr = Number(args.dpr ?? 1);
 const renderSwitches = ['fps', args.scale && `scale:${args.scale}`].filter(Boolean).join(',');
@@ -61,6 +67,7 @@ if (!exe) {
 const profile = mkdtempSync(join(tmpdir(), 'seurat-smoke-'));
 const chrome = spawn(exe, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`,
   `--window-size=${W},${H}`, '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--no-first-run',
+  '--enable-blink-features=ForceEagerMeasureMemory',
   'about:blank'], { stdio: 'ignore' });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -204,11 +211,21 @@ try {
   const plan = await memRow('Plan');
   const resent = { evicted: await memRow('Evicted since open'), again: await memRow('Re-sent within 60 s'),
     median: await memRow('Median time to refetch') };
-  const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · total ${await memRow('Total (est.)')}`;
+  const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · estimate ${await memRow('Estimate (sum)')}`;
   const probeText = (expression) => cdp('Runtime.evaluate', { returnByValue: true, expression }).then((r) => r.result.value);
   const canvas = await probeText(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
     return { bw: c.width, bh: c.height, cw: r.width, ch: r.height, dpr: window.devicePixelRatio }; })()`);
   const meter = await probeText(`document.querySelector('[data-meter] [aria-live=off]')?.textContent ?? 'n/a'`);
+  // What a reviewer would read: JS heap after a forced GC, the browser's own tab measurement, our estimate.
+  await cdp('HeapProfiler.enable');
+  await cdp('HeapProfiler.collectGarbage');
+  const heapAfterGc = ((await cdp('Runtime.getHeapUsage')).usedSize ?? 0) / 2 ** 20;
+  const tab = (await cdp('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    if (!self.crossOriginIsolated || !performance.measureUserAgentSpecificMemory) return null;
+    const m = await performance.measureUserAgentSpecificMemory();
+    const by = (f) => m.breakdown.filter((e) => f(e.attribution[0]?.scope ?? '')).reduce((a, e) => a + e.bytes, 0);
+    return { total: m.bytes, page: by((c) => c === 'Window'), workers: by((c) => c.endsWith('WorkerGlobalScope')) };
+  })()` })).result.value;
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
   writeFileSync(shot, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -220,7 +237,11 @@ try {
   const refusedPct = deliveries ? (100 * refused) / deliveries : 0;
   console.log(`viewport ${W}x${H} · held ${held} brushes (settled; telemetry "${heldText}")`);
   console.log(`render dpr ${canvas.dpr} · scale ${args.scale ?? 'default'} · effective ${(canvas.bw / (canvas.cw * canvas.dpr)).toFixed(2)} · backing ${canvas.bw}x${canvas.bh} (css ${canvas.cw}x${canvas.ch}) · meter "${meter}"`);
-  console.log(`memory ${memory}`);
+  console.log(`memory parts ${memory}`);
+  const tabMiB = tab ? tab.total / 2 ** 20 : NaN;
+  const tabText = tab ? `${tabMiB.toFixed(0)} MiB (measured: page ${(tab.page / 2 ** 20).toFixed(0)} · workers ${(tab.workers / 2 ** 20).toFixed(0)})`
+    : 'n/a (not cross-origin isolated)';
+  console.log(`memory: tab ${tabText} · js heap after gc ${heapAfterGc.toFixed(0)} MiB · estimate ${memory.split('estimate ')[1]}`);
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   const mib = (t) => { const m = /([\d.]+)\s*(B|KiB|MiB|GiB)/.exec(t ?? ''); return m ? Number(m[1]) * 1024 ** ['B', 'KiB', 'MiB', 'GiB'].indexOf(m[2]) / 2 ** 20 : 0; };
   const flowMiB = s.flowBytes / 2 ** 20;
@@ -237,6 +258,7 @@ try {
     (s.soltar[RELEASE.decode] || s.soltar[RELEASE.crc] || s.synthFail) && 'decode/CRC failures (SOLTAR 2/6)',
     strata.length < 3 && `no refinement: only strata ${strata.join(',') || 'none'} besides the seed`,
     resentPct > maxResentPct && `re-sent ${resentPct.toFixed(1)} % of the bytes received > ${maxResentPct} %`,
+    tabMiB > maxTabMiB && `tab memory ${tabMiB.toFixed(0)} MiB > ${maxTabMiB} MiB`,
     refusedPct > maxRefusedPct && `refused ${refusedPct.toFixed(1)} % > ${maxRefusedPct} %`,
   ].filter(Boolean);
   for (const f of failures) console.log('FAIL ' + f);

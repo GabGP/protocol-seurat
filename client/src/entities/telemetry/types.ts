@@ -1,3 +1,4 @@
+import type { TabMemory } from '@/shared/lib/memory-split';
 import type { RateMeter } from '@/shared/lib/rate-meter';
 import type { Concession } from '@/shared/proto/messages';
 import type { ImageTelemetry } from './image-telemetry';
@@ -55,6 +56,8 @@ export interface TelemetryInput {
   concession: Concession | null;
   /** Bytes of GPU texture storage the viewer holds (shared/lib/gpu-meter). */
   gpuBytes?: number;
+  /** The browser's own tab measurement: `undefined` when it cannot measure, `null` before the first result. */
+  tabMemory?: TabMemory | null;
   /** The `mem_mib` this viewer declared in SALUDO. */
   declaredMemMiB?: number;
 }

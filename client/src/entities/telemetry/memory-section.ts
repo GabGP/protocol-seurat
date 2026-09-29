@@ -1,9 +1,10 @@
 import { BYTES_PER_KIB } from '@/shared/config/constants';
 import { fmtBytes } from '@/shared/lib/format-units';
+import { tabMemoryRows } from './tab-memory-row';
 import { pending, PENDING, type TelemetryInput, type TelemetryRow, type TelemetrySection } from './types';
 
 const [TOTAL, BANDS, BITMAPS, GPU, PLANES, CACHES] = [
-  'Total (est.)', 'Compressed bands', 'Decoded bitmaps', 'GPU textures', 'Parent planes', 'Worker caches (max)',
+  'Estimate (sum)', 'Compressed bands', 'Decoded bitmaps', 'GPU textures', 'Parent planes', 'Worker caches (max)',
 ] as const;
 const KEYS = [TOTAL, BANDS, BITMAPS, GPU, PLANES, CACHES];
 const HEAP_KEY = 'JS heap';
@@ -16,12 +17,13 @@ interface HeapProbe {
 const heapKeys = (): string[] => ((performance as HeapProbe).memory ? [HEAP_KEY] : []);
 
 /**
- * What the viewer holds for the open image, part by part, and their sum against the declared `mem_mib`.
+ * Under the measured tab total (when the browser can give it), what the viewer holds for the open image, part by part, and their sum against the declared `mem_mib`.
  * A decoded brush lives twice: as its bitmap (kept to redraw after a lost context or on Canvas2D) and as
  * a GPU layer; GPU textures count whole 64-layer arrays, and the worker caches are their upper bound.
  */
-export function memory({ sink, concession, gpuBytes, declaredMemMiB }: TelemetryInput): TelemetrySection {
-  if (!sink) return { title: TITLE, rows: pending([...KEYS, ...heapKeys()]) };
+export function memory({ sink, concession, gpuBytes, declaredMemMiB, tabMemory }: TelemetryInput): TelemetrySection {
+  const tab = tabMemoryRows(tabMemory);
+  if (!sink) return { title: TITLE, rows: [...tab, ...pending([...KEYS, ...heapKeys()])] };
   let bands = 0;
   let bitmaps = 0;
   let planes = 0;
@@ -43,5 +45,5 @@ export function memory({ sink, concession, gpuBytes, declaredMemMiB }: Telemetry
   const rows: TelemetryRow[] = KEYS.map((k, i) => ({ k, v: values[i] ?? PENDING }));
   const heap = (performance as HeapProbe).memory;
   if (heap) rows.push({ k: HEAP_KEY, v: fmtBytes(heap.usedJSHeapSize) });
-  return { title: TITLE, rows };
+  return { title: TITLE, rows: [...tab, ...rows] };
 }

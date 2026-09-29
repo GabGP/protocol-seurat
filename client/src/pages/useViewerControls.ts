@@ -6,6 +6,7 @@ import type { TelemetryInput } from '@/entities/telemetry';
 import type { SeuratState } from '@/app/providers/SeuratProvider';
 import { declareMemMib } from '@/entities/session';
 import { gpuBytes } from '@/shared/lib/gpu-meter';
+import { tabMemory, tabMemorySupported } from '@/shared/lib/tab-memory';
 import { patchUi, type UiState } from '@/app/store';
 import { POINTILLIST_AUTO_ZOOM, POINTILLIST_ZOOM_THRESHOLD_PCT, ZOOM_STEP_FACTOR } from '@/shared/config/view';
 
@@ -58,6 +59,7 @@ export function useViewerControls({ ui, seurat, api, view, go, back }: Deps) {
       sink: seurat.sink,
       concession: seurat.concession,
       gpuBytes: gpuBytes(),
+      tabMemory: tabMemorySupported() ? tabMemory() : undefined,
       declaredMemMiB: declareMemMib(),
     }),
   };

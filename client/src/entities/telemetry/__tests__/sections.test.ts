@@ -37,7 +37,7 @@ describe('telemetry sections', () => {
 
   it('breaks memory into parts that add up to the total, against the declared mem_mib', () => {
     const m = rows('Memory on this device', sections);
-    expect(m['Total (est.)']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4 + 2_000_000 + 1_000_000)} of 64 MiB declared`);
+    expect(m['Estimate (sum)']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4 + 2_000_000 + 1_000_000)} of 64 MiB declared`);
     expect(m['Compressed bands']).toBe(`${fmtBytes(56_000)} of ${fmtBytes(36_864 * 1024)}`);
     expect(m['Decoded bitmaps']).toBe(fmtBytes(256 * 256 * 4));
     expect(m['GPU textures']).toBe(fmtBytes(2_000_000));

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
 import { telemetrySections, type TelemetryInput } from '@/entities/telemetry';
 import { fmtRate } from '@/shared/lib/format-units';
+import { watchTabMemory } from '@/shared/lib/tab-memory';
 import styles from './TelemetryPanel.module.css';
 import { ICON_SM } from '@/shared/config/icon';
 
@@ -16,6 +17,7 @@ export function TelemetryPanel({ read, onClose }: { read(): TelemetryInput; onCl
     const id = window.setInterval(() => setTick((t) => t + 1), REFRESH_MS);
     return () => window.clearInterval(id);
   }, []);
+  useEffect(() => watchTabMemory(), []);
   const input = read();
   const now = fmtRate(input.link?.rate(input.now) ?? 0);
   return (
