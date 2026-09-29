@@ -2,6 +2,7 @@ import { clearResume, type SessionEvents } from '@/entities/session';
 import { applyWork, isOpenable, sortWorks } from '@/entities/work';
 import { ErrorCode } from '@/shared/config/constants';
 import { T } from '@/shared/proto/messages';
+import type { Reconnect } from './reconnect';
 import { bookEvents } from './route-book-messages';
 import { deliveryEvents } from './route-delivery';
 import type { Runtime } from './runtime';
@@ -14,11 +15,12 @@ function handleIsDead(rt: Runtime, code: number, refType: number): boolean {
 }
 
 /** Every server-to-app callback, wired to the runtime; `reconnect` answers a lost connection. */
-export function createEvents(rt: Runtime, reconnect: () => void): SessionEvents {
+export function createEvents(rt: Runtime, reconnect: Reconnect): SessionEvents {
   return {
     ...bookEvents(rt),
     ...deliveryEvents(rt),
     onWelcome: (b) => {
+      reconnect.welcomed();
       const kept = rt.resuming !== null && b.resumed.includes(rt.resuming) && rt.sink?.handle === rt.resuming;
       rt.resuming = null;
       if (kept) {
@@ -32,7 +34,7 @@ export function createEvents(rt: Runtime, reconnect: () => void): SessionEvents 
       }
       if (rt.alive) rt.ui.setWelcome(b);
     },
-    onDisconnect: reconnect,
+    onDisconnect: reconnect.run,
     onAccount: (a) => {
       if (rt.alive) rt.ui.setAccount(a);
     },

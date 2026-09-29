@@ -82,14 +82,23 @@ public final class Sessions {
                 c.orders().pendingRenewals().forEach(r -> c.book().expireRenewed(r, deadline));
             }
         }
-        resumable.put(session.id(), new Resumable(session.ticket(), session.principal(), session, deadline));
+        // A session already adopted by its successor keeps that entry: its retire must not take the books back.
+        resumable.compute(session.id(), (id, prev) -> prev != null && prev.holder() != session
+                ? prev : new Resumable(session.ticket(), session.principal(), session, deadline));
         resumable.replaceAll((id, r) -> r.holder() == session
                 ? new Resumable(r.ticket(), r.principal(), session, deadline) : r);
     }
 
-    /** Valid (id, ticket, principal) -> who holds the books now; null otherwise. */
+    /**
+     * Valid (id, ticket, principal) -> who holds the books now; null otherwise. A session still listed
+     * as live answers to its own ticket too: its socket may be half-open (the client saw it die first).
+     */
     public Resumable resumable(long previous, byte[] ticket, String principal) {
         Resumable r = resumable.get(previous);
+        if (r == null) {
+            Session alive = live.get(previous);
+            r = alive == null ? null : new Resumable(alive.ticket(), alive.principal(), alive, Long.MAX_VALUE);
+        }
         if (r == null || r.expiresNs() < System.nanoTime()
                 || !Arrays.equals(r.ticket(), ticket) || !r.principal().equals(principal)) {
             return null;

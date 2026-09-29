@@ -10,6 +10,7 @@ public final class SessionsTest {
         idempotentUntilFirstReceipt();
         renewedAtDisconnect();
         retiredSessionIsPruned();
+        liveSessionIsResumable();
         System.out.println("SessionsTest OK");
     }
 
@@ -93,5 +94,23 @@ public final class SessionsTest {
         sessions.pruneExpired(now + lease + 10 * seurat.config.Units.NANOS_PER_S);
         TestKit.check(sessions.resumable(5, ticket, "p") == null, "pruned after L + delta");
         TestKit.check(!sessions.graves().contains(session), "no grave keeps the session alive");
+    }
+
+    /** The client saw the link die before the server did: the old session is still live and answers to its ticket. */
+    private static void liveSessionIsResumable() {
+        Sessions sessions = new Sessions();
+        byte[] ticket = new byte[32];
+        ticket[0] = 3;
+        Session old = new Session(6, "p", "anonimo", 128, 0, null, ticket);
+        sessions.add(old);
+        Sessions.Resumable r = sessions.resumable(6, ticket, "p");
+        TestKit.check(r != null && r.holder() == old, "a live session is resumable under its ticket");
+        TestKit.check(sessions.resumable(6, new byte[32], "p") == null, "not under another ticket");
+        TestKit.check(sessions.resumable(6, ticket, "q") == null, "not for another principal");
+        Session next = new Session(7, "p", "anonimo", 128, 0, null, new byte[32]);
+        sessions.add(next);
+        sessions.adopted(6, r, next);
+        sessions.retire(old); // the half-open socket finally closes
+        TestKit.check(sessions.resumable(6, ticket, "p").holder() == next, "its retire does not take the books back");
     }
 }

@@ -1,5 +1,6 @@
 import type { SeuratTransport } from '@/shared/api/transport';
 import { PROTO_VERSION } from '@/shared/config/constants';
+import { HEARTBEAT_S } from '@/shared/config/session';
 import { hexToBytes } from '@/shared/lib/hex';
 import { RateMeter } from '@/shared/lib/rate-meter';
 import { encodeFrame } from '@/shared/proto/frame';
@@ -11,6 +12,7 @@ import { ControlRouter } from './control-router';
 import { OpenQueue } from './open-queue';
 import { Outbound } from './outbound';
 import type { SessionEvents } from './session-events';
+import { Watchdog } from './watchdog';
 
 export type { SessionEvents } from './session-events';
 
@@ -27,6 +29,8 @@ export class SessionClient extends Outbound {
   /** Every byte the server sends on this session: the link rate RECIBO.libre is sized from. */
   readonly meter = new RateMeter();
   private readonly router: ControlRouter;
+  /** Silence longer than HEARTBEAT_MISSES heartbeats closes the transport as lost. */
+  private readonly watchdog = new Watchdog(() => this.loseLink('silent'));
 
   constructor(private events: SessionEvents) {
     super();
@@ -65,26 +69,39 @@ export class SessionClient extends Outbound {
   wire(t: SeuratTransport): void {
     this.transport = t;
     this.live = true;
+    const heard = (): void => this.watchdog.feed(this.welcome?.heartbeatS ?? HEARTBEAT_S);
+    heard();
     t.onControl = (frame) => {
+      heard();
       this.meter.record(frame.length, performance.now());
       this.events.onIncoming?.();
       this.router.route(frame);
     };
     t.onDelivery = (bytes) => {
+      heard();
       this.meter.record(bytes.length, performance.now());
       this.events.onIncoming?.();
       this.events.onDelivery(bytes);
     };
     t.onClose = (reason) => {
-      if (this.transport !== t) return;
-      this.live = false;
-      this.events.onStatus('closed ' + reason);
-      if (!this.disposed && !this.fatal) this.events.onDisconnect?.(); // spec 8: POST /sesion + REANUDAR
+      if (this.transport === t) this.loseLink(reason);
     };
+  }
+
+  /** The transport is gone (closed, or silent): one status line and one disconnect, whichever notices first. */
+  private loseLink(reason: string): void {
+    const t = this.transport;
+    if (!t || !this.live) return;
+    this.live = false;
+    this.watchdog.stop();
+    this.events.onStatus('closed ' + reason);
+    if (reason === 'silent') t.close(); // a half-open link never reports its own close
+    if (!this.disposed && !this.fatal) this.events.onDisconnect?.(); // spec 8: POST /sesion + REANUDAR
   }
 
   dispose(): void {
     this.disposed = true;
+    this.watchdog.stop();
     this.transport?.close();
     this.transport = null;
   }

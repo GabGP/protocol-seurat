@@ -9,6 +9,8 @@ export const LEASE_S = 120;
 export const RECONNECT_BASE_MS = 500;
 export const RECONNECT_MAX_MS = 8000;
 export const HEARTBEAT_S = 15;
+/** Heartbeats of silence (from any frame) after which the link is treated as lost and resumed. */
+export const HEARTBEAT_MISSES = 3;
 export const DEFAULT_MEM_MIB = 128;
 export const CHROME_MEM_MIB = 256;
 export const MAX_RETIRED_HANDLES = 16;

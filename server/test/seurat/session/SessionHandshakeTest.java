@@ -33,6 +33,7 @@ public final class SessionHandshakeTest {
         testNormalHello();
         testResumeSuccess();
         testResumeRejection();
+        testResumeWhileOldSocketHalfOpen();
         testResumeAdoptsOnlyClaims();
         testRetiredWorkNotResumed();
         testSilentPeerTimesOut();
@@ -125,6 +126,26 @@ public final class SessionHandshakeTest {
         TestKit.check(f0.type() == FrameType.ERROR
                 && MsgError.ProtocolError.parse(f0.payload()).code() == ProtoCodes.ERR_REANUDACION
                 && MsgError.ProtocolError.parse(f0.payload()).fail() == 0, "ERROR 12, not fatal");
+    }
+
+    /** The old socket is half-open (the server still lists the session live): REANUDAR gets BIENVENIDA, not ERROR 12. */
+    private static void testResumeWhileOldSocketHalfOpen() throws Exception {
+        Sessions sessions = new Sessions();
+        EaselContext ctx = ctx(sessions, true);
+        byte[] ticket = grave(sessions, 500);
+        Session old = new Session(501, "alice", "autenticado", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
+        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
+        canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
+        canvas.session(old);
+        old.canvases().put(1L, canvas);
+        sessions.add(old); // never retired: nothing told the server the link died
+        var resume = new MsgHello.ResumeRequest(501, ticket, List.of(new MsgHello.Claim(1, Ranges.of(1))));
+        RecordingMapping mapping = new RecordingMapping();
+        Session s = hello(ctx, mapping, resume);
+        TestKit.check(type(mapping, 0) == FrameType.BIENVENIDA, "BIENVENIDA, not ERROR 12");
+        TestKit.check(s.canvases().get(1L).book().contains(1), "the live session's book is adopted");
+        sessions.retire(old);
+        TestKit.check(sessions.resumable(501, ticket, "alice").holder() == s, "the late retire keeps the adopter");
     }
 
     /** Spec 7.4: a REANUDAR on a withdrawn work is rejected. */
