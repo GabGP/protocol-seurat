@@ -1,4 +1,5 @@
 import { AttentionHeat } from '../attention-heat';
+import { brushCap } from '../brush-cap';
 import { DecodeQueue } from '../decode-queue';
 import { Departures } from '../departures';
 import type { EvictView } from '../evict-candidate';
@@ -37,6 +38,11 @@ export interface SinkHooks {
 export interface SinkLimits {
   maxKiB(): number;
   maxBrushes(): number;
+}
+
+/** Brushes this viewer holds at most: the user's cap, narrowing the concession (RECIBO.libre and Horizon use it). */
+export function holdLimit(s: SinkState): number {
+  return Math.min(s.limits.maxBrushes(), brushCap());
 }
 
 /** Everything the sink knows, in one place; the service modules read and change it. */

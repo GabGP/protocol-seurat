@@ -4,6 +4,7 @@ import {
   DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type RenderFlags,
 } from '@/shared/lib/render-flags';
 import type { Account } from '@/entities/session';
+import { CapSection } from '@/features/cap-brushes';
 import { SignInSection } from '@/features/sign-in';
 import styles from './RenderSettingsPanel.module.css';
 import { ICON_SM } from '@/shared/config/icon';
@@ -47,10 +48,12 @@ interface Props {
   account: Account | null;
   /** The open work's ceiling for this viewer's role (ABIERTA), shown under Account. */
   ceiling: { stratum: number; bands: number } | null;
+  /** Brushes the server grants this browser, for the Max brushes options. */
+  grant: number;
 }
 
 /** Account, then live render switches: every change applies on the next frame and is remembered in this browser. */
-export function RenderSettingsPanel({ onClose, account, ceiling }: Props): JSX.Element {
+export function RenderSettingsPanel({ onClose, account, ceiling, grant }: Props): JSX.Element {
   const flags = useRenderFlags();
   const isDefault = (Object.keys(DEFAULT_RENDER_FLAGS) as Array<keyof RenderFlags>)
     .every((k) => flags[k] === DEFAULT_RENDER_FLAGS[k]);
@@ -63,6 +66,7 @@ export function RenderSettingsPanel({ onClose, account, ceiling }: Props): JSX.E
         </button>
       </div>
       <SignInSection account={account} ceiling={ceiling} />
+      <CapSection grant={grant} />
       {SECTIONS.map((s) => (
         <section key={s.title} className={styles.section}>
           <span className={styles.sectionTitle}>{s.title}</span>

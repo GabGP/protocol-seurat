@@ -17,6 +17,8 @@ export const WIRE_FLOWS = 12;
 export const SCRAPE_TIMEOUT_MS = 10_000;
 /** The session-wide brush cap a client assumes before BIENVENIDA states it. */
 export const SESSION_MAX_BRUSHES = 1024;
+/** Spec 6.1: the server grants three brushes per declared MiB (up to the session ceiling). */
+export const BRUSHES_PER_MEM_MIB = 3;
 /** MiB declared per GiB of device memory (a quarter of it), capped at CHROME_MEM_MIB. */
 export const MEM_MIB_PER_DEVICE_GIB = 64;
 /** What a canvas may hold until its CONCESION states the real budget. */

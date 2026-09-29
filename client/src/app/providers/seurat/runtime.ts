@@ -35,12 +35,14 @@ export interface Runtime {
   readonly ledgers: HandleLedgers;
   /** Handle whose book a REANUDAR is claiming, until BIENVENIDA says whether it was adopted. */
   resuming: number | null;
+  /** Unsubscribe of the open sink's brush-cap listener (Settings > Max brushes applies live). */
+  offBrushCap: (() => void) | null;
   bumpPaint: ReturnType<typeof frameBatch>;
 }
 
 export function createRuntime(ui: Ui, bumpPaint: ReturnType<typeof frameBatch>): Runtime {
   return {
     alive: true, ui, client: null, sink: null, telemetry: null, gaze: null, preview: null, concession: null,
-    works: new Map(), ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, bumpPaint,
+    works: new Map(), ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, offBrushCap: null, bumpPaint,
   };
 }

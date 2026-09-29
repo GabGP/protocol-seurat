@@ -24,3 +24,17 @@ export const HEAT_GAIN = 0.5;
 export const REFETCH_WINDOW_MS = 60_000;
 /** Refetch delays kept for the median (the newest ones). */
 export const REFETCH_SAMPLES = 256;
+
+/**
+ * Settings "Max brushes": how many brushes this viewer holds, narrowing what the server granted. Each cap is the smallest
+ * root-2 step that keeps the on-screen core + sketch at the worst zoom and the average full cone for that viewport (CSS px).
+ */
+export const BRUSH_CAP_OPTIONS: ReadonlyArray<{ label: string; cap: number }> = [
+  { label: '720p', cap: 181 },
+  { label: '1080p', cap: 362 },
+  { label: '1440p', cap: 512 },
+  { label: '4K', cap: 1024 },
+];
+export const BRUSH_CAP_DEFAULT = 362;
+/** localStorage key of the chosen cap. */
+export const BRUSH_CAP_KEY = 'seurat.brushCap';

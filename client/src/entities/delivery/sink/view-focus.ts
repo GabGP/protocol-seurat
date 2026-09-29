@@ -22,6 +22,12 @@ export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: nu
   if (relieve(s)) flushReceipt(s);
 }
 
+/** The viewer's brush cap changed: evict down to it (SOLTAR 1) or reopen the window, and tell the server in one RECIBO. */
+export function relieveNow(s: SinkState): void {
+  relieve(s);
+  flushReceipt(s);
+}
+
 /**
  * §5.2.3's third trigger: the renderer could not reserve texture memory for new brushes.
  * Same eviction as under count/byte pressure (Horizon order, leaves only, SOLTAR 1).

@@ -14,7 +14,7 @@ import { failSynthesis } from './removal';
 import { applyScrape, answerScrapes, inventory } from './scrape-flow';
 import { SinkState } from './state';
 import { onResult } from './synth-result';
-import { reportVramFailure, setView } from './view-focus';
+import { relieveNow, reportVramFailure, setView } from './view-focus';
 
 export type { DeliveryPort, Grant } from './port';
 
@@ -107,6 +107,9 @@ export class DeliverySink {
   }
 
   reportVramFailure(): void { reportVramFailure(this.s); }
+
+  /** The brush cap changed: apply it now (eviction down to it, or a wider RECIBO window). */
+  relieveNow(): void { relieveNow(this.s); }
 
   /** RECIBO.libre: what the window still allows (memory and link). */
   free(): number { return free(this.s); }

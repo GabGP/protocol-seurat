@@ -1,4 +1,4 @@
-import { DeliverySink } from '@/entities/delivery';
+import { DeliverySink, onBrushCap } from '@/entities/delivery';
 import { ImageTelemetry } from '@/entities/telemetry';
 import { DEFAULT_MAX_BRUSHES, DEFAULT_MAX_KIB } from '@/shared/config/constants';
 import type { WorkOpened } from '@/shared/proto/messages';
@@ -16,6 +16,8 @@ export function retireSink(rt: Runtime, keepBook: boolean): void {
     rt.client?.closeHandle(sink.handle);
   }
   rt.gaze?.forget(sink.handle);
+  rt.offBrushCap?.();
+  rt.offBrushCap = null;
   sink.dispose();
   rt.sink = null;
 }
@@ -25,7 +27,7 @@ export function openSink(rt: Runtime, a: WorkOpened): void {
   rt.preview?.pause();
   if (rt.sink && rt.sink.handle !== a.handle) retireSink(rt, true);
   rt.ui.setWorkOpened(a);
-  rt.sink = new DeliverySink(
+  const sink = new DeliverySink(
     a.handle,
     () => rt.client,
     () => rt.concession?.maxKiB ?? DEFAULT_MAX_KIB,
@@ -34,6 +36,9 @@ export function openSink(rt: Runtime, a: WorkOpened): void {
     a.seedHeight,
     a.strata,
   );
+  rt.sink = sink;
+  rt.offBrushCap?.();
+  rt.offBrushCap = onBrushCap(() => sink.relieveNow());
   rt.telemetry = new ImageTelemetry(a.handle, performance.now());
 }
 

@@ -5,6 +5,7 @@ import { ViewerMinimap } from '@/widgets/viewer-minimap';
 import { RenderSettingsPanel, TelemetryPanel, ViewerInfoPanel } from '@/widgets/viewer-panels';
 import { ViewerTopBar } from '@/widgets/viewer-top-bar';
 import { LiveStatusPill } from '@/widgets/viewer-status';
+import { grantOf } from '@/features/cap-brushes';
 import { detailLabel } from '@/features/sign-in';
 import { buildPresets } from '@/features/zoom-view';
 import { sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect } from '@/entities/viewport';
@@ -125,6 +126,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       {ui.settings && <RenderSettingsPanel
           onClose={ctl.closeSettings}
           account={seurat.account}
+          grant={grantOf(seurat.concession?.maxBrushes, seurat.welcome?.sessionMaxBrushes)}
           ceiling={opened ? { stratum: opened.ceilingStratum, bands: opened.ceilingBands } : null}
         />}
       {ui.telemetry && <TelemetryPanel read={ctl.readTelemetry} onClose={ctl.closeTelemetry} />}

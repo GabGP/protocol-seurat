@@ -7,7 +7,7 @@ import { ownedBytes } from '../store';
 import { byteWindow } from './credit-window';
 import { release } from './release';
 import { removeSubtree } from './removal';
-import type { SinkState } from './state';
+import { holdLimit, type SinkState } from './state';
 
 /** Attention heat: the brushes the outgoing view showed are credited the time it stayed on screen. */
 export function warmShown(s: SinkState, nowS: number): void {
@@ -33,7 +33,8 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   const load = (): number => book.byDelivery.size + book.inFlight.size;
   const maxKib = s.limits.maxKiB() * BYTES_PER_KIB;
   // A failed VRAM reservation is pressure whatever the counts say: relieve to 75 % of what is held.
-  const maxN = vramShort ? Math.min(s.limits.maxBrushes(), load()) : s.limits.maxBrushes();
+  const hold = holdLimit(s);
+  const maxN = vramShort ? Math.min(hold, load()) : hold;
   const maxB = vramShort ? Math.min(maxKib, ownedBytes(book)) : maxKib;
   // The byte window closes RECIBO.libre (`free`): pressure must see it too, or the view stalls at 0.
   const cramped = (): boolean => !vramShort && byteWindow(s) < EVICT_HEADROOM;
@@ -51,7 +52,7 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   // concession cannot stall the view with nothing evictable. Bytes do not stop the server: a cone
   // it may still paint keeps its parents, or its children arrive to find them gone (spec 5.4).
   const held = (m: number): boolean => book.byDelivery.has(m);
-  const painted = book.byDelivery.size >= s.limits.maxBrushes() ? []
+  const painted = book.byDelivery.size >= hold ? []
     : s.cones.views((n) => s.settlement.settledBelow(n, held));
   while (over()) {
     const candidates = collectCandidates(book, s.view, painted, sketch);
