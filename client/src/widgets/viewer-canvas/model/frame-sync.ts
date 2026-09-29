@@ -1,4 +1,5 @@
 import { viewToRoi } from '@/entities/viewport';
+import { deviceViewport } from '@/shared/lib/device-viewport';
 import { logFrac } from '@/shared/lib/zoom';
 import type { ChromeCtx } from './chrome-types';
 import { syncReadout } from './readout';
@@ -26,10 +27,12 @@ export function syncUI(ctx: ChromeCtx, vc: ViewController): void {
 }
 
 /** The sink hears the view through the gaze service, and evicts what we moved away from. */
+/** The ROI is image px from the CSS size; `vw` × `vh` are device px (spec 2.2), the backing store the renderer draws. */
 export function reportGaze({ st, P, frame }: ChromeCtx): void {
   const p = P();
   if (!p.gazeService) return;
   const { W, H } = frame;
   const roi = viewToRoi(st.v.s, st.v.tx, st.v.ty, { vw: W, vh: H }, p.iw, p.ih);
-  p.gazeService.motion({ handle: p.handle, x0: roi.x0, y0: roi.y0, x1: roi.x1, y1: roi.y1, vw: Math.round(W), vh: Math.round(H), flags: 0 });
+  const { vw, vh } = deviceViewport(W, H);
+  p.gazeService.motion({ handle: p.handle, x0: roi.x0, y0: roi.y0, x1: roi.x1, y1: roi.y1, vw, vh, flags: 0 });
 }

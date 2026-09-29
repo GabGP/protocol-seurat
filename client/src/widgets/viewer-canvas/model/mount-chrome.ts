@@ -2,11 +2,13 @@ import { createPointerGestures } from '@/features/pan-view';
 import { attachShortcuts } from '@/features/viewer-shortcuts';
 import { attachZoomGestures } from '@/features/zoom-view';
 import { renderFlags as flags, subscribeRenderFlags } from '@/shared/lib/render-flags';
-import { deviceDpr } from '@/shared/lib/dpr';
+import { backingDpr } from '@/shared/lib/device-viewport';
+import { backingPx } from '@/shared/lib/render-scale';
 import type { ChromeCtx, ChromeProps, ChromeState } from './chrome-types';
 import { watchContextLoss } from './context-loss';
 import { createRenderer } from './create-renderer';
 import { createFrameLoop } from './frame-loop';
+import { reportGaze } from './frame-sync';
 import { createMeterView } from './meter-view';
 import { createViewController } from './view-controller';
 
@@ -78,22 +80,25 @@ export function mountChrome(env: ChromeEnv): (() => void) | undefined {
     const r = cv.getBoundingClientRect();
     frame.W = r.width;
     frame.H = r.height;
-    frame.dpr = deviceDpr();
-    cv.width = Math.round(r.width * frame.dpr);
-    cv.height = Math.round(r.height * frame.dpr);
+    frame.dpr = backingDpr(r.width, r.height); // device dpr × render scale; the CSS size is unchanged
+    const { w, h } = backingPx(r.width, r.height, frame.dpr);
+    cv.width = w;
+    cv.height = h;
     renderer.resize(frame.W, frame.H, frame.dpr);
     if (!st.userMoved) vc.fit(true);
     frame.dirty = true;
     st.uiKey = '';
+    if (P().handle > 0 && frame.W > 0 && frame.H > 0) reportGaze(ctx); // the MIRADA's device px follow the backing size
   };
 
-  /** Settings changed: repaint now, and show or hide the meter. */
+  /** Settings changed: repaint now, resize the backing store when the render scale moved, and show or hide the meter. */
   function onFlags(): void {
     if (!flags.gpu) gpuFailed.current = false; // switching off, then on again, retries WebGL2
     if ((flags.gpu && !gpuFailed.current) !== wantGpu) {
       env.remountCanvas(); // renderer change: a canvas keeps its first context type
       return;
     }
+    if (frame.W > 0 && backingDpr(frame.W, frame.H) !== frame.dpr) resize();
     frame.dirty = true;
     meter.refresh();
     cv.parentElement?.toggleAttribute('data-meter', flags.fps); // overlays below make room

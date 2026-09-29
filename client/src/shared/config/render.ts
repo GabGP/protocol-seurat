@@ -91,3 +91,10 @@ export const GL_UPLOAD_BUDGET_MS = 3;
 export const GL_RESTORE_WAIT_MS = 3000;
 /** Frame shadow: canvas shadowBlur is 2σ. */
 export const FRAME_SHADOW_SIGMA = FRAME_SHADOW_BLUR / 2;
+
+/** `auto` render scale keeps the canvas backing store within this many pixels (2560 × 1440). */
+export const RENDER_MAX_BACKING_PX = 2560 * 1440;
+/** The render scales Settings offers, finest first; `auto` snaps down onto one of them so a resize does not thrash. */
+export const RENDER_SCALE_STEPS: readonly number[] = [1, 0.75, 0.5];
+/** Slack for the float compare when a computed scale lands exactly on a step. */
+export const RENDER_SCALE_EPSILON = 1e-9;

@@ -5,7 +5,8 @@ import { goGallery, goViewer } from '@/app/router';
 import { patchUi } from '@/app/store';
 import { stepIndex } from '@/features/navigate-work';
 import { isOpenable, workDims, workMp, workTitle } from '@/entities/work';
-import { DEFAULT_WORK_WIDTH, DEFAULT_WORK_HEIGHT } from '@/shared/config/view';
+import { DEFAULT_WORK_WIDTH, DEFAULT_WORK_HEIGHT, DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT } from '@/shared/config/view';
+import { deviceViewport } from '@/shared/lib/device-viewport';
 
 export function useViewerWork(id: string, seurat: SeuratState) {
   const [attempt, setAttempt] = useState(0);
@@ -55,8 +56,10 @@ export function useViewerWork(id: string, seurat: SeuratState) {
         y0: 0,
         x1: iw,
         y1: ih,
-        vw: typeof window !== 'undefined' ? Math.round(window.innerWidth) : 1920,
-        vh: typeof window !== 'undefined' ? Math.round(window.innerHeight) : 1080,
+        ...deviceViewport(
+          typeof window !== 'undefined' ? window.innerWidth : DEFAULT_VIEWPORT_WIDTH,
+          typeof window !== 'undefined' ? window.innerHeight : DEFAULT_VIEWPORT_HEIGHT,
+        ),
         flags: 0,
       });
     }
@@ -89,7 +92,7 @@ export function useViewerWork(id: string, seurat: SeuratState) {
       seurat.gazeService.motion({
         handle: seurat.opened.handle,
         x0: 0, y0: 0, x1: iw, y1: ih,
-        vw: Math.round(s.w), vh: Math.round(s.h), flags: 0,
+        ...deviceViewport(s.w, s.h), flags: 0,
       });
     }
   };

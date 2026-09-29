@@ -11,6 +11,9 @@ export const ZOOM_PRESET_TIERS: readonly (number | null)[] = [
 
 export const DEFAULT_WORK_WIDTH = 3600;
 export const DEFAULT_WORK_HEIGHT = 2400;
+/** The CSS viewport assumed where there is no window (first MIRADA of a headless render). */
+export const DEFAULT_VIEWPORT_WIDTH = 1920;
+export const DEFAULT_VIEWPORT_HEIGHT = 1080;
 
 export const INITIAL_FIT_FALLBACK = 0.1;
 export const MIN_ZOOM_FIT_RATIO = 0.5;

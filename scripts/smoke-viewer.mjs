@@ -4,8 +4,11 @@
 //
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
-//                                [--max-refused-pct 2] [--size 1600x900] [--cap 362]
+//                                [--max-refused-pct 2] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
 //
+// --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
+// `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
+// the canvas backing size, the effective scale and the fps / p95 it read.
 // --size WxH sets the viewport in CSS px (default 1600x900); the "held" line is the settled number of brushes the viewer holds,
 // read from the Telemetry panel after the run. Console errors/warnings the page logs are listed and fail the run.
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
@@ -33,6 +36,8 @@ const zoomSteps = Number(args.zoom ?? 3);
 const panSteps = Number(args.pan ?? 0);
 const maxRefusedPct = Number(args['max-refused-pct'] ?? 2);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
+const dpr = Number(args.dpr ?? 1);
+const renderSwitches = ['fps', args.scale && `scale:${args.scale}`].filter(Boolean).join(',');
 const SETTLE_MS = 4000;
 const QUIET_MS = 3000; // no delivery for this long = settled
 const PORT = 9333;
@@ -135,7 +140,7 @@ try {
   await cdp('Runtime.enable');
   await cdp('Log.enable');
   await cdp('Page.enable');
-  await cdp('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+  await cdp('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: dpr, mobile: false });
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: hook });
   if (args.key) {
     await cdp('Page.addScriptToEvaluateOnNewDocument',
@@ -145,7 +150,7 @@ try {
     await cdp('Page.addScriptToEvaluateOnNewDocument',
       { source: `localStorage.setItem('seurat.brushCap', ${JSON.stringify(String(Number(args.cap)))})` });
   }
-  await cdp('Page.navigate', { url: `${base}/#/visor/${encodeURIComponent(args.work)}` });
+  await cdp('Page.navigate', { url: `${base}/?render=${renderSwitches}#/visor/${encodeURIComponent(args.work)}` });
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',
     { expression: 'JSON.stringify(window.__smoke)', returnByValue: true })).result.value);
   const panFrom = 4 + 2 * zoomSteps;
@@ -195,6 +200,10 @@ try {
   })).result.value;
   const plan = await memRow('Plan');
   const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · total ${await memRow('Total (est.)')}`;
+  const probeText = (expression) => cdp('Runtime.evaluate', { returnByValue: true, expression }).then((r) => r.result.value);
+  const canvas = await probeText(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
+    return { bw: c.width, bh: c.height, cw: r.width, ch: r.height, dpr: window.devicePixelRatio }; })()`);
+  const meter = await probeText(`document.querySelector('[data-meter] [aria-live=off]')?.textContent ?? 'n/a'`);
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
   writeFileSync(shot, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -205,6 +214,7 @@ try {
   const refused = s.soltar[RELEASE.refused] ?? 0;
   const refusedPct = deliveries ? (100 * refused) / deliveries : 0;
   console.log(`viewport ${W}x${H} · held ${held} brushes (settled; telemetry "${heldText}")`);
+  console.log(`render dpr ${canvas.dpr} · scale ${args.scale ?? 'default'} · effective ${(canvas.bw / (canvas.cw * canvas.dpr)).toFixed(2)} · backing ${canvas.bw}x${canvas.bh} (css ${canvas.cw}x${canvas.ch}) · meter "${meter}"`);
   console.log(`memory ${memory}`);
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);

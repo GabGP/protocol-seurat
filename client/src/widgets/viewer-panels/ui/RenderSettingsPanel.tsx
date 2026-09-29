@@ -1,20 +1,22 @@
 import { Icon } from '@/shared/ui/Icon';
 import { Switch } from '@/shared/ui/Switch';
 import {
-  DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type RenderFlags,
+  DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type BooleanFlag, type RenderFlags,
 } from '@/shared/lib/render-flags';
 import type { Account } from '@/entities/session';
 import { CapSection } from '@/features/cap-brushes';
+import { RenderScaleSection } from '@/features/render-scale';
 import { SignInSection } from '@/features/sign-in';
+import type { Feed } from '@/shared/lib/feed';
 import styles from './RenderSettingsPanel.module.css';
 import { ICON_SM } from '@/shared/config/icon';
 
 interface Option {
-  key: keyof RenderFlags;
+  key: BooleanFlag;
   label: string;
   hint: string;
   /** Only meaningful while this other switch is on. */
-  needs?: keyof RenderFlags;
+  needs?: BooleanFlag;
 }
 
 const SECTIONS: Array<{ title: string; options: Option[] }> = [
@@ -50,10 +52,12 @@ interface Props {
   ceiling: { stratum: number; bands: number } | null;
   /** Brushes the server grants this browser, for the Max brushes options. */
   grant: number;
+  /** The canvas's CSS size, for the Render scale readout. */
+  size: Feed<{ w: number; h: number } | null>;
 }
 
 /** Account, then live render switches: every change applies on the next frame and is remembered in this browser. */
-export function RenderSettingsPanel({ onClose, account, ceiling, grant }: Props): JSX.Element {
+export function RenderSettingsPanel({ onClose, account, ceiling, grant, size }: Props): JSX.Element {
   const flags = useRenderFlags();
   const isDefault = (Object.keys(DEFAULT_RENDER_FLAGS) as Array<keyof RenderFlags>)
     .every((k) => flags[k] === DEFAULT_RENDER_FLAGS[k]);
@@ -67,6 +71,7 @@ export function RenderSettingsPanel({ onClose, account, ceiling, grant }: Props)
       </div>
       <SignInSection account={account} ceiling={ceiling} />
       <CapSection grant={grant} />
+      <RenderScaleSection size={size} />
       {SECTIONS.map((s) => (
         <section key={s.title} className={styles.section}>
           <span className={styles.sectionTitle}>{s.title}</span>

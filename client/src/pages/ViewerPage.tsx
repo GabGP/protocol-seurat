@@ -126,6 +126,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       {ui.settings && <RenderSettingsPanel
           onClose={ctl.closeSettings}
           account={seurat.account}
+          size={feeds.view}
           grant={grantOf(seurat.concession?.maxBrushes, seurat.welcome?.sessionMaxBrushes)}
           ceiling={opened ? { stratum: opened.ceilingStratum, bands: opened.ceilingBands } : null}
         />}
