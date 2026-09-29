@@ -15,6 +15,7 @@ public final class PainterGatesTest {
         redHoldsNewFlows();
         amberHalvesSlots();
         corruptBandServesPrefix();
+        knownBadBandsClampBeforeOpen();
         windowWaitIsNotCongestion();
         System.out.println("PainterGatesTest OK");
     }
@@ -100,6 +101,40 @@ public final class PainterGatesTest {
         var head = Headers.BrushHead.parse(ByteBuffer.wrap(rig.mapping.deliveries.get(0)));
         TestKit.check(head.from() == 0 && head.through() == 1, "header says [0,1), got " + head.through());
         TestKit.check(rig.canvas.book().get(head.delivery()).through() == 1, "book annotated with the prefix");
+        thread.interrupt();
+    }
+
+    /** A band the store found bad twice: the next entry is cut to the valid prefix, or resolves quietly when none is. */
+    private static void knownBadBandsClampBeforeOpen() throws Exception {
+        PainterRig rig = PainterRig.create();
+        WorkMeta meta = rig.canvas.meta();
+        int[] valid = {1};
+        TestKit.FixedStore store = new TestKit.FixedStore(meta) {
+            @Override
+            public int validBands(BrushId p) {
+                return valid[0];
+            }
+        };
+        store.put(new BrushId(1, 0, 0), new byte[]{10}, new byte[]{11}, new byte[]{12}, new byte[]{13});
+        rig.canvas.setStore(store, meta);
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().settle(seurat.proto.Ranges.of(1));
+        Thread thread = rig.start();
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 3, 1)),
+                rig.canvas.plan().start(0, 1));
+        rig.awaitDeliveries(1);
+        var head = Headers.BrushHead.parse(ByteBuffer.wrap(rig.mapping.deliveries.get(0)));
+        TestKit.check(head.from() == 0 && head.through() == 1, "cut to the valid prefix [0,1), got " + head.through());
+        TestKit.check(rig.canvas.book().get(head.delivery()).through() == 1, "the book holds the cut entry");
+        valid[0] = 0;
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 0, 3, 1)),
+                rig.canvas.plan().start(0, 1));
+        long deadline = System.currentTimeMillis() + 5000;
+        while (rig.planEvents(1) < 2 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+        TestKit.check(rig.planEvents(1) == 2, "no valid band: the plan still ends");
+        TestKit.check(rig.mapping.deliveries.size() == 1, "and nothing more goes on the wire");
         thread.interrupt();
     }
 }

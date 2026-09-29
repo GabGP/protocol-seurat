@@ -14,6 +14,11 @@ public interface BrushStore {
         return bands(p, b0, b1);
     }
 
+    /** Bands 0..n-1 of the brush are known good: n stays large until a band failed its CRC-32C twice. */
+    default int validBands(BrushId p) {
+        return Integer.MAX_VALUE;
+    }
+
     /** Copies [b0,b1) bytes to out. Verifies CRC-32C on read. */
     void copy(BrushId p, int b0, int b1, OutputStream out) throws IOException;
 

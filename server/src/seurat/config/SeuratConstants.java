@@ -82,6 +82,8 @@ public final class SeuratConstants {
     public static final long ASSET_MAX_AGE_S = 365L * 24 * 60 * 60;
     /** Operator alerts AuditLog keeps for dump(); older ones only survive in the console log. */
     public static final int AUDIT_KEEP = 1024;
+    /** Brushes whose corrupt band the store remembers (older ones are forgotten and would alert again). */
+    public static final int BAD_BANDS_KEEP = 4096;
     /** Progress without a terminal: one INFO line per this many percent (every percent goes to DEBUG). */
     public static final int PROGRESS_STEP_PCT = 10;
     /** Cells in a progress bar, sticky line and step lines alike. */

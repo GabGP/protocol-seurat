@@ -65,6 +65,11 @@ final class Opener {
                 PlanEvents.resolved(canvas, x.generation()); // (a)(b): planned on a stale state
                 return;
             }
+            e = servable(canvas, e);
+            if (e == null) {
+                PlanEvents.resolved(canvas, x.generation()); // no valid band on disk: nothing to send, nothing to retry
+                return;
+            }
             if (!eligible(canvas) || !session.takeSlot()) {
                 queue.pushFront(x.unready());
                 return;
@@ -83,6 +88,15 @@ final class Opener {
             }
             open(canvas, x, chosen);
         }
+    }
+
+    /** The entry cut to the bands the store still holds intact (spec 8), or null when none of [from,through) is. */
+    private static PlanEntry servable(Canvas canvas, PlanEntry e) {
+        int through = Math.min(e.through(), canvas.store().validBands(e.brush()));
+        if (through <= e.from()) {
+            return null;
+        }
+        return through == e.through() ? e : new PlanEntry(e.brush(), e.from(), through, e.pass());
     }
 
     private static boolean permitted(Canvas canvas, BrushId brush, int through) {

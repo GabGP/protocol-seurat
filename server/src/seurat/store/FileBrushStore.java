@@ -60,6 +60,11 @@ public final class FileBrushStore implements BrushStore {
     }
 
     @Override
+    public int validBands(BrushId p) {
+        return reader.validBands(p);
+    }
+
+    @Override
     public void copy(BrushId p, int b0, int b1, OutputStream out) throws IOException {
         for (byte[] band : bands(p, b0, b1)) {
             out.write(band);
