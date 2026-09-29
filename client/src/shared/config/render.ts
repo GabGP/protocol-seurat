@@ -28,6 +28,8 @@ export const LOUPE_PIXEL_OUTLINE_WIDTH = 2;
 export const LOUPE_RIM_WIDTH = 5;
 export const LOUPE_BADGE_OFFSET_Y = 10;
 export const LOUPE_BADGE_HEIGHT = 24;
+/** The badge flips above the loupe when it would end within this many px of the canvas bottom. */
+export const LOUPE_BADGE_FLIP_PX = 40;
 
 export const LOADER_DOT_COUNT = 10;
 export const LOADER_SPEED = 1.6;
