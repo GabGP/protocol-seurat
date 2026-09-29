@@ -44,8 +44,8 @@ describe('telemetry sections', () => {
 
   it('reports what eviction dropped and how much of it came back', () => {
     const m = rows('Eviction', sections);
-    expect(m['Evicted (count · bytes)']).toBe(`8 · ${fmtBytes(64_000)}`);
-    expect(m['Re-sent after evict (count · bytes · % of evicted)']).toBe(`2 · ${fmtBytes(16_000)} · 25%`);
+    expect(m['Evicted']).toBe(`8 · ${fmtBytes(64_000)}`);
+    expect(m['Re-sent after evict']).toBe(`2 · ${fmtBytes(16_000)} · 25%`);
     expect(m['Median time to refetch']).toBe(fmtMs(1500));
   });
 
@@ -79,19 +79,19 @@ describe('telemetry sections', () => {
 describe('telemetry formats', () => {
   it('shows bytes at three significant digits, rolling units before a fourth digit', () => {
     expect(fmtBytes(512)).toBe('512 B');
-    expect(fmtBytes(5_837)).toBe('5.70 KB');
-    expect(fmtBytes(81_613)).toBe('79.7 KB');
-    expect(fmtBytes(348_160)).toBe('340 KB');
-    expect(fmtBytes(1_022_000)).toBe('998 KB');
-    expect(fmtBytes(1_030_000)).toBe('0.98 MB');
-    expect(fmtBytes(46_451_000)).toBe('44.3 MB');
-    expect(fmtBytes(3 * 1024 ** 3)).toBe('3.00 GB');
+    expect(fmtBytes(5_837)).toBe('5.70 KiB');
+    expect(fmtBytes(81_613)).toBe('79.7 KiB');
+    expect(fmtBytes(348_160)).toBe('340 KiB');
+    expect(fmtBytes(1_022_000)).toBe('998 KiB');
+    expect(fmtBytes(1_030_000)).toBe('0.98 MiB');
+    expect(fmtBytes(46_451_000)).toBe('44.3 MiB');
+    expect(fmtBytes(3 * 1024 ** 3)).toBe('3.00 GiB');
   });
 
   it('shows rates in bits and bytes at the same precision', () => {
     expect(fmtRate(0)).toBe('0 kbit/s · 0 B/s');
-    expect(fmtRate(95_250)).toBe('762 kbit/s · 93.0 KB/s');
-    expect(fmtRate(262_500)).toBe('2.10 Mbit/s · 256 KB/s');
+    expect(fmtRate(95_250)).toBe('762 kbit/s · 93.0 KiB/s');
+    expect(fmtRate(262_500)).toBe('2.10 Mbit/s · 256 KiB/s');
   });
 
   it('shows durations in whole ms, then seconds', () => {

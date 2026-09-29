@@ -1,6 +1,6 @@
 import { BYTES_PER_KIB, MS_PER_S } from '../config/units';
 
-const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
+const BYTE_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB'] as const;
 const RATE_UNITS = ['kbit/s', 'Mbit/s', 'Gbit/s'] as const;
 const KIBI = BYTES_PER_KIB;
 const KILO = MS_PER_S;
