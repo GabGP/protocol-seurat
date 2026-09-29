@@ -1,5 +1,6 @@
 package seurat.concession;
 
+import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 import seurat.proto.FatalProtocol;
 import seurat.proto.MsgGaze;
@@ -18,7 +19,7 @@ public final class GazeGateTest {
     }
 
     private static void coalesces() throws Exception {
-        var s = GrantControllerTest.setup();
+        var s = ConcessionRig.create();
         GazeGate gate = new GazeGate(s.grants);
         for (int seq = 1; seq <= 60; seq++) {
             gate.offer(s.session, s.canvas, gaze(seq));
@@ -30,7 +31,7 @@ public final class GazeGateTest {
     }
 
     private static void sustainedAbuseIsFatal() throws Exception {
-        var s = GrantControllerTest.setup();
+        var s = ConcessionRig.create();
         GazeGate gate = new GazeGate(s.grants);
         long seq = 1;
         long end = System.nanoTime() + 7_000_000_000L;

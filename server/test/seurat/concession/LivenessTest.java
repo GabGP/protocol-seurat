@@ -2,6 +2,7 @@ package seurat.concession;
 
 import java.nio.ByteBuffer;
 import seurat.codec.BrushId;
+import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 import seurat.net.RecordingMapping;
 import seurat.proto.Frame;
@@ -42,7 +43,7 @@ public final class LivenessTest {
 
     /** Passive revocation: RENOVAR never names what a pending RASPAR takes back. */
     private static void testRenewalAck() throws Exception {
-        var s = GrantControllerTest.setup();
+        var s = ConcessionRig.create();
         s.canvas.book().log(new BrushId(0, 0, 0), 0, 2, 100, 1); // 257, stratum 0
         s.grants.narrow(s.canvas, new Concession(2, 1, 4, 2, 768, 36864, 120),
                 Concessions.cuts(s.canvas.concession(), new int[]{1, 4}, 1, 2), null);
@@ -70,7 +71,7 @@ public final class LivenessTest {
     }
 
     private static void testReplan() throws Exception {
-        var s = GrantControllerTest.setup();
+        var s = ConcessionRig.create();
         s.session.share = 0.3; // e_i in [1/4, 1/2): the plan is cut (spec 6.3)
         s.grants.gaze(s.session, s.canvas, new MsgGaze.Gaze(1, 5, 0, 0, 512, 384, 512, 384, 0));
         TestKit.check((lastStart(s).throttle() & ProtoCodes.REG_CARGA) != 0, "cut plan says CARGA");
@@ -93,7 +94,7 @@ public final class LivenessTest {
         TestKit.check(lastStart(s) != null, "a delivery cut before its FIN: planned again (spec 8)");
     }
 
-    private static MsgGaze.Plan lastStart(GrantControllerTest.Setup s) {
+    private static MsgGaze.Plan lastStart(ConcessionRig s) {
         MsgGaze.Plan out = null;
         for (byte[] f : s.mapping.control) {
             Frame fr = Frame.decode(ByteBuffer.wrap(f));
