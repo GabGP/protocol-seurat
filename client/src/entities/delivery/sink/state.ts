@@ -84,6 +84,8 @@ export class SinkState {
   linkBps = 0;
   pending = new Map<number, PendingSynth>();
   failed = new Set<number>();
+  /** Deliveries whose planes are being rebuilt from their bands (planes-only synthesis): one request each. */
+  rebuilding = new Set<number>();
   nextSynthesisId = 1;
   activeSynthesis = new Map<number, number>();
   /** brushKey -> worker index holding its planes (ref routing + stickiness). */

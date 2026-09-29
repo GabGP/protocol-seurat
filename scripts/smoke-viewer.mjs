@@ -168,6 +168,12 @@ try {
       .find((e) => e.textContent === 'Held')?.nextElementSibling?.textContent ?? ''`,
   })).result.value;
   const held = /^\d+/.exec(heldText)?.[0] ?? 'n/a';
+  const memRow = async (label) => (await cdp('Runtime.evaluate', {
+    returnByValue: true,
+    expression: `[...document.querySelectorAll('aside[aria-label=Telemetry] span')]
+      .find((e) => e.textContent === ${JSON.stringify(label)})?.nextElementSibling?.textContent ?? 'n/a'`,
+  })).result.value;
+  const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · total ${await memRow('Total (est.)')}`;
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
   writeFileSync(shot, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -178,6 +184,7 @@ try {
   const refused = s.soltar[RELEASE.refused] ?? 0;
   const refusedPct = deliveries ? (100 * refused) / deliveries : 0;
   console.log(`viewport ${W}x${H} · held ${held} brushes (settled; telemetry "${heldText}")`);
+  console.log(`memory ${memory}`);
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);
   if (s.strata[0]) console.log(`stratum 0 reached · deliveries by bands-through ${JSON.stringify(s.s0bands)}`);
   console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) ${JSON.stringify(refusals)} · screenshot ${shot}`);

@@ -27,10 +27,13 @@ function removeDelivery(s: SinkState, n: number, why: Departure, snap: Snapshot)
     s.departures.note(key, why, n, snap.at, snap.held, snap.max);
     s.origin.delete(key);
     rec.rgba?.close();
+    rec.planes = null;
+    rec.bands = [];
     if (why === 'evicted') s.evictions.evict(rec.bytes);
   }
   s.settlement.mark(n); // it was held, so it arrived: settled whatever happens to it now
   s.pending.delete(n);
+  s.rebuilding.delete(n);
   s.inflight.delete(n);
   s.book.byDelivery.delete(n);
   s.book.inFlight.delete(n);

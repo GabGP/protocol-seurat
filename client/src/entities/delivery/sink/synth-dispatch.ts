@@ -59,7 +59,8 @@ export function pump(s: SinkState): void {
       s.decode.posted();
     } catch {
       s.inflight.delete(job.req.delivery);
-      s.hooks.fail(job.req.delivery);
+      if (job.req.planesOnly) s.rebuilding.delete(job.req.delivery); // the brush is fine: the child stays parked
+      else s.hooks.fail(job.req.delivery);
     }
   }
   s.decode.setWaiting(s.ready.size);

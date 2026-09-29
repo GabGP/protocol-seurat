@@ -26,8 +26,8 @@ self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
       liftPlanes(parent, await decodeBandDetails(req), planes);
     }
     // A planes-only decode (a gallery thumbnail, composed by its caller) needs neither the retained
-    // copy nor the RGBA.
-    if (!req.planesOnly) retain(req, planes);
+    // copy nor the RGBA; a rebuild of a parent's planes (`keep`) still wants the copy children are routed to.
+    if (!req.planesOnly || req.keep) retain(req, planes);
     const rgba = req.planesOnly ? null : planesToRgba(planes.Y, planes.Co, planes.Cg, px);
     const bitmap = rgba ? await toBitmap(rgba, w, h) : null;
     postSuccess(req, t0, planes, rgba, bitmap, w, h);

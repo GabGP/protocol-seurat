@@ -1,6 +1,7 @@
 import { MS_PER_S } from '@/shared/config/constants';
 import { clamp } from '@/shared/lib/clamp';
 import { focusBands } from './core-deficit';
+import { dropColdPlanes } from './cold-planes';
 import { relieve, warmShown } from './eviction';
 import { flushReceipt } from './receipts';
 import type { SinkState } from './state';
@@ -23,6 +24,7 @@ export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: nu
   s.viewSince = nowS;
   s.gaze.observe(nowS, (x0 + x1) / 2, (y0 + y1) / 2, ideal, Math.hypot(x1 - x0, y1 - y0) / 2);
   if (relieve(s)) flushReceipt(s);
+  dropColdPlanes(s);
 }
 
 /** The viewer's brush cap changed: evict down to it (SOLTAR 1) or reopen the window, and tell the server in one RECIBO. */

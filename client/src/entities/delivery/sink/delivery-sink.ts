@@ -140,6 +140,7 @@ export class DeliverySink {
     s.inflight.clear();
     s.origin.clear();
     s.failed.clear();
+    s.rebuilding.clear();
     for (const rec of s.book.byDelivery.values()) rec.rgba?.close();
     s.book = emptyLedger();
     s.revision++;

@@ -5,6 +5,7 @@ import { collectCandidates, inCone, inCore, ownedBrushes, type EvictCandidate } 
 import { rankHorizon } from '../horizon-rank';
 import { heldBrushes, ownedBytes } from '../store';
 import { coreMissing } from './core-deficit';
+import { coneViews } from './cone-views';
 import { byteWindow } from './credit-window';
 import { release } from './release';
 import { removeSubtree } from './removal';
@@ -53,8 +54,7 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   // concession cannot stall the view with nothing evictable. Bytes do not stop the server: a cone
   // it may still paint keeps its parents, or its children arrive to find them gone (spec 5.4).
   const held = (m: number): boolean => book.byDelivery.has(m);
-  const painted = heldBrushes(book) >= hold ? []
-    : s.cones.views((n) => s.settlement.settledBelow(n, held));
+  const painted = heldBrushes(book) >= hold ? [] : coneViews(s);
   const evict = (more: () => boolean, allowed: (c: EvictCandidate) => boolean): void => {
     while (more()) {
       const candidates = collectCandidates(book, s.view, painted, sketch).filter(allowed);

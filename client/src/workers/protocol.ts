@@ -25,6 +25,8 @@ export interface SynthRequest {
   bands: ArrayBuffer[];
   /** Reply with the planes alone: no RGBA, no bitmap, nothing kept in the parent cache. */
   planesOnly?: boolean;
+  /** With `planesOnly`: still retain the planes in the worker's cache (a rebuild of a parent children are routed to). */
+  keep?: boolean;
   /** How many parents the receiving worker may keep (the pool's share of SYNTH_CACHE_TOTAL); absent: the default caps. */
   cacheEntries?: number;
 }

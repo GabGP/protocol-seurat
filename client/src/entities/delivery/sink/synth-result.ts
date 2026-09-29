@@ -1,45 +1,15 @@
 import { COLA_BUSY_MS } from '@/shared/config/constants';
 import { brushKey, splitBrushId } from '@/shared/proto/brush';
-import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
-import { brushBands, linkParent, parentFor, sameBrush } from './brush-graph';
+import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
+import { sameBrush } from './brush-graph';
+import { onRebuilt, retryWithBytes } from './parent-recovery';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
 import { freeSuperseded } from './superseded';
 import { enqueue, pump } from './synth-dispatch';
+import { flushPending } from './synth-flush';
 import { buildRequest, withParent } from './synth-request';
 import type { SinkState } from './state';
-
-/** The assigned worker had evicted the parent: re-attach bytes and requeue. */
-function retryWithBytes(s: SinkState, req: SynthRequest, brushId: bigint, epoch: number): void {
-  const rec = s.book.byDelivery.get(req.delivery);
-  if (!rec) return;
-  const { stratum, bx, by } = splitBrushId(brushId);
-  const parent = parentFor(s.book, s.top, stratum, bx, by, req.edition, rec.epoch);
-  if (!parent?.planes) {
-    failSynthesis(s, req.delivery);
-    return;
-  }
-  linkParent(s.book, req.delivery, parent.delivery);
-  req.parentRef = undefined;
-  req.bands = brushBands(s.book, rec); // the first post transferred (detached) the old copies
-  withParent(s, req, parent, bx, by);
-  enqueue(s, req, brushId, epoch, false);
-}
-
-/** Deliveries that waited for their parent's planes go to the workers once a parent has them. */
-export function flushPending(s: SinkState): void {
-  for (const [delivery, item] of s.pending) {
-    const rec = s.book.byDelivery.get(delivery);
-    if (!rec) continue;
-    const { stratum, bx, by } = splitBrushId(rec.brushId);
-    const parent = parentFor(s.book, s.top, stratum, bx, by, item.edition, rec.epoch);
-    if (!parent?.planes) continue;
-    linkParent(s.book, delivery, parent.delivery);
-    withParent(s, item.req, parent, bx, by);
-    s.pending.delete(delivery);
-    enqueue(s, item.req, rec.brushId, rec.epoch);
-  }
-}
 
 /**
  * The newest synthesis of a brush holds its best planes: children hung on any of its deliveries
@@ -77,7 +47,9 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
   rec.rgba = bmp;
-  rec.planes = rec.stratum >= 1 ? out.planes : null; // the finest stratum has no children to seed
+  // Planes only seed children, and a brush at min_estrato can have none (spec 4.1 a): a later one is rebuilt from bands.
+  rec.planes = rec.stratum > (s.grant?.minStratum ?? 0) ? out.planes : null;
+  s.rebuilding.delete(out.delivery);
   s.revision++;
   rec.pending = false;
   if (!rec.receiptQueued && !rec.receiptSent) {
@@ -106,6 +78,10 @@ export function onResult(s: SinkState, index: number, ev: MessageEvent): void {
   }
   const ctx = s.inflight.get(out.delivery);
   s.inflight.delete(out.delivery);
+  if (ctx?.req.planesOnly) {
+    onRebuilt(s, out, index, ctx);
+    return;
+  }
   if (!out.ok || (!out.rgba && !out.bitmap)) {
     if (out.error === STALE_PARENT && ctx) retryWithBytes(s, ctx.req, ctx.brushId, ctx.epoch);
     else failSynthesis(s, out.delivery);
