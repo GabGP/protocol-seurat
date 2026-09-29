@@ -82,7 +82,7 @@ describe('planes are kept only where a child can come', () => {
 });
 
 describe('dropColdPlanes', () => {
-  it('keeps the cone, the seed and the sketch strata, and drops the planes of far brushes', () => {
+  it('keeps the ancestors above the focus in a cone, the seed and the sketch, and drops the focus leaves and far brushes', () => {
     const held: Array<[number, bigint]> = [
       [1, makeBrushId(0, 0, 0)], [2, makeBrushId(0, 40, 40)], [3, makeBrushId(5, 0, 0)],
       [4, makeBrushId(5, 20, 20)], [5, makeBrushId(7, 50, 50)], [6, SEED],
@@ -95,7 +95,7 @@ describe('dropColdPlanes', () => {
     }
     sink.setView(0, 0, 512, 512, 512, 512);
     const kept = held.filter(([d]) => sink.book.byDelivery.get(d)?.planes).map(([d]) => d);
-    expect(kept).toEqual([1, 3, 5, 6]);
+    expect(kept).toEqual([3, 5, 6]); // 1 is at the focus, 2 and 4 are far from every cone
   });
 
   it('bumps the revision the paint caches key on only when it dropped something', () => {
@@ -109,6 +109,20 @@ describe('dropColdPlanes', () => {
     sink.setView(0, 0, 512, 512, 512, 512);
     expect(dropped).toBeGreaterThan(before);
     expect(sink.revision).toBe(dropped);
+  });
+});
+
+describe('landing at or below the focus', () => {
+  it('keeps no planes at the focus, and keeps them on a coarser brush', async () => {
+    sink.setView(0, 0, 512, 512, 512, 512); // focus 0
+    ingest(1, SEED);
+    await land(lastSent());
+    ingest(2, MID);
+    await land(lastSent());
+    ingest(3, makeBrushId(0, 0, 0));
+    expect(sink.book.byDelivery.get(2)?.planes).toHaveLength(THREE); // above the focus: children are planned
+    await land(lastSent());
+    expect(sink.book.byDelivery.get(3)?.planes).toBeNull();
   });
 });
 

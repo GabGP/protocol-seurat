@@ -34,6 +34,7 @@ const panSteps = Number(args.pan ?? 0);
 const maxRefusedPct = Number(args['max-refused-pct'] ?? 2);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const SETTLE_MS = 4000;
+const QUIET_MS = 3000; // no delivery for this long = settled
 const PORT = 9333;
 const ERROR = 0x05;
 const SOLTAR = 0x27;
@@ -148,15 +149,34 @@ try {
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',
     { expression: 'JSON.stringify(window.__smoke)', returnByValue: true })).result.value);
   const panFrom = 4 + 2 * zoomSteps;
+  let lastInput = Date.now();
   for (let t = 2; t <= seconds; t += 2) {
     await sleep(2000);
     if (t > 4 && t <= panFrom) {
       await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: cx, y: cy, deltaX: 0, deltaY: -400 });
+      lastInput = Date.now();
     } else if (t > panFrom && t <= panFrom + 2 * panSteps) {
       const k = (t - panFrom) / 2;
       await drag(k % 2 ? -700 : 0, k % 2 ? 0 : -400); // alternate half-screen moves: new ground each time
+      lastInput = Date.now();
     }
   }
+  // Time to settle: how long after the last input the deliveries kept arriving (quiet for 2 s = settled).
+  const totalNow = async () => Object.values((await read()).strata).reduce((a, b) => a + b, 0);
+  if (args.probe) { // one more zoom-in of --probe wheel units after everything settled: what does it cost to follow?
+    await sleep(SETTLE_MS);
+    await cdp('Input.dispatchMouseEvent', { type: 'mouseWheel', x: cx, y: cy, deltaX: 0, deltaY: -Number(args.probe) });
+    lastInput = Date.now();
+  }
+  const before = await totalNow();
+  let seen = before;
+  let changedAt = lastInput;
+  for (let quiet = Date.now(); Date.now() - quiet < QUIET_MS && Date.now() - lastInput < 40000; await sleep(250)) {
+    const n = await totalNow();
+    if (n !== seen) { seen = n; quiet = Date.now(); changedAt = quiet; }
+  }
+  const settleSec = ((changedAt - lastInput) / 1000).toFixed(1);
+  const afterInput = seen - before;
   await sleep(SETTLE_MS);
   // Settled held count: open Telemetry (T) and read the Brushes section's "Held" row ("362 of 768" -> 362).
   await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 't', code: 'KeyT', text: 't' });
@@ -173,6 +193,7 @@ try {
     expression: `[...document.querySelectorAll('aside[aria-label=Telemetry] span')]
       .find((e) => e.textContent === ${JSON.stringify(label)})?.nextElementSibling?.textContent ?? 'n/a'`,
   })).result.value;
+  const plan = await memRow('Plan');
   const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · total ${await memRow('Total (est.)')}`;
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
@@ -185,6 +206,7 @@ try {
   const refusedPct = deliveries ? (100 * refused) / deliveries : 0;
   console.log(`viewport ${W}x${H} · held ${held} brushes (settled; telemetry "${heldText}")`);
   console.log(`memory ${memory}`);
+  console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);
   if (s.strata[0]) console.log(`stratum 0 reached · deliveries by bands-through ${JSON.stringify(s.s0bands)}`);
   console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) ${JSON.stringify(refusals)} · screenshot ${shot}`);

@@ -3,6 +3,7 @@ import { brushKey, splitBrushId } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
 import { sameBrush } from './brush-graph';
 import { onRebuilt, retryWithBytes } from './parent-recovery';
+import { keepsPlanes } from './plane-keep';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
 import { freeSuperseded } from './superseded';
@@ -47,8 +48,8 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
   rec.rgba = bmp;
-  // Planes only seed children, and a brush at min_estrato can have none (spec 4.1 a): a later one is rebuilt from bands.
-  rec.planes = rec.stratum > (s.grant?.minStratum ?? 0) ? out.planes : null;
+  // Planes only seed children: a brush that cannot have any soon keeps none, and a later one is rebuilt from bands.
+  rec.planes = keepsPlanes(s, rec) ? out.planes : null;
   s.rebuilding.delete(out.delivery);
   s.revision++;
   rec.pending = false;
