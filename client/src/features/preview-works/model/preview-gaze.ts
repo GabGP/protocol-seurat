@@ -1,5 +1,6 @@
 import { MFLAGS_STILL } from '@/shared/proto/messages';
 import type { PreviewLoan } from './preview-loan';
+import { clamp } from '@/shared/lib/clamp';
 
 /** The MIRADA a card sends: the whole work, seen at the card's device pixels, not moving. */
 export interface PreviewGaze {
@@ -25,5 +26,5 @@ export function previewGaze(loan: PreviewLoan, workW: number, workH: number, seq
  */
 export function gazeLevel(g: PreviewGaze, top: number): number {
   const ideal = Math.floor(Math.log2(Math.max((g.x1 - g.x0) / g.vw, (g.y1 - g.y0) / g.vh)));
-  return Math.max(0, Math.min(top - 1, ideal));
+  return clamp(ideal, 0, top - 1);
 }

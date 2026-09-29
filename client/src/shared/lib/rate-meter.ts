@@ -1,6 +1,7 @@
+import { MS_PER_S } from '../config/units';
 const BUCKET_MS = 250;
 const SLOTS = 240; // 60 s of history
-const PER_S = 1000 / BUCKET_MS;
+const PER_S = MS_PER_S / BUCKET_MS;
 
 /** Byte-rate meter over 250 ms buckets: live rate, recent peak and per-second history (60 s). */
 export class RateMeter {
@@ -18,7 +19,7 @@ export class RateMeter {
   rate(now: number, windowMs = 1000): number {
     const head = this.advance(now);
     const n = Math.max(1, Math.round(windowMs / BUCKET_MS));
-    return this.sum(head - n + 1, head) / ((n * BUCKET_MS) / 1000);
+    return this.sum(head - n + 1, head) / ((n * BUCKET_MS) / MS_PER_S);
   }
 
   /** Best 1 s rate within the last `spanMs`: what the link carried while it was busy. */

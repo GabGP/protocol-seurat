@@ -3,8 +3,9 @@ import {
   TAU, BG_COLOR, IMAGE_SMOOTHING_THRESHOLD, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM,
   FRAME_SHADOW_PADDING, FRAME_SHADOW_OFFSET_Y, FRAME_SHADOW_MARGIN,
   LOUPE_RADIUS, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
-  LOADER_DOT_COUNT, LOADER_SPEED, LOADER_ORBIT_RADIUS, LOADER_ORBIT_PULSE, LOADER_DOT_BASE_RADIUS,
+  LOADER_COLORS, ACCENT_COLOR, FRAME_FILL_COLOR, PIXEL_OUTLINE_COLOR,
 } from '@/shared/config/render';
+import { forEachLoaderDot } from './loader-dots';
 import { drawPointillism } from './pointillism';
 import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from './brush-cull';
 import { ViewerSprites } from './render-sprites';
@@ -65,7 +66,7 @@ export class Canvas2DRenderer implements ViewRenderer {
       const fh = Math.min(f.ty + ih, this.H + m) - fy;
       if (f.flags.shadow) this.sprites.drawFrameShadow(ctx, fx, fy, fw, fh, FRAME_SHADOW_OFFSET_Y);
       if (!sketched) {
-        ctx.fillStyle = '#000';
+        ctx.fillStyle = FRAME_FILL_COLOR;
         ctx.fillRect(fx, fy, fw, fh);
       }
     }
@@ -83,16 +84,12 @@ export class Canvas2DRenderer implements ViewRenderer {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.sprites.drawBackground(ctx, this.W, this.H, l.tx, l.ty, l.flags.grid, null);
-    const cols = ['#B8C4FF', '#FF8A5B', '#DDE1F9', '#FFB599'];
-    for (let i = 0; i < LOADER_DOT_COUNT; i++) {
-      const a = l.t * LOADER_SPEED + i * (TAU / LOADER_DOT_COUNT);
-      const R = LOADER_ORBIT_RADIUS + LOADER_ORBIT_PULSE * Math.sin(l.t * 3 + i);
-      ctx.fillStyle = cols[i % 4] ?? '#B8C4FF';
+    forEachLoaderDot(l.t, this.W, this.H, (i, x, y, r) => {
+      ctx.fillStyle = LOADER_COLORS[i % LOADER_COLORS.length] ?? ACCENT_COLOR;
       ctx.beginPath();
-      const rDot = LOADER_DOT_BASE_RADIUS + LOADER_DOT_BASE_RADIUS * (0.5 + 0.5 * Math.sin(l.t * 4 - i * 0.7));
-      ctx.arc(this.W / 2 + Math.cos(a) * R, this.H / 2 + Math.sin(a) * R, rDot, 0, TAU);
+      ctx.arc(x, y, r, 0, TAU);
       ctx.fill();
-    }
+    });
   }
 
   /** Brushes (culled, opaque), then the dot mask laid over them once dots are on. */
@@ -153,13 +150,13 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.clip();
     this.layer(f, ltx, lty, L, mx - R, my - R, mx + R, my + R, this.loupeCuller);
     if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
-      ctx.strokeStyle = '#FFFFFF';
+      ctx.strokeStyle = PIXEL_OUTLINE_COLOR;
       ctx.lineWidth = LOUPE_PIXEL_OUTLINE_WIDTH;
       ctx.strokeRect(ltx + Math.floor(ix) * L, lty + Math.floor(iy) * L, L, L);
     }
     ctx.restore();
     ctx.lineWidth = LOUPE_RIM_WIDTH;
-    ctx.strokeStyle = '#B8C4FF';
+    ctx.strokeStyle = ACCENT_COLOR;
     ctx.beginPath();
     ctx.arc(mx, my, R, 0, TAU);
     ctx.stroke();

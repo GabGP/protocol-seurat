@@ -3,7 +3,7 @@ import { SessionClient, type SessionEvents } from './session-client';
 import { DeliverySink } from './delivery-sink';
 import { HandleLedgers } from '@/entities/delivery/ledgers';
 import { parseBrushHead, splitBrushId } from '@/shared/proto/brush';
-import { MAX_RETIRED_HANDLES, RECONNECT_BASE_MS, RECONNECT_MAX_MS } from '@/shared/config/constants';
+import { ErrorCode, MAX_RETIRED_HANDLES, RECONNECT_BASE_MS, RECONNECT_MAX_MS } from '@/shared/config/constants';
 import { ownedDeliveries } from '@/entities/delivery/store';
 import { T } from '@/shared/proto/messages';
 import { clearResume } from '@/entities/session/store';
@@ -191,7 +191,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
       },
       onProtocolError: (e) => {
         // 12: resume rejected; 4 after a RASPAR TODO: the work was withdrawn and the handle is dead (spec 7.4).
-        if (e.code === 12 || (e.code === 4 && e.refType !== T.ABRIR && sinkRef.current?.withdrawn)) {
+        if (e.code === ErrorCode.RESUME_REJECTED || (e.code === ErrorCode.NO_SUCH_WORK && e.refType !== T.ABRIR && sinkRef.current?.withdrawn)) {
           clearResume();
           sinkRef.current?.dispose();
           sinkRef.current = null;

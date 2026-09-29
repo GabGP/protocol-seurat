@@ -1,5 +1,6 @@
 import {
-  EVICT_HEADROOM, EVICT_PRESSURE, EVICT_TARGET, RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS, SKETCH_MIN, TILE,
+  BYTES_PER_KIB, EVICT_HEADROOM, EVICT_PRESSURE, EVICT_TARGET, MS_PER_S, RECEIPT_EVERY_N, RECEIPT_EVERY_MS, RELEASE_BATCH_MS,
+  ReleaseReason, ScrapePredicate, SEED_STRATUM, SKETCH_MIN, TILE, toKib,
 } from '@/shared/config/constants';
 import { byteRoom, coming, receiverWindow } from '@/entities/delivery/credit';
 import { DecodeQueue } from '@/entities/delivery/decode-queue';
@@ -11,13 +12,14 @@ import { GazeMotion } from '@/entities/delivery/gaze-motion';
 import { rankHorizon } from '@/entities/delivery/horizon-rank';
 import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
 import { WorkerPool, defaultWorker, resolvePoolSize, type WorkerFactory } from '@/entities/delivery/worker-pool';
-import { makeBrushId, brushKey, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
+import { makeBrushId, brushKey, parentBrushId, parseBrushHead, splitBrushId, sliceBands, verifyBand } from '@/shared/proto/brush';
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape as scrapeMatches } from '@/entities/delivery/scrape';
-import { effectiveExpiry, emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from '@/entities/delivery/store';
+import { effectiveExpiry, emptyLedger, ownedBytes, ownedDeliveries, recordFromHead, type DeliveryLedger, type DeliveryRecord } from '@/entities/delivery/store';
 import { Settlement } from '@/entities/delivery/settlement';
 import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 import type { SessionClient } from './session-client';
+import { clamp } from '@/shared/lib/clamp';
 
 /** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
 const COLA_BUSY_MS = 150;
@@ -40,12 +42,6 @@ export interface Grant {
   maxBands: number;
 }
 
-/** SOLTAR motivo 4: beyond what the client may hold (concession or its declared memory budget). */
-const RELEASE_BUDGET = 4;
-const RELEASE_CRC = 6;
-const RELEASE_REPLACED = 7;
-/** RASPAR predicate 5 TODO. */
-const SCRAPE_ALL = 5;
 /** Early (future-epoch) deliveries held at most: max_en_vuelo. */
 const MAX_EARLY = 12;
 
@@ -289,10 +285,7 @@ export class DeliverySink {
   /** Spec 4.1.6 and 5.4 on one arrived flow: every check, then synthesis. */
   private accept(h: ReturnType<typeof parseBrushHead>, bytes: Uint8Array, now: () => number, leaseS: number): void {
     this.failed.delete(h.delivery);
-    const probe: DeliveryRecord = {
-      delivery: h.delivery, brushId: h.brushId, stratum: Number((h.brushId >> 56n) & 0xffn),
-      from: h.from, through: h.through, bytes: 0, epoch: h.epoch, edition: h.edition, expires: 0, rgba: null,
-    };
+    const probe = recordFromHead(h);
     const scrape = this.scrapes.find((p) => h.delivery <= p.through && this.matchesScrape(probe, p.predicate, p.params));
     if (scrape) {
       scrape.scraped += 1; // spec 4.2.4b: a late ≤ N delivery the predicate covers is dropped on arrival
@@ -309,7 +302,7 @@ export class DeliverySink {
       const band = bands[i];
       const crc = h.crcs[i];
       if (band === undefined || crc === undefined || !verifyBand(band, crc)) {
-        this.release([h.delivery], RELEASE_CRC);
+        this.release([h.delivery], ReleaseReason.CRC);
         return;
       }
     }
@@ -318,7 +311,7 @@ export class DeliverySink {
     if (refusal !== null) {
       console.warn(`Seurat: delivery ${h.delivery} (stratum ${probe.stratum}, bands [${h.from},${h.through})) `
         + `refused (${refusal[0]}): ${refusal[1]}`);
-      this.release([h.delivery], RELEASE_BUDGET);
+      this.release([h.delivery], ReleaseReason.BUDGET);
       return;
     }
     this.avgDelivery = this.avgDelivery === 0 ? bytes.length : 0.8 * this.avgDelivery + 0.2 * bytes.length;
@@ -326,16 +319,9 @@ export class DeliverySink {
     const split = splitBrushId(h.brushId);
     const retainedBands = bands.map((band) => band.slice().buffer);
     const rec: DeliveryRecord = {
-      delivery: h.delivery,
-      brushId: h.brushId,
-      stratum: split.stratum,
-      from: h.from,
-      through: h.through,
+      ...probe,
       bytes: total,
-      epoch: h.epoch,
-      edition: h.edition,
-      expires: now() + leaseS * 1000,
-      rgba: null,
+      expires: now() + leaseS * MS_PER_S,
       bands: retainedBands,
       planes: null,
       qY: h.qY,
@@ -354,7 +340,7 @@ export class DeliverySink {
       stratum: split.stratum,
       qY: h.qY,
       qC: h.qC,
-      seed: split.stratum === 10,
+      seed: split.stratum === SEED_STRATUM,
       seedWidth: this.seedWidth,
       seedHeight: this.seedHeight,
       brush: brushKey(h.brushId, h.edition),
@@ -364,11 +350,8 @@ export class DeliverySink {
     const parent = this.parentFor(split.stratum, split.bx, split.by, h.edition, h.epoch);
     if (parent) this.linkParent(h.delivery, parent.delivery);
     if (parent?.planes) this.withParent(req, parent, split.bx, split.by);
-    if (split.stratum < 10 && !parent?.planes) {
-      const isCoarsest = split.stratum + 1 >= this.top;
-      const parentId = isCoarsest
-        ? makeBrushId(10, 0, 0)
-        : makeBrushId(split.stratum + 1, split.bx >> 1, split.by >> 1);
+    if (split.stratum < SEED_STRATUM && !parent?.planes) {
+      const parentId = parentBrushId(split.stratum, split.bx, split.by, this.top);
       this.pending.set(h.delivery, { req, parentId, edition: h.edition });
       return;
     }
@@ -390,11 +373,8 @@ export class DeliverySink {
   }
 
   private parentFor(stratum: number, bx: number, by: number, edition?: number, epoch?: number): DeliveryRecord | null {
-    if (stratum >= 10) return null;
-    const isCoarsest = stratum + 1 >= this.top;
-    const parentId = isCoarsest
-      ? makeBrushId(10, 0, 0)
-      : makeBrushId(stratum + 1, bx >> 1, by >> 1);
+    if (stratum >= SEED_STRATUM) return null;
+    const parentId = parentBrushId(stratum, bx, by, this.top);
     let best: DeliveryRecord | null = null;
     for (const rec of this.book.byDelivery.values()) {
       if (rec.brushId !== parentId) continue;
@@ -429,7 +409,7 @@ export class DeliverySink {
   }
 
   private withParent(req: SynthRequest, parent: DeliveryRecord, bx: number, by: number): void {
-    const seed = parent.stratum === 10;
+    const seed = parent.stratum === SEED_STRATUM;
     req.parentKey = brushKey(parent.brushId, parent.edition);
     req.parentPlanes = (parent.planes ?? []).map((plane) => plane.slice(0));
     req.parentPlaneWidth = seed ? this.seedWidth : 256;
@@ -502,7 +482,7 @@ export class DeliverySink {
     if (!rec) return;
     this.book.pendingReceipt = this.book.pendingReceipt.filter((n) => n !== delivery);
     const removed = this.removeSubtree(delivery, 0, 'failed synthesis');
-    this.release(removed, 2);
+    this.release(removed, ReleaseReason.DECODE_FAILED);
   }
 
   /**
@@ -523,7 +503,7 @@ export class DeliverySink {
       const { stratum, bx, by } = splitBrushId(child.brushId);
       const req: SynthRequest = {
         delivery: child.delivery, synthesisId: this.nextSynthesisId++, stratum, qY: child.qY ?? 0, qC: child.qC ?? 0,
-        seed: stratum === 10, seedWidth: this.seedWidth, seedHeight: this.seedHeight,
+        seed: stratum === SEED_STRATUM, seedWidth: this.seedWidth, seedHeight: this.seedHeight,
         brush: brushKey(child.brushId, child.edition), edition: child.edition,
         bands: this.brushBands(child),
       };
@@ -550,7 +530,7 @@ export class DeliverySink {
     }
     if (old.length > 0) {
       this.revision++;
-      this.release(old.map((r) => r.delivery), RELEASE_REPLACED);
+      this.release(old.map((r) => r.delivery), ReleaseReason.REPLACED);
     }
   }
 
@@ -584,7 +564,7 @@ export class DeliverySink {
       for (const id of [n, ...this.descendants(n)]) {
         const held = this.book.byDelivery.get(id);
         if (held) {
-          pending.kib += Math.ceil(held.bytes / 1024);
+          pending.kib += toKib(held.bytes);
           pending.scraped += 1;
         }
       }
@@ -592,7 +572,7 @@ export class DeliverySink {
     }
     this.scrapes.push(pending);
     this.lastScrape = { through: r.through, epoch: r.epoch };
-    if (r.predicate === SCRAPE_ALL) this.withdrawn = true; // spec 7.4: ERROR 4 follows the RASPADO
+    if (r.predicate === ScrapePredicate.ALL) this.withdrawn = true; // spec 7.4: ERROR 4 follows the RASPADO
     this.sweepExpiry(now);
     this.answerScrapes();
   }
@@ -651,16 +631,16 @@ export class DeliverySink {
       }
     }
     const fits = (): boolean => this.book.byDelivery.size < this.maxBrushes()
-      && ownedBytes(this.book) + bytes <= this.maxKiB() * 1024;
+      && ownedBytes(this.book) + bytes <= this.maxKiB() * BYTES_PER_KIB;
     if (!fits()) this.relieve(); // at capacity the pressure trigger holds: make room first (spec 5.2.3)
     if (!fits()) {
       return ['capacity', `${this.book.byDelivery.size} of ${this.maxBrushes()} brushes and `
-        + `${Math.ceil(ownedBytes(this.book) / 1024)} of ${this.maxKiB()} KiB held, a server fault`];
+        + `${toKib(ownedBytes(this.book))} of ${this.maxKiB()} KiB held, a server fault`];
     }
-    if (g === null || rec.stratum >= 10) return null;
+    if (g === null || rec.stratum >= SEED_STRATUM) return null;
     const { bx, by } = splitBrushId(rec.brushId);
-    const seed = makeBrushId(10, 0, 0);
-    const parentId = rec.stratum + 1 >= this.top ? seed : makeBrushId(rec.stratum + 1, bx >> 1, by >> 1);
+    const seed = makeBrushId(SEED_STRATUM, 0, 0);
+    const parentId = parentBrushId(rec.stratum, bx, by, this.top);
     let held = 0;
     for (const p of this.book.byDelivery.values()) {
       if (p.brushId === parentId && p.edition === rec.edition) held = parentId === seed ? 4 : Math.max(held, p.through);
@@ -673,7 +653,7 @@ export class DeliverySink {
 
   applyRenew(ranges: number[], order: number, leaseS: number, now: () => number): void {
     this.renewThrough = Math.max(this.renewThrough, order);
-    const t = now() + leaseS * 1000;
+    const t = now() + leaseS * MS_PER_S;
     for (const n of ranges) {
       const rec = this.book.byDelivery.get(n);
       if (rec) rec.expires = t;
@@ -685,7 +665,7 @@ export class DeliverySink {
     this.sweepExpiry(() => performance.now());
     this.flushRelease();
     const ranges = ownedDeliveries(this.book).filter((n) => n <= through);
-    return { brushCount: new Set([...this.book.byDelivery.values()].map((r) => r.brushId.toString())).size, kib: Math.ceil(ownedBytes(this.book) / 1024), ranges };
+    return { brushCount: new Set([...this.book.byDelivery.values()].map((r) => r.brushId.toString())).size, kib: toKib(ownedBytes(this.book)), ranges };
   }
 
   /**
@@ -713,7 +693,7 @@ export class DeliverySink {
         this.releaseTimer = 0;
         const q = this.expiredQueue;
         this.expiredQueue = [];
-        this.release(q, 3);
+        this.release(q, ReleaseReason.EXPIRED);
       }, RELEASE_BATCH_MS) as unknown as number;
     }
   }
@@ -724,10 +704,10 @@ export class DeliverySink {
    * the server the window reopened.
    */
   setView(x0: number, y0: number, x1: number, y1: number, vw: number, vh: number, seq = 0): void {
-    const nowS = performance.now() / 1000;
+    const nowS = performance.now() / MS_PER_S;
     const zoom = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
     const ideal = Number.isFinite(zoom) ? zoom : 0;
-    const focus = Math.max(0, Math.min(this.top - 1, Math.floor(ideal)));
+    const focus = clamp(Math.floor(ideal), 0, this.top - 1);
     this.warmShown(nowS);
     this.view = { x0, y0, x1, y1, focus };
     this.cones.look(this.view, seq);
@@ -759,14 +739,14 @@ export class DeliverySink {
     const load = (): number => this.book.byDelivery.size + this.book.inFlight.size;
     // A failed VRAM reservation is pressure whatever the counts say: relieve to 75 % of what is held.
     const maxN = vramShort ? Math.min(this.maxBrushes(), load()) : this.maxBrushes();
-    const maxB = (vramShort ? Math.min(this.maxKiB() * 1024, ownedBytes(this.book)) : this.maxKiB() * 1024);
+    const maxB = (vramShort ? Math.min(this.maxKiB() * BYTES_PER_KIB, ownedBytes(this.book)) : this.maxKiB() * BYTES_PER_KIB);
     // The byte window closes RECIBO.libre (`free`): pressure must see it too, or the view stalls at 0.
     const cramped = (): boolean => !vramShort && this.byteWindow() < EVICT_HEADROOM;
     if (!vramShort && !cramped() && load() < maxN - EVICT_HEADROOM && ownedBytes(this.book) <= EVICT_PRESSURE * maxB) {
       return false;
     }
     const sketch = Math.min(SKETCH_MIN, Math.max(0, this.top - 1));
-    const nowS = performance.now() / 1000;
+    const nowS = performance.now() / MS_PER_S;
     const gaze = this.gaze.state(nowS);
     const heatOf = (key: string): number => this.heat.heat(key, nowS);
     const released: number[] = [];
@@ -786,7 +766,7 @@ export class DeliverySink {
       }
     }
     if (released.length > 0) this.heat.prune(new Set(ownedBrushes(this.book).keys()));
-    this.release(released, 1);
+    this.release(released, ReleaseReason.EVICTED);
     return released.length > 0;
   }
 
@@ -803,7 +783,7 @@ export class DeliverySink {
    * recent rate, so a slow link never queues more than that ahead of a new MIRADA.
    */
   free(): number {
-    const memory = Math.max(0, Math.min(this.maxBrushes() - this.book.byDelivery.size, this.byteWindow()));
+    const memory = clamp(this.maxBrushes() - this.book.byDelivery.size, 0, this.byteWindow());
     const peak = this.client()?.meter?.peak(performance.now()) ?? 0;
     // Only a second that carried at least one brush measures the link; idle keeps the last rate,
     // so the next view starts with a full window instead of re-ramping from CREDIT_MIN.
@@ -813,7 +793,7 @@ export class DeliverySink {
 
   /** Deliveries that still fit in max_kib after what may arrive before the server reads the next RECIBO. */
   private byteWindow(): number {
-    const room = byteRoom(this.maxKiB() * 1024 - ownedBytes(this.book), this.largest, this.avgDelivery);
+    const room = byteRoom(this.maxKiB() * BYTES_PER_KIB - ownedBytes(this.book), this.largest, this.avgDelivery);
     return room - coming(Math.max(0, this.lastFree), this.book.pendingReceipt.length);
   }
 
@@ -850,7 +830,7 @@ export class DeliverySink {
     }
     const q = this.expiredQueue;
     this.expiredQueue = [];
-    this.release(q, 3);
+    this.release(q, ReleaseReason.EXPIRED);
   }
 
   private maybeFlushReceipt(): void {

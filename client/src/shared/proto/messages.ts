@@ -1,5 +1,6 @@
 import { concat, strDecode, strEncode, u64Decode, u64Encode, viDecode, viEncode } from './varint';
 import { rangesDecode, rangesEncode } from './ranges';
+import { TlvTag } from '../config/constants';
 import { FatalProtocolError, parseTlvs, tlvEncode } from './frame';
 
 export const T = {
@@ -30,13 +31,6 @@ export interface Welcome {
   ticket: Uint8Array; resumed: number[];
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-export { hexToBytes };
-
 export function helloCore(s: Hello): Uint8Array {
   return concat(
     viEncode(s.minVersion), viEncode(s.maxVersion), viEncode(s.caps), viEncode(s.memMib),
@@ -52,7 +46,7 @@ export function helloTlvs(s: Hello): Uint8Array[] {
     viEncode(s.resume.claims.length),
   ];
   for (const c of s.resume.claims) parts.push(viEncode(c.handle), rangesEncode(c.ranges));
-  return [tlvEncode(0x01, concat(...parts))];
+  return [tlvEncode(TlvTag.RESUME, concat(...parts))];
 }
 
 export function helloDecode(payload: Uint8Array): Hello {
@@ -65,7 +59,7 @@ export function helloDecode(payload: Uint8Array): Hello {
   const token = payload.slice(p, p + tokenLen); p += tokenLen;
   const out: Hello = { minVersion, maxVersion, caps, memMib, token };
   for (const t of parseTlvs(payload.slice(p))) {
-    if (t.tag !== 0x01) continue;
+    if (t.tag !== TlvTag.RESUME) continue;
     let q = 0;
     const s64 = u64Decode(t.value, q); q = s64.next;
     const ticket = t.value.slice(q, q + 32); q += 32;
@@ -90,9 +84,9 @@ export function welcomeCore(b: Welcome): Uint8Array {
 }
 
 export function welcomeTlvs(b: Welcome): Uint8Array[] {
-  const out = [tlvEncode(0x02, b.ticket)];
+  const out = [tlvEncode(TlvTag.TICKET, b.ticket)];
   if (b.resumed.length > 0) {
-    out.push(tlvEncode(0x03, concat(viEncode(b.resumed.length), ...b.resumed.map((h) => viEncode(h)))));
+    out.push(tlvEncode(TlvTag.RESUMED, concat(viEncode(b.resumed.length), ...b.resumed.map((h) => viEncode(h)))));
   }
   return out;
 }
@@ -112,8 +106,8 @@ export function welcomeDecode(payload: Uint8Array): Welcome {
     maxInFlight, sessionMaxBrushes, ticket: new Uint8Array(0), resumed: [],
   };
   for (const t of parseTlvs(payload.slice(p))) {
-    if (t.tag === 0x02) out.ticket = t.value;
-    else if (t.tag === 0x03) {
+    if (t.tag === TlvTag.TICKET) out.ticket = t.value;
+    else if (t.tag === TlvTag.RESUMED) {
       let q = 0;
       const n = viDecode(t.value, q); q = n.next;
       for (let i = 0; i < n.value; i++) {

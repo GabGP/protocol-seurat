@@ -1,4 +1,5 @@
 import { WT_READY_TIMEOUT_MS } from '../config/constants';
+import { withTimeout } from '../lib/with-timeout';
 import { viDecode } from '../proto/varint';
 import type { CloseHandler, ControlHandler, DeliveryHandler, SeuratTransport } from './transport';
 
@@ -23,20 +24,6 @@ declare global {
   }
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  let timer = 0;
-  try {
-    return await Promise.race([
-      p,
-      new Promise<T>((_, reject) => {
-        timer = window.setTimeout(() => reject(new Error('wt: ready timeout')), ms);
-      }),
-    ]);
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
 export class WtTransport implements SeuratTransport {
   readonly name = 'webtransport' as const;
   readonly supportsDatagrams = true;
@@ -57,7 +44,7 @@ export class WtTransport implements SeuratTransport {
   async connect(signal?: AbortSignal): Promise<void> {
     if (!WtTransport.supported() || !window.WebTransport) throw new Error('wt: unsupported');
     const wt = new window.WebTransport(this.url);
-    await withTimeout(wt.ready, WT_READY_TIMEOUT_MS);
+    await withTimeout(wt.ready, WT_READY_TIMEOUT_MS, 'wt: ready timeout');
     if (signal?.aborted) {
       wt.close();
       throw new Error('wt: aborted');

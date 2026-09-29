@@ -9,6 +9,7 @@ import type { Filter } from '@/entities/work/store';
 import { Icon } from '@/shared/ui/Icon';
 import { GALLERY_PLACEHOLDER_MIN_PX, GALLERY_PLACEHOLDER_PX } from '@/shared/config/layout';
 import styles from './GalleryGrid.module.css';
+import { deviceDpr } from '@/shared/lib/dpr';
 
 /** Noise placeholder, drawn small and stretched until the work's seed arrives. */
 function drawPlaceholder(c: HTMLCanvasElement, work: Work): void {
@@ -53,7 +54,7 @@ function Thumb({ work }: { work: Work }): JSX.Element {
     }
     // One resample from the preview straight to device pixels: the browser does not stretch it again.
     const draw = (): void => {
-      const dpr = window.devicePixelRatio || 1; // client size: the card's press scale is not a resize
+      const dpr = deviceDpr(); // client size: the card's press scale is not a resize
       const w = Math.round(c.clientWidth * dpr) || preview.width;
       const h = Math.round(c.clientHeight * dpr) || preview.height;
       if (c.width === w && c.height === h && shown.current === preview) return;

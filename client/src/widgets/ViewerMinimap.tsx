@@ -8,6 +8,11 @@ import type { ChromeApi, ViewRect } from './ViewerChrome';
 
 import { MINIMAP_MAX_H, MINIMAP_MAX_W, MINIMAP_THUMB_MS } from '@/shared/config/layout';
 import styles from './ViewerMinimap.module.css';
+import { deviceDpr } from '@/shared/lib/dpr';
+import {
+  ACCENT_COLOR, MINIMAP_BG_COLOR, MINIMAP_BOX_RADIUS, MINIMAP_BOX_WIDTH, MINIMAP_DOT_COLOR, MINIMAP_DOT_SIZE,
+  MINIMAP_DOT_STEP, MINIMAP_FULL_TOLERANCE, MINIMAP_MIN_BOX, MINIMAP_SHADE_COLOR,
+} from '@/shared/config/render';
 
 interface Props {
   api: { current: ChromeApi | null };
@@ -32,7 +37,7 @@ function sizeOf(iw: number, ih: number): Size {
     k,
     w: Math.max(8, Math.round(iw * k)),
     h: Math.max(8, Math.round(ih * k)),
-    dpr: window.devicePixelRatio || 1,
+    dpr: deviceDpr(),
   };
 }
 
@@ -45,15 +50,16 @@ function buildThumb(sink: DeliverySink | null | undefined, iw: number, ih: numbe
   const c = t.getContext('2d');
   if (!c) return t;
   c.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
-  c.fillStyle = '#23242B';
+  c.fillStyle = MINIMAP_BG_COLOR;
   c.fillRect(0, 0, z.w, z.h);
   const all = sink ? collectBrushes(sink.book.byDelivery.values(), iw, ih) : [];
   const list = flags.cull ? cullBrushes(all, z.k * z.dpr, iw, ih, flags.lod) : all;
   for (const b of list) c.drawImage(b.bmp, b.x * z.k, b.y * z.k, b.w * z.k, b.h * z.k);
   if (list.length === 0) {
-    c.fillStyle = 'rgba(197,198,208,0.25)';
-    for (let y = 4; y < z.h; y += 8) {
-      for (let x = 4; x < z.w; x += 8) c.fillRect(x, y, 1.5, 1.5);
+    c.fillStyle = MINIMAP_DOT_COLOR;
+    const from = MINIMAP_DOT_STEP / 2;
+    for (let y = from; y < z.h; y += MINIMAP_DOT_STEP) {
+      for (let x = from; x < z.w; x += MINIMAP_DOT_STEP) c.fillRect(x, y, MINIMAP_DOT_SIZE, MINIMAP_DOT_SIZE);
     }
   }
   return t;
@@ -70,24 +76,25 @@ function drawOverlay(c: CanvasRenderingContext2D, thumb: HTMLCanvasElement | nul
   const y0 = clamp((-view.ty / view.s) * k, 0, h);
   const cx1 = clamp(x0 + (view.w / view.s) * k, 0, w);
   const cy1 = clamp(y0 + (view.h / view.s) * k, 0, h);
-  const isFull = x0 <= 0.5 && y0 <= 0.5 && cx1 >= w - 0.5 && cy1 >= h - 0.5;
+  const tol = MINIMAP_FULL_TOLERANCE;
+  const isFull = x0 <= tol && y0 <= tol && cx1 >= w - tol && cy1 >= h - tol;
 
   if (!isFull) {
-    c.fillStyle = 'rgba(13,14,19,0.6)';
+    c.fillStyle = MINIMAP_SHADE_COLOR;
     c.beginPath();
     c.rect(0, 0, w, h);
     c.rect(x0, y0, cx1 - x0, cy1 - y0);
     c.fill('evenodd');
   }
 
-  const rx = isFull ? 0.5 : x0;
-  const ry = isFull ? 0.5 : y0;
-  const rw = isFull ? w - 1 : Math.max(4, cx1 - x0);
-  const rh = isFull ? h - 1 : Math.max(4, cy1 - y0);
-  c.strokeStyle = '#B8C4FF';
-  c.lineWidth = 2;
+  const rx = isFull ? tol : x0;
+  const ry = isFull ? tol : y0;
+  const rw = isFull ? w - 2 * tol : Math.max(MINIMAP_MIN_BOX, cx1 - x0);
+  const rh = isFull ? h - 2 * tol : Math.max(MINIMAP_MIN_BOX, cy1 - y0);
+  c.strokeStyle = ACCENT_COLOR;
+  c.lineWidth = MINIMAP_BOX_WIDTH;
   c.beginPath();
-  if (c.roundRect) c.roundRect(rx, ry, rw, rh, 3);
+  if (c.roundRect) c.roundRect(rx, ry, rw, rh, MINIMAP_BOX_RADIUS);
   else c.rect(rx, ry, rw, rh);
   c.stroke();
 }

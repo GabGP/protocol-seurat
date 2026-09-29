@@ -14,6 +14,7 @@ import { initialView, tickView } from '@/features/zoom-view/model';
 import { viewToRoi } from '@/entities/viewport/math';
 import type { DeliverySink } from '@/app/providers/delivery-sink';
 import type { GazeSender } from '@/features/send-gaze';
+import { MS_PER_S } from '@/shared/config/units';
 import { GL_RESTORE_WAIT_MS, LOUPE_MAGNIFICATION, LOUPE_RADIUS, LOUPE_BADGE_HEIGHT, LOUPE_BADGE_OFFSET_Y } from '@/shared/config/render';
 import {
   MIN_ZOOM_FIT_RATIO,
@@ -26,6 +27,7 @@ import {
   FLING_WINDOW_MS,
 } from '@/shared/config/view';
 import styles from './ViewerChrome.module.css';
+import { deviceDpr } from '@/shared/lib/dpr';
 
 export interface ViewSync {
   s: number;
@@ -186,7 +188,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       const r = cv.getBoundingClientRect();
       W = r.width;
       H = r.height;
-      dpr = window.devicePixelRatio || 1;
+      dpr = deviceDpr();
       cv.width = Math.round(r.width * dpr);
       cv.height = Math.round(r.height * dpr);
       renderer.resize(W, H, dpr);
@@ -358,7 +360,7 @@ export function ViewerChrome(props: Props): JSX.Element {
       }
       const hasPaint = brushes().length > 0;
       if (!hasPaint) {
-        renderer.renderLoader({ W, H, dpr, tx: st.v.tx, ty: st.v.ty, t: performance.now() / 1000, flags });
+        renderer.renderLoader({ W, H, dpr, tx: st.v.tx, ty: st.v.ty, t: performance.now() / MS_PER_S, flags });
         if (moving || dirty || initialGaze) {
           dirty = false;
           syncUI();

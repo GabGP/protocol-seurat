@@ -1,6 +1,6 @@
 import { matchesScrape } from '@/entities/delivery/scrape';
-import { SEED_STRATUM, TILE } from '@/shared/config/constants';
-import { makeBrushId, type BrushHead } from '@/shared/proto/brush';
+import { MS_PER_S, SEED_STRATUM, TILE } from '@/shared/config/constants';
+import { makeBrushId, parentBrushId, type BrushHead } from '@/shared/proto/brush';
 import type { Scrape } from '@/shared/proto/messages';
 import { pieceRecord, type PreviewPiece } from './preview-piece';
 
@@ -97,7 +97,7 @@ export class PreviewLoan {
 
   renew(ranges: number[], leaseS: number, now: number): void {
     const renewed = new Set(ranges);
-    for (const p of this.pieces()) if (renewed.has(p.delivery)) p.expires = now + leaseS * 1000;
+    for (const p of this.pieces()) if (renewed.has(p.delivery)) p.expires = now + leaseS * MS_PER_S;
   }
 
   /** Spec 5.2.2: pieces past their lease, with everything that stood on them. */
@@ -124,7 +124,7 @@ export class PreviewLoan {
     const lost = (id: bigint, below: number): boolean => this.brush(id).some((o) => o.from < below && out.has(o));
     const coarseFirst = [...this.kids.values()].sort((a, b) => b.stratum - a.stratum || a.from - b.from);
     for (const k of coarseFirst) {
-      const parent = k.stratum + 1 < this.top && lost(makeBrushId(k.stratum + 1, k.bx >> 1, k.by >> 1), 1);
+      const parent = k.stratum + 1 < this.top && lost(parentBrushId(k.stratum, k.bx, k.by, this.top), 1);
       if (!out.has(k) && (parent || lost(k.brushId, k.from))) out.add(k);
     }
     return [...out];

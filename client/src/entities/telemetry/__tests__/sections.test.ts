@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { emptyLedger, type DeliveryRecord } from '@/entities/delivery/store';
 import { ImageTelemetry } from '@/entities/telemetry/image-telemetry';
-import { PENDING, fmtBytes, fmtMs, fmtRate, telemetrySections } from '@/entities/telemetry/sections';
+import { PENDING, telemetrySections } from '@/entities/telemetry/sections';
+import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
 function rec(delivery: number, stratum: number, bytes: number, decoded: boolean): DeliveryRecord {

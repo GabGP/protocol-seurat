@@ -34,6 +34,33 @@ export const LOADER_SPEED = 1.6;
 export const LOADER_ORBIT_RADIUS = 24;
 export const LOADER_ORBIT_PULSE = 4;
 export const LOADER_DOT_BASE_RADIUS = 2.5;
+/** Angular speed of the orbit pulse and of the dot-size pulse (rad/s), and the per-dot size phase step. */
+export const LOADER_ORBIT_PULSE_SPEED = 3;
+export const LOADER_SIZE_PULSE_SPEED = 4;
+export const LOADER_SIZE_PHASE_STEP = 0.7;
+/** The loader dots cycle through these colours. */
+export const LOADER_COLORS: readonly string[] = ['#B8C4FF', '#FF8A5B', '#DDE1F9', '#FFB599'];
+
+/** Brand accent: the loupe rim and the minimap viewport box. */
+export const ACCENT_COLOR = '#B8C4FF';
+export const FRAME_FILL_COLOR = '#000';
+export const PIXEL_OUTLINE_COLOR = '#FFFFFF';
+
+export const MINIMAP_BG_COLOR = '#23242B';
+export const MINIMAP_DOT_COLOR = 'rgba(197,198,208,0.25)';
+export const MINIMAP_DOT_STEP = 8;
+export const MINIMAP_DOT_SIZE = 1.5;
+export const MINIMAP_SHADE_COLOR = 'rgba(13,14,19,0.6)';
+export const MINIMAP_BOX_WIDTH = 2;
+export const MINIMAP_BOX_RADIUS = 3;
+export const MINIMAP_MIN_BOX = 4;
+/** The viewport box counts as the whole image within this many minimap px. */
+export const MINIMAP_FULL_TOLERANCE = 0.5;
+
+/** Pointillist dot radius is DOT_RADIUS_MIN + DOT_RADIUS_SPAN × hash, in cell units; jitter uses DOT_JITTER_ROOM of the free room. */
+export const DOT_RADIUS_MIN = 0.3;
+export const DOT_RADIUS_SPAN = 0.1;
+export const DOT_JITTER_ROOM = 0.8;
 
 /** Pointillist view: dots stay ~this many CSS px apart; each image pixel is split into n×n of them. */
 export const DOT_SPACING_PX = 6;
@@ -41,6 +68,16 @@ export const DOT_SPACING_PX = 6;
 export const DOT_TILE_CELLS = 32;
 
 export const HERO_GRID_CELL = 11;
+/** Gallery hero dots: each grows in over HERO_GROW_S with a back-ease (overshoot HERO_EASE_OVERSHOOT). */
+export const HERO_GROW_S = 0.55;
+export const HERO_EASE_OVERSHOOT = 1.70158;
+/** Growth starts at (1 - x/cols) × HERO_WAVE_S + hash × HERO_WAVE_JITTER_S: a wave from the right edge. */
+export const HERO_WAVE_S = 0.7;
+export const HERO_WAVE_JITTER_S = 0.45;
+/** Dot jitter (cells) and radius (cells) = HERO_DOT_R_MIN + HERO_DOT_R_SPAN × hash. */
+export const HERO_JITTER = 0.35;
+export const HERO_DOT_R_MIN = 0.26;
+export const HERO_DOT_R_SPAN = 0.2;
 
 /** WebGL2 renderer (spec §5.1): tile texture arrays of this many 256² layers (the guaranteed MAX_ARRAY_TEXTURE_LAYERS). */
 export const GL_ATLAS_LAYERS = 256;

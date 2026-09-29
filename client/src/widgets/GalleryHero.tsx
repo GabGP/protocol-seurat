@@ -3,8 +3,13 @@ import { hash3 } from '@/shared/lib/hash3';
 import { clamp } from '@/shared/lib/clamp';
 import { Icon } from '@/shared/ui/Icon';
 import { useWorkPreview } from '@/entities/work';
-import { HERO_GRID_CELL as CELL, TAU } from '@/shared/config/render';
+import { MS_PER_S } from '@/shared/config/units';
+import {
+  HERO_DOT_R_MIN, HERO_DOT_R_SPAN, HERO_EASE_OVERSHOOT, HERO_GRID_CELL as CELL, HERO_GROW_S, HERO_JITTER,
+  HERO_WAVE_JITTER_S, HERO_WAVE_S, TAU,
+} from '@/shared/config/render';
 import styles from './GalleryHero.module.css';
+import { deviceDpr } from '@/shared/lib/dpr';
 
 export function GalleryHero({
   onOpen,
@@ -37,7 +42,7 @@ export function GalleryHero({
       const c = ref.current;
       if (!c) return;
       const r = c.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = deviceDpr();
       const W = Math.round(r.width * dpr);
       const H = Math.round(r.height * dpr);
       if (W === 0 || H === 0) return;
@@ -52,14 +57,14 @@ export function GalleryHero({
       const cols = Math.ceil(r.width / CELL) + 1;
       const rows = Math.ceil(r.height / CELL) + 1;
       if (dots.cols !== cols || dots.rows !== rows) dots = layDots(sample, cols, rows);
-      const t = (performance.now() - start) / 1000;
+      const t = (performance.now() - start) / MS_PER_S;
       let busy = false;
       for (const d of dots.all) {
-        const p = clamp((t - d.delay) / 0.55, 0, 1);
+        const p = clamp((t - d.delay) / HERO_GROW_S, 0, 1);
         if (p < 1) busy = true;
         if (p <= 0) continue;
         const q = p - 1;
-        const e = 1 + 2.70158 * q * q * q + 1.70158 * q * q;
+        const e = 1 + (HERO_EASE_OVERSHOOT + 1) * q * q * q + HERO_EASE_OVERSHOOT * q * q;
         ctx.fillStyle = d.color;
         ctx.beginPath();
         ctx.arc(d.x, d.y, Math.max(0, d.r * e), 0, TAU);
@@ -111,10 +116,10 @@ function layDots(sample: Sample, cols: number, rows: number): Dots {
       const sy = clamp(Math.floor((y + oy) / k), 0, sample.h - 1);
       const i = (sy * sample.w + sx) * 4;
       all.push({
-        x: (x + 0.5 + (h1 - 0.5) * 0.35) * CELL,
-        y: (y + 0.5 + (h2 - 0.5) * 0.35) * CELL,
-        r: CELL * (0.26 + 0.2 * h3),
-        delay: (1 - x / cols) * 0.7 + h3 * 0.45,
+        x: (x + 0.5 + (h1 - 0.5) * HERO_JITTER) * CELL,
+        y: (y + 0.5 + (h2 - 0.5) * HERO_JITTER) * CELL,
+        r: CELL * (HERO_DOT_R_MIN + HERO_DOT_R_SPAN * h3),
+        delay: (1 - x / cols) * HERO_WAVE_S + h3 * HERO_WAVE_JITTER_S,
         color: 'rgb(' + sample.d[i] + ',' + sample.d[i + 1] + ',' + sample.d[i + 2] + ')',
       });
     }

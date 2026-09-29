@@ -14,25 +14,25 @@ import {
 } from '@/shared/proto/messages';
 import { encodeFrame } from '@/shared/proto/frame';
 
-function token32(): Uint8Array {
+export function token32(): Uint8Array {
   const out = new Uint8Array(32);
   for (let i = 0; i < 32; i++) out[i] = (0xde + i * 31) & 0xff;
   return out;
 }
 
-function ticket32(): Uint8Array {
+export function ticket32(): Uint8Array {
   const out = new Uint8Array(32);
   for (let i = 0; i < 32; i++) out[i] = (0x7a + i * 17) & 0xff;
   return out;
 }
 
-function rangeList(lo: number, hi: number): number[] {
+export function rangeList(lo: number, hi: number): number[] {
   const out: number[] = [];
   for (let n = lo; n <= hi; n++) out.push(n);
   return out;
 }
 
-const SESSION_ID = 0x3a915e0c77d214b8n;
+export const SESSION_ID = 0x3a915e0c77d214b8n;
 
 export const VECTORS = {
   helloFrame(): Uint8Array {

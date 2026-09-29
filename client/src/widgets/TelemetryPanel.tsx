@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { fmtRate, telemetrySections, type TelemetryInput } from '@/entities/telemetry/sections';
+import { telemetrySections, type TelemetryInput } from '@/entities/telemetry/sections';
+import { fmtRate } from '@/shared/lib/format-units';
 import styles from './TelemetryPanel.module.css';
 
 const REFRESH_MS = 500;

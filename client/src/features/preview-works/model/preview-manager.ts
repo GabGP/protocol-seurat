@@ -1,7 +1,7 @@
 import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
 import { dropWorkPreview, previewWidth } from '@/entities/work/previews';
 import type { WorkerFactory } from '@/entities/delivery/worker-pool';
-import { LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS } from '@/shared/config/constants';
+import { LEASE_S, MS_PER_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/app/providers/session-client';
 import type { PreviewLoan } from './preview-loan';
@@ -10,11 +10,6 @@ import { gazeLevel, previewGaze, type PreviewGaze } from './preview-gaze';
 import { PreviewDecoder } from './preview-decoder';
 import { PreviewOpens } from './preview-opens';
 import { PreviewPainter } from './preview-painter';
-
-const SOLTAR_LRU = 1;
-const SOLTAR_CADUCADA = 3;
-const SOLTAR_CRC = 6;
-const SOLTAR_REEMPLAZADA = 7;
 
 /**
  * Catalog thumbnails inside the protocol (spec 3.2): each card is a canvas with its own MIRADA,
@@ -85,10 +80,10 @@ export class PreviewManager {
     const loan = this.opens.byHandle(h.handle) ?? this.held.get(h.handle);
     if (!loan) return false;
     const { bx, by } = splitBrushId(h.brushId);
-    if (!loan.wants(h, bx, by)) return this.release(loan, SOLTAR_LRU, [h.delivery]); // finer than the card needs, or held already
-    if (bands.some((b, i) => !verifyBand(b, h.crcs[i] ?? 0))) return this.release(loan, SOLTAR_CRC, [h.delivery]);
-    const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * 1000 };
-    this.release(loan, SOLTAR_REEMPLAZADA, loan.take(piece).map((p) => p.delivery));
+    if (!loan.wants(h, bx, by)) return this.release(loan, ReleaseReason.EVICTED, [h.delivery]); // finer than the card needs, or held already
+    if (bands.some((b, i) => !verifyBand(b, h.crcs[i] ?? 0))) return this.release(loan, ReleaseReason.CRC, [h.delivery]);
+    const piece: PreviewPiece = { ...h, bx, by, bands, expires: performance.now() + LEASE_S * MS_PER_S };
+    this.release(loan, ReleaseReason.REPLACED, loan.take(piece).map((p) => p.delivery));
     this.client()?.sendReceipt(loan.handle, [h.delivery], 0, PREVIEW_CREDIT, 0);
     if (loan.seed && this.opens.done(loan)) this.held.set(loan.handle, loan);
     if (loan.seed) this.painter.draw(loan);
@@ -132,7 +127,7 @@ export class PreviewManager {
     for (const loan of [...this.held.values()]) {
       const gone = loan.expired(now);
       if (gone.length === 0) continue;
-      this.release(loan, SOLTAR_CADUCADA, gone.map((p) => p.delivery));
+      this.release(loan, ReleaseReason.EXPIRED, gone.map((p) => p.delivery));
       loan.remove(gone);
       if (loan.seed) this.painter.redraw(loan);
       else this.close(loan);

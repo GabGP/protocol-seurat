@@ -1,4 +1,5 @@
 import { u32Decode, u64Decode, viDecode } from './varint';
+import { SEED_STRATUM } from '../config/constants';
 import { crc32c } from '../codec/crc32c';
 
 export const FLOW_PINCELADA = 0x01;
@@ -39,6 +40,11 @@ export function makeBrushId(stratum: number, bx: number, by: number): bigint {
     if ((by >> i) & 1) morton |= 1n << BigInt(i * 2 + 1);
   }
   return (BigInt(stratum & 0xff) << 56n) | morton;
+}
+
+/** The brush a stratum-`stratum` brush at (bx, by) stands on: the coarser quad, or the seed under the coarsest level `top - 1`. */
+export function parentBrushId(stratum: number, bx: number, by: number, top: number): bigint {
+  return stratum + 1 >= top ? makeBrushId(SEED_STRATUM, 0, 0) : makeBrushId(stratum + 1, bx >> 1, by >> 1);
 }
 
 export function parseBrushHead(bytes: Uint8Array): BrushHead {

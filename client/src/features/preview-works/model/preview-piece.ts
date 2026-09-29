@@ -1,6 +1,5 @@
 import type { DeliveryRecord } from '@/entities/delivery/store';
-
-const KIB = 1024;
+import { toKib } from '@/shared/config/constants';
 
 /** One delivery a thumbnail holds: the seed, or bands [from, through) of one brush under it. */
 export interface PreviewPiece {
@@ -22,7 +21,7 @@ export interface PreviewPiece {
 
 /** KiB the pieces' bands take, as RASPADO / INVENTARIO report them. */
 export function piecesKib(pieces: PreviewPiece[]): number {
-  return pieces.reduce((kib, p) => kib + Math.ceil(p.bands.reduce((n, b) => n + b.length, 0) / KIB), 0);
+  return pieces.reduce((kib, p) => kib + toKib(p.bands.reduce((n, b) => n + b.length, 0)), 0);
 }
 
 /** The piece as the scrape predicates read a delivery (spec 4.2.4). */

@@ -2,7 +2,8 @@ import { postSession, SessionAuthError, type SessionResponse } from '@/shared/ap
 import type { SeuratTransport } from '@/shared/api/transport';
 import { WsTransport } from '@/shared/api/ws';
 import { WtTransport } from '@/shared/api/wt';
-import { CLIENT_NAME } from '@/shared/config/constants';
+import { CLIENT_NAME, ErrorCode, MANDATORY_TYPE_LIMIT, PROTO_VERSION } from '@/shared/config/constants';
+import { hexToBytes } from '@/shared/lib/hex';
 import { CAP_DATAGRAMAS, CAP_REANUDAR, T } from '@/shared/proto/messages';
 import {
   openCore,
@@ -65,12 +66,6 @@ export interface SessionEvents {
   onIncoming?(): void;
 }
 
-function tokenFromHex(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
-
 export class SessionClient {
   private transport: SeuratTransport | null = null;
   private welcome: Welcome | null = null;
@@ -109,13 +104,13 @@ export class SessionClient {
     const resume = loadResume();
     const ses = await this.authenticate();
     this.events.onAccount?.(accountOf(ses));
-    const token = tokenFromHex(ses.token);
+    const token = hexToBytes(ses.token);
     const t = await this.connect(ses.lienzo, ses.respaldo);
     this.transport = t;
     const claim = resume && claims && claims.length > 0
       ? { previousSession: resume.sessionId, ticket: resume.ticket, claims }
       : undefined;
-    const s = { minVersion: 1, maxVersion: 1, caps: CAP_DATAGRAMAS | CAP_REANUDAR, memMib: this.memMib, token, resume: claim };
+    const s = { minVersion: PROTO_VERSION, maxVersion: PROTO_VERSION, caps: CAP_DATAGRAMAS | CAP_REANUDAR, memMib: this.memMib, token, resume: claim };
     t.sendControl(encodeFrame(T.SALUDO, helloCore(s), helloTlvs(s)));
     this.events.onStatus('hello');
   }
@@ -195,7 +190,7 @@ export class SessionClient {
 
   /** ERROR 1 with fatal = 1 precedes the close; the session is gone (no REANUDAR after a protocol failure). */
   private fail(refType: number, msg: string): void {
-    this.transport?.sendControl(encodeFrame(T.ERROR, errorCore({ code: 1, fatal: 1, refType, msg: msg.slice(0, 120) })));
+    this.transport?.sendControl(encodeFrame(T.ERROR, errorCore({ code: ErrorCode.PROTOCOL, fatal: 1, refType, msg: msg.slice(0, 120) })));
     this.fatal = true;
     this.transport?.close();
     this.events.onStatus('protocol error: ' + msg);
@@ -259,7 +254,7 @@ export class SessionClient {
         break;
       default:
         // C->S types (SALUDO, MIRADA, RECIBO…) are as invalid here as unknown ones below 0x40.
-        if (type < 0x40) throw new FatalProtocolError('unexpected mandatory type 0x' + type.toString(16));
+        if (type < MANDATORY_TYPE_LIMIT) throw new FatalProtocolError('unexpected mandatory type 0x' + type.toString(16));
         break;
     }
   }

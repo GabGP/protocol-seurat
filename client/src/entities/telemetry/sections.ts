@@ -1,5 +1,6 @@
 import type { DeliveryLedger } from '@/entities/delivery/store';
-import { SEED_STRATUM } from '@/shared/config/constants';
+import { BYTES_PER_KIB, MS_PER_S, PERCENT, SEED_STRATUM } from '@/shared/config/constants';
+import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
 import type { RateMeter } from '@/shared/lib/rate-meter';
 import type { Concession } from '@/shared/proto/messages';
 import type { ImageTelemetry } from './image-telemetry';
@@ -58,7 +59,7 @@ function link({ now, transport, link: meter, sink }: TelemetryInput): TelemetryS
 }
 
 function image({ now, image: img }: TelemetryInput): TelemetrySection {
-  const secs = img ? Math.max(0.001, (now - img.openedAt) / 1000) : 1;
+  const secs = img ? Math.max(0.001, (now - img.openedAt) / MS_PER_S) : 1;
   return {
     title: 'This image',
     rows: [
@@ -85,7 +86,7 @@ function memory({ sink, concession }: TelemetryInput): TelemetrySection {
   const held = sink.book.byDelivery.size;
   const values = [
     fmtBytes(bands + pixels),
-    concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * 1024)}` : fmtBytes(bands),
+    concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * BYTES_PER_KIB)}` : fmtBytes(bands),
     fmtBytes(pixels),
     concession ? `${held} of ${concession.maxBrushes}` : String(held),
     String(sink.book.inFlight.size),
@@ -97,7 +98,7 @@ function memory({ sink, concession }: TelemetryInput): TelemetrySection {
 function plan({ now, image: img }: TelemetryInput): TelemetrySection {
   if (!img?.plan) return { title: 'Current view', rows: pending(PLAN_KEYS) };
   const p = img.plan;
-  const pct = p.expected > 0 ? Math.min(100, Math.round((100 * p.received) / p.expected)) : 100;
+  const pct = p.expected > 0 ? Math.min(PERCENT, Math.round((PERCENT * p.received) / p.expected)) : PERCENT;
   const reasons = THROTTLE.filter(([bit]) => (p.throttle & bit) !== 0).map(([, label]) => label);
   return {
     title: 'Current view',
@@ -137,38 +138,4 @@ function strata({ sink, concession }: TelemetryInput): TelemetrySection {
     v: concession ? `Level ${concession.minStratum} · ${concession.maxBands} bands` : PENDING,
   });
   return { title: 'Detail by level', rows };
-}
-
-const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
-const RATE_UNITS = ['kbit/s', 'Mbit/s', 'Gbit/s'] as const;
-const KIBI = 1024;
-const KILO = 1000;
-/** A value is shown in the next unit up once it would need a fourth integer digit. */
-const UNIT_CEIL = 1000;
-
-/** Three significant digits (5.70, 79.7, 340), so values keep one width as they change. */
-function sig3(v: number): string {
-  const r = Number(v.toPrecision(3));
-  return r === 0 ? '0' : r.toFixed(r < 10 ? 2 : r < 100 ? 1 : 0);
-}
-
-function scaled(v: number, base: number, units: readonly string[], wholeFirst: boolean): string {
-  let u = 0;
-  while (u < units.length - 1 && Number(v.toPrecision(3)) >= UNIT_CEIL) {
-    v /= base;
-    u += 1;
-  }
-  return `${u === 0 && wholeFirst ? Math.round(v) : sig3(v)} ${units[u]}`;
-}
-
-export function fmtBytes(n: number): string {
-  return scaled(n, KIBI, BYTE_UNITS, true);
-}
-
-export function fmtRate(bytesPerS: number): string {
-  return `${scaled((bytesPerS * 8) / KILO, KILO, RATE_UNITS, false)} · ${fmtBytes(bytesPerS)}/s`;
-}
-
-export function fmtMs(ms: number): string {
-  return ms >= KILO ? `${sig3(ms / KILO)} s` : `${Math.round(ms)} ms`;
 }

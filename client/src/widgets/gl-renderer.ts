@@ -1,13 +1,14 @@
 import {
-  TAU, BG_COLOR, BG_GRID_COLOR, BG_GRID_SPACING, BG_GRID_DOT_RADIUS, BG_GRID_PARALLAX, IMAGE_SMOOTHING_THRESHOLD,
+  BG_COLOR, BG_GRID_COLOR, BG_GRID_SPACING, BG_GRID_DOT_RADIUS, BG_GRID_PARALLAX, IMAGE_SMOOTHING_THRESHOLD,
   FRAME_SHADOW_PADDING, FRAME_SHADOW_OFFSET_Y, FRAME_SHADOW_MARGIN, FRAME_SHADOW_COLOR, FRAME_SHADOW_SIGMA,
-  LOADER_DOT_COUNT, LOADER_SPEED, LOADER_ORBIT_RADIUS, LOADER_ORBIT_PULSE, LOADER_DOT_BASE_RADIUS,
+  LOADER_COLORS, ACCENT_COLOR,
   GL_UPLOAD_BUDGET_MS, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM, DOT_TILE_CELLS,
   LOUPE_RADIUS, LOUPE_SHADOW_BLUR, LOUPE_SHADOW_COLOR, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
 } from '@/shared/config/render';
 import { clamp } from '@/shared/lib/clamp';
 import { dotParams, dotsPerSide } from './pointillism';
 import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from './brush-cull';
+import { forEachLoaderDot } from './loader-dots';
 import { TileAtlas } from './tile-atlas';
 import { arrayRuns, clipView, INSTANCE_FLOATS, packTiles, type PackView } from './gl-instances';
 import { link, rgb, rgba, type GLProgram } from './gl-context';
@@ -15,12 +16,12 @@ import { BG_FS, DISC_FS, OUTLINE_FS, RECT_VS, SHADOW_FS, TILE_FS, TILE_VS } from
 import type { FrameState, LoaderState, ViewRenderer } from './view-renderer';
 
 const STRIDE = INSTANCE_FLOATS * 4;
-const LOADER_COLORS = ['#B8C4FF', '#FF8A5B', '#DDE1F9', '#FFB599'].map(rgb);
+const LOADER_RGB = LOADER_COLORS.map(rgb);
 const BG = rgb(BG_COLOR);
 const GRID_DOT = rgba(BG_GRID_COLOR);
 const SHADOW_ALPHA = rgba(FRAME_SHADOW_COLOR)[3];
 const LOUPE_SHADOW = rgba(LOUPE_SHADOW_COLOR);
-const RIM = rgb('#B8C4FF');
+const RIM = rgb(ACCENT_COLOR);
 
 /** Per-layer extras for the tile pass: the dot mask and the loupe's circular clip. */
 interface LayerOpts {
@@ -200,13 +201,10 @@ export class WebGL2Renderer implements ViewRenderer {
     if (this.gl.isContextLost()) return;
     this.atlas.upload(GL_UPLOAD_BUDGET_MS);
     this.background(l.tx, l.ty, l.flags.grid);
-    for (let i = 0; i < LOADER_DOT_COUNT; i++) {
-      const a = l.t * LOADER_SPEED + i * (TAU / LOADER_DOT_COUNT);
-      const R = LOADER_ORBIT_RADIUS + LOADER_ORBIT_PULSE * Math.sin(l.t * 3 + i);
-      const r = LOADER_DOT_BASE_RADIUS + LOADER_DOT_BASE_RADIUS * (0.5 + 0.5 * Math.sin(l.t * 4 - i * 0.7));
-      const c = LOADER_COLORS[i % 4] ?? [1, 1, 1];
-      this.discShape(this.W / 2 + Math.cos(a) * R, this.H / 2 + Math.sin(a) * R, r, 0, 0, [c[0], c[1], c[2], 1]);
-    }
+    forEachLoaderDot(l.t, this.W, this.H, (i, x, y, r) => {
+      const c = LOADER_RGB[i % LOADER_RGB.length] ?? [1, 1, 1];
+      this.discShape(x, y, r, 0, 0, [c[0], c[1], c[2], 1]);
+    });
   }
 
   /** Brushes that are on the GPU now, stable per (list, atlas version) so culling can memoize. */

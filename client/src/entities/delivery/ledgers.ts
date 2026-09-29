@@ -1,3 +1,4 @@
+import { toKib } from '@/shared/config/constants';
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape } from './scrape';
 import { emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from './store';
@@ -39,7 +40,7 @@ export class HandleLedgers {
     if (!book) return { brushCount: 0, kib: 0, ranges: [] };
     const ranges = ownedDeliveries(book).filter((n) => n <= through);
     const brushCount = new Set([...book.byDelivery.values()].map((r) => r.brushId.toString())).size;
-    return { brushCount, kib: Math.ceil(ownedBytes(book) / 1024), ranges };
+    return { brushCount, kib: toKib(ownedBytes(book)), ranges };
   }
 
   /** Server-ordered scrape: drop matches, answer with the kept set. */
@@ -52,7 +53,7 @@ export class HandleLedgers {
       if (n > r.through) continue;
       if (matchesScrape(rec, r.predicate, r.params)) {
         rec.rgba?.close();
-        kib += Math.ceil(rec.bytes / 1024);
+        kib += toKib(rec.bytes);
         scraped += 1;
         book.byDelivery.delete(n);
       }

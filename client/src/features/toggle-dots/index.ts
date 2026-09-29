@@ -1,1 +1,1 @@
-export { toggle, pillStyle } from '../toggle-loupe';
+export { toggle, pillClass } from '../toggle-loupe';

@@ -1,4 +1,4 @@
-import { CREDIT_MIN, CREDIT_WINDOW_S, KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
+import { BYTES_PER_KIB, CREDIT_MIN, CREDIT_WINDOW_S, KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
 
 /**
  * RECIBO.libre: the memory window, capped to about CREDIT_WINDOW_S of deliveries at the
@@ -16,7 +16,7 @@ export function receiverWindow(memory: number, linkBps: number, avgDelivery: num
  * Reserving the largest for every one would close the window with most of max_kib unused.
  */
 export function byteRoom(roomBytes: number, largest: number, average: number): number {
-  const each = average > 0 ? average : KIB_PER_BRUSH * 1024;
+  const each = average > 0 ? average : KIB_PER_BRUSH * BYTES_PER_KIB;
   return Math.max(0, Math.floor((roomBytes - Math.max(largest, each)) / each) + 1);
 }
 

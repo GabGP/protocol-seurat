@@ -1,5 +1,5 @@
 import { hash3 } from '@/shared/lib/hash3';
-import { TAU, DOT_SPACING_PX, DOT_TILE_CELLS } from '@/shared/config/render';
+import { TAU, DOT_SPACING_PX, DOT_TILE_CELLS, DOT_RADIUS_MIN, DOT_RADIUS_SPAN, DOT_JITTER_ROOM } from '@/shared/config/render';
 import { placePattern } from './render-sprites';
 
 /** Dots per image-pixel side: ~DOT_SPACING_PX apart on screen, never fewer than 2, so a pixel is always several dots. */
@@ -16,8 +16,8 @@ export function tileDots(): Array<{ x: number; y: number; r: number }> {
   for (let j = 0; j < DOT_TILE_CELLS; j++) {
     for (let i = 0; i < DOT_TILE_CELLS; i++) {
       const [h1, h2, h3] = hash3(i, j);
-      const r = 0.3 + 0.1 * h3;
-      const room = 0.8 * (0.5 - r);
+      const r = DOT_RADIUS_MIN + DOT_RADIUS_SPAN * h3;
+      const room = DOT_JITTER_ROOM * (0.5 - r);
       out.push({ x: i + 0.5 + (2 * h1 - 1) * room, y: j + 0.5 + (2 * h2 - 1) * room, r });
     }
   }

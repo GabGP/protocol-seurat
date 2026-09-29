@@ -1,4 +1,4 @@
-import { MAX_FRAME_BYTES } from '../config/constants';
+import { MANDATORY_TYPE_LIMIT, MAX_FRAME_BYTES } from '../config/constants';
 import { concat, viDecode, viEncode } from './varint';
 
 export interface Tlv {
@@ -55,7 +55,7 @@ export function decodeFrame(bytes: Uint8Array, coreLength: (payload: Uint8Array)
   const payload = bytes.slice(pos, pos + l.value);
   const known = coreLength(payload);
   if (known < 0) {
-    if (t.value < 0x40) throw new FatalProtocolError('ERROR 1: unknown mandatory type');
+    if (t.value < MANDATORY_TYPE_LIMIT) throw new FatalProtocolError('ERROR 1: unknown mandatory type');
     return null;
   }
   return { type: t.value, payload, tlvs: parseTlvs(payload.slice(known)) };

@@ -1,0 +1,11 @@
+.on {
+  background: var(--pill);
+  color: var(--pill-ink);
+  border-radius: 16px;
+}
+
+.off {
+  background: transparent;
+  color: var(--visor-ink);
+  border-radius: 24px;
+}

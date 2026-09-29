@@ -1,6 +1,5 @@
+import { TILE } from '@/shared/config/constants';
 import { SKETCH_STRATUM, type BrushGeom } from './brush-cull';
-
-const TILE = 256;
 
 export interface Region {
   x0: number;

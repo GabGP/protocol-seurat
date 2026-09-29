@@ -1,8 +1,8 @@
+import { SEED_STRATUM, TILE } from '@/shared/config/constants';
 import { splitBrushId } from '@/shared/proto/brush';
 
 /** The whole-image sketch: never culled, always the base layer (it also fills tile seams). */
-export const SKETCH_STRATUM = 10;
-const TILE = 256;
+export const SKETCH_STRATUM = SEED_STRATUM;
 
 export interface BrushGeom {
   delivery: number;

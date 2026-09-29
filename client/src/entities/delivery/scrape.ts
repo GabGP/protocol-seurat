@@ -1,4 +1,4 @@
-import { TILE } from '@/shared/config/constants';
+import { ScrapePredicate, SKETCH_MIN, TILE } from '@/shared/config/constants';
 import { splitBrushId } from '@/shared/proto/brush';
 import { rangesDecode } from '@/shared/proto/ranges';
 import { viDecode } from '@/shared/proto/varint';
@@ -7,27 +7,27 @@ import type { DeliveryRecord } from './store';
 /** Protocol RASPAR predicate (5 predicates) — single implementation for all ledgers. */
 export function matchesScrape(rec: DeliveryRecord, predicate: number, params: Uint8Array): boolean {
   switch (predicate) {
-    case 5:
+    case ScrapePredicate.ALL:
       return true;
-    case 1: {
+    case ScrapePredicate.LOW_STRATUM: {
       const stratum = params[0] ?? 0;
       return rec.stratum < stratum;
     }
-    case 3: {
+    case ScrapePredicate.BANDS: {
       const stratum = params[0] ?? 0;
       const bandasMax = params[1] ?? 0;
       return rec.stratum === stratum && rec.through > bandasMax;
     }
-    case 4: {
+    case ScrapePredicate.LIST: {
       try {
         return rangesDecode(params, 0).values.includes(rec.delivery);
       } catch {
         return false;
       }
     }
-    case 2: {
+    case ScrapePredicate.OUTSIDE: {
       try {
-        if (rec.stratum >= 7) return false;
+        if (rec.stratum >= SKETCH_MIN) return false;
         let p = 0;
         let r = viDecode(params, p);
         const x0 = r.value;

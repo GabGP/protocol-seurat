@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { GALLERY_COLUMNS_WIDTH, PREVIEW_DPR_MAX } from '@/shared/config/layout';
+import { deviceDpr } from '@/shared/lib/dpr';
 
 export interface WorkPreview {
   rgba: Uint8ClampedArray;
@@ -42,7 +43,7 @@ export function notePreviewWidth(px: number): void {
 
 /** The screen's density, capped at PREVIEW_DPR_MAX: the density a card reports its width at. */
 export function previewDpr(): number {
-  return Math.min((globalThis as { devicePixelRatio?: number }).devicePixelRatio || 1, PREVIEW_DPR_MAX);
+  return Math.min(deviceDpr(), PREVIEW_DPR_MAX);
 }
 
 /** The last card width reported; before any card is laid out, the narrowest column at the preview density. */

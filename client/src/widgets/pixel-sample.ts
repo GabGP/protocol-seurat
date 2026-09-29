@@ -1,3 +1,4 @@
+import { bytesToHex } from '@/shared/lib/hex';
 import { clamp } from '@/shared/lib/clamp';
 
 interface Sampled {
@@ -8,8 +9,6 @@ interface Sampled {
   bmp: { width: number; height: number };
   planes?: ArrayBuffer[] | null;
 }
-
-const hex2 = (n: number): string => clamp(n, 0, 255).toString(16).padStart(2, '0');
 
 /**
  * Colour of image pixel (ix, iy) from the finest brush covering it (`brushes` is coarse → fine),
@@ -34,7 +33,7 @@ export function samplePixelHex(brushes: readonly Sampled[], ix: number, iy: numb
     const t = y - (cg >> 1);
     const g = cg + t;
     const blue = t - (co >> 1);
-    return ('#' + hex2(blue + co) + hex2(g) + hex2(blue)).toUpperCase();
+    return ('#' + bytesToHex(Uint8ClampedArray.of(blue + co, g, blue))).toUpperCase();
   }
   return null;
 }

@@ -1,3 +1,5 @@
+import { MS_PER_S } from '@/shared/config/units';
+
 const WINDOW = 120;
 /** Gaps longer than this are idle time between gestures, not frames. */
 const IDLE_GAP_MS = 250;
@@ -5,6 +7,9 @@ const IDLE_GAP_MS = 250;
 const FPS_W = 3;
 const MS_W = 5; // up to 250.0 (IDLE_GAP_MS) for p95; paint rarely passes 999.9
 const COUNT_W = 4;
+/** Weight of the running paint-CPU average kept per frame (the new sample gets the rest). */
+const CPU_EMA_KEEP = 0.9;
+const P95 = 0.95;
 const SEP = ' · ';
 
 const timing = (fps: string, p95: string): string[] =>
@@ -27,7 +32,7 @@ export class FrameMeter {
   frame(now: number, paintMs: number): void {
     const gap = now - this.last;
     this.last = now;
-    this.cpu = this.cpu * 0.9 + paintMs * 0.1;
+    this.cpu = this.cpu * CPU_EMA_KEEP + paintMs * (1 - CPU_EMA_KEEP);
     if (gap <= 0 || gap > IDLE_GAP_MS) return;
     this.gaps[this.next] = gap;
     this.next = (this.next + 1) % WINDOW;
@@ -45,8 +50,8 @@ export class FrameMeter {
     } else {
       const g = Array.from(this.gaps.subarray(0, this.n)).sort((a, b) => a - b);
       const mean = g.reduce((a, b) => a + b, 0) / g.length;
-      const p95 = g[Math.min(g.length - 1, Math.floor(g.length * 0.95))] ?? mean;
-      parts.push(...timing((1000 / mean).toFixed(0), p95.toFixed(1)));
+      const p95 = g[Math.min(g.length - 1, Math.floor(g.length * P95))] ?? mean;
+      parts.push(...timing((MS_PER_S / mean).toFixed(0), p95.toFixed(1)));
     }
     parts.push(
       `paint ${this.cpu.toFixed(1).padStart(MS_W)} ms`,

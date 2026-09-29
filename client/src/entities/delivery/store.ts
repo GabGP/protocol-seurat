@@ -1,3 +1,4 @@
+import { splitBrushId, type BrushHead } from '@/shared/proto/brush';
 import { rangesEqual } from '@/shared/proto/ranges';
 
 export interface DeliveryRecord {
@@ -20,6 +21,14 @@ export interface DeliveryRecord {
   receiptQueued?: boolean;
   receiptSent?: boolean;
   parentDelivery?: number;
+}
+
+/** The record of an arrived head before its bytes are counted: what scrape predicates read. */
+export function recordFromHead(h: BrushHead): DeliveryRecord {
+  return {
+    delivery: h.delivery, brushId: h.brushId, stratum: splitBrushId(h.brushId).stratum,
+    from: h.from, through: h.through, bytes: 0, epoch: h.epoch, edition: h.edition, expires: 0, rgba: null,
+  };
 }
 
 export interface DeliveryLedger {

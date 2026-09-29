@@ -1,6 +1,7 @@
 import { ulebDecode, zigzagDecode } from './leb128';
 import { yCoCgToRgb } from './ycocgr';
 import { IMAGE_SMOOTHING_THRESHOLD } from '@/shared/config/render';
+import { clampByte } from '@/shared/lib/clamp';
 
 export async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream('deflate-raw');
@@ -63,9 +64,9 @@ export async function decodeSeed(
     const co = planes.Co[i] ?? 0;
     const cg = planes.Cg[i] ?? 0;
     const { r, g, b } = yCoCgToRgb(y, co, cg);
-    rgba[i * 4] = Math.max(0, Math.min(255, r));
-    rgba[i * 4 + 1] = Math.max(0, Math.min(255, g));
-    rgba[i * 4 + 2] = Math.max(0, Math.min(255, b));
+    rgba[i * 4] = clampByte(r);
+    rgba[i * 4 + 1] = clampByte(g);
+    rgba[i * 4 + 2] = clampByte(b);
     rgba[i * 4 + 3] = 255;
   }
 

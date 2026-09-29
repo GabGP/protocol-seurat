@@ -9,6 +9,8 @@
   --border-dim: #34343A; --border-line: #45464F;
   --text-muted: #8F909A; --text-on-container: #DDE1F9; --text-accent-on: #380D00; --text-hero-body: #2A2F52;
   --badge-bg: #FBF8FF; --badge-text: #00105C;
+  --surface-ambient: #0D0E13; --text-contrast: #E3E1E9; --brand-secondary: #FF8A5B;
+  --chip-on-bg: #DEE1F9; --chip-on-ink: #171B2C;
 }
 
 * { box-sizing: border-box; }
