@@ -51,11 +51,11 @@ function Sparkline({ values, label }: { values: number[]; label: string }): JSX.
   return (
     <figure className={styles.spark}>
       <svg viewBox={`0 0 ${SPARK_W} ${SPARK_H}`} width="100%" height={SPARK_H} role="img"
-        aria-label={`Bandwidth over the last 60 seconds, now ${label}`}>
+        aria-label={`Downlink over the last 60 seconds, now ${label}`}>
         <polyline points={points} className={styles.sparkLine} />
       </svg>
       <figcaption className={styles.sparkCaption}>
-        <span>Bandwidth · last 60 s</span>
+        <span>Downlink · last 60 s</span>
         <span className={styles.valLabel}>{label}</span>
       </figcaption>
     </figure>

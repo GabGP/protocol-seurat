@@ -34,6 +34,8 @@ export interface EvictionFigures {
 export interface HeldBrushes {
   book: { byDelivery: Map<number, HeldBrush>; inFlight: Set<number> };
   free(): number;
+  /** The most brushes this viewer holds: the Settings cap narrowing the concession. */
+  holdLimit: number;
   queueDepthMs: number;
   /** Strata of the open work (`top + 1`): levels 0 … top − 1 arrive as brushes, the top one as the seed. */
   strata: number;

@@ -3,7 +3,7 @@
   top: 88px;
   left: 16px;
   bottom: 160px; /* clears the pointer readout (x, y, colour) at bottom: 100px, 48px tall */
-  width: 344px; /* fits the widest row ("Viewer memory (est.)  44.3 MiB of 256 MiB declared") on one line */
+  width: 344px; /* fits the widest row ("Total (est.)  244 MiB of 256 MiB declared") on one line */
   max-width: calc(100% - 32px);
   overflow: auto;
   scrollbar-width: thin;

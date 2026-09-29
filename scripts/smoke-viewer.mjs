@@ -158,14 +158,14 @@ try {
     }
   }
   await sleep(SETTLE_MS);
-  // Settled held count: open Telemetry (T) and read its "Brushes held" row ("362 of 1024" -> 362).
+  // Settled held count: open Telemetry (T) and read the Brushes section's "Held" row ("362 of 768" -> 362).
   await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 't', code: 'KeyT', text: 't' });
   await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 't', code: 'KeyT' });
   await sleep(1200);
   const heldText = (await cdp('Runtime.evaluate', {
     returnByValue: true,
     expression: `[...document.querySelectorAll('aside[aria-label=Telemetry] span')]
-      .find((e) => e.textContent === 'Brushes held')?.nextElementSibling?.textContent ?? ''`,
+      .find((e) => e.textContent === 'Held')?.nextElementSibling?.textContent ?? ''`,
   })).result.value;
   const held = /^\d+/.exec(heldText)?.[0] ?? 'n/a';
   const s = await read();

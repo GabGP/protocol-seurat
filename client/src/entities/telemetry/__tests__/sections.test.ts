@@ -28,29 +28,38 @@ describe('telemetry sections', () => {
   const sections = telemetrySections({
     now: 2000, transport: 'websocket', link, image,
     sink: {
-      book, free: () => 3, queueDepthMs: 12, strata: 3, workerCacheBound: 1_000_000,
+      book, free: () => 3, holdLimit: 362, queueDepthMs: 12, strata: 3, workerCacheBound: 1_000_000,
       eviction: { evicted: 8, evictedBytes: 64_000, refetched: 2, refetchedBytes: 16_000, medianRefetchMs: 1500 },
     },
     gpuBytes: 2_000_000, declaredMemMiB: 64,
     concession: { handle: 7, epoch: 1, minStratum: 0, maxBands: 4, reason: 0, maxBrushes: 768, maxKiB: 36_864, leaseS: 120 },
   });
 
-  it('adds bands, planes, bitmaps, GPU textures and the worker caches into the viewer estimate', () => {
-    const m = rows('Stored on this device', sections);
-    expect(m['Viewer memory (est.)']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4 + 2_000_000 + 1_000_000)} of 64 MiB declared`);
-    expect(m['Brushes held']).toBe('2 of 768');
-    expect(m['In flight']).toBe('1');
+  it('breaks memory into parts that add up to the total, against the declared mem_mib', () => {
+    const m = rows('Memory on this device', sections);
+    expect(m['Total (est.)']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4 + 2_000_000 + 1_000_000)} of 64 MiB declared`);
+    expect(m['Compressed bands']).toBe(`${fmtBytes(56_000)} of ${fmtBytes(36_864 * 1024)}`);
+    expect(m['Decoded bitmaps']).toBe(fmtBytes(256 * 256 * 4));
+    expect(m['GPU textures']).toBe(fmtBytes(2_000_000));
+    expect(m['Worker caches (max)']).toBe(fmtBytes(1_000_000));
   });
 
-  it('shows the data behind the held brushes and the mean per brush, or a placeholder when none is held', () => {
-    const total = 56_000 + 256 * 256 * 4;
-    expect(rows('Stored on this device', sections)['Brush data']).toBe(`${fmtBytes(total)} · ${fmtBytes(total / 2)} / brush`);
+  it('counts brushes against the Settings cap, naming the grant it narrows', () => {
+    const m = rows('Brushes', sections);
+    expect(m['Held']).toBe('2 of 362 · grant 768');
+    expect(m['In flight']).toBe('1');
+    expect(m['Receiver window']).toBe('3 free');
+    expect(m['Mean size']).toBe(`${fmtBytes((56_000 + 256 * 256 * 4) / 2)} (bands + bitmap)`);
+  });
+
+  it('shows the plain count at the grant, and a placeholder mean while nothing is held', () => {
     const none = telemetrySections({
       now: 0, transport: null, link: null, image: null, concession: null,
-      sink: { book: { byDelivery: new Map(), inFlight: new Set() }, free: () => 0, queueDepthMs: 0, strata: 3, workerCacheBound: 0,
-        eviction: { evicted: 0, evictedBytes: 0, refetched: 0, refetchedBytes: 0, medianRefetchMs: null } },
+      sink: { book: { byDelivery: new Map(), inFlight: new Set() }, free: () => 0, holdLimit: 181, queueDepthMs: 0, strata: 3,
+        workerCacheBound: 0, eviction: { evicted: 0, evictedBytes: 0, refetched: 0, refetchedBytes: 0, medianRefetchMs: null } },
     });
-    expect(rows('Stored on this device', none)['Brush data']).toBe(PENDING);
+    expect(rows('Brushes', none)['Held']).toBe('0 of 181');
+    expect(rows('Brushes', none)['Mean size']).toBe(PENDING);
   });
 
   it('reports what eviction dropped and how much of it came back', () => {
@@ -60,11 +69,13 @@ describe('telemetry sections', () => {
     expect(m['Median time to refetch']).toBe(fmtMs(1500));
   });
 
-  it('shows the link peak and the paced receiver window (the current rate is the graph caption)', () => {
-    const m = rows('Link', sections);
-    expect(m['Current bandwidth']).toBeUndefined();
-    expect(m['Link peak (10 s)']).toBe(fmtRate(link.peak(2000)));
-    expect(m['Receiver window']).toBe('3 brushes');
+  it('shows the link peak and session total once, the image total once (the current rate is the graph caption)', () => {
+    const l = rows('Link', sections);
+    expect(Object.keys(l)).toEqual(['Transport', 'Peak (10 s)', 'Session total']);
+    expect(l['Peak (10 s)']).toBe(fmtRate(link.peak(2000)));
+    const i = rows('This image', sections);
+    expect(i['Received']).toBe(`${fmtBytes(49_000)} · 2 brushes`);
+    expect(i['Finest allowed']).toBe('Level 0 · 4 bands');
   });
 
   it('tracks the current plan and why it was throttled', () => {
@@ -74,14 +85,14 @@ describe('telemetry sections', () => {
   });
 
   it('lists every level of the work, empty ones too, finest first', () => {
-    const m = rows('Detail by level', sections);
-    expect(Object.keys(m)).toEqual(['Level 0 (1:1)', 'Level 1 (1:2)', 'Seed', 'Finest allowed']);
+    const m = rows('Held by level', sections);
+    expect(Object.keys(m)).toEqual(['Level 0 (1:1)', 'Level 1 (1:2)', 'Seed']);
     expect(m['Level 1 (1:2)']).toBe('0 · 0 B');
   });
 
   it('keeps every row in place with a placeholder before anything is known', () => {
     const empty = telemetrySections({ now: 0, transport: null, link: null, image: null, sink: null, concession: null });
-    const full = sections.filter((s) => s.title !== 'Detail by level');
+    const full = sections.filter((s) => s.title !== 'Held by level');
     expect(empty.map((s) => s.rows.map((r) => r.k))).toEqual(full.map((s) => s.rows.map((r) => r.k)));
     expect(empty.every((s) => s.rows.every((r) => r.v === PENDING))).toBe(true);
   });

@@ -12,7 +12,7 @@ import type { DeliveryPort, Grant } from './port';
 import { applyRenew, flushReceipt } from './receipts';
 import { failSynthesis } from './removal';
 import { applyScrape, answerScrapes, inventory } from './scrape-flow';
-import { SinkState } from './state';
+import { holdLimit, SinkState } from './state';
 import { onResult } from './synth-result';
 import { relieveNow, reportVramFailure, setView } from './view-focus';
 
@@ -53,6 +53,8 @@ export class DeliverySink {
   get top(): number { return this.s.top; }
   get queueDepthMs(): number { return this.s.decode.ms; }
   get avgDeliveryBytes(): number { return this.s.avgDelivery; }
+  /** Brushes this viewer holds at most: the Settings cap narrowing the concession. */
+  get holdLimit(): number { return holdLimit(this.s); }
 
   /** Local eviction counters for telemetry. */
   get eviction(): EvictionView { return this.s.evictions.view(); }
