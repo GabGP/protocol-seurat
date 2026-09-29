@@ -1,3 +1,5 @@
+import { TILE } from '@/shared/config/constants';
+import { addGpuBytes } from '@/shared/lib/gpu-meter';
 import { allocLayerArray, type AtlasGL, type Slot } from './atlas-gl';
 
 /**
@@ -14,6 +16,10 @@ export class LayerArrays {
     private readonly layers: number,
     private readonly onVramFailure: () => void,
   ) {}
+
+  private get arrayBytes(): number {
+    return this.layers * TILE * TILE * 4;
+  }
 
   /** Arrays holding VRAM now. */
   get count(): number {
@@ -44,12 +50,14 @@ export class LayerArrays {
       const tex = this.arrays[i];
       if (tex) this.gl.deleteTexture(tex);
       this.arrays[i] = null;
+      addGpuBytes(-this.arrayBytes);
     }
     this.free.splice(0, this.free.length, ...this.free.filter((s) => !empty.has(s.array)));
     return true;
   }
 
   dispose(): void {
+    addGpuBytes(-this.count * this.arrayBytes);
     for (const t of this.arrays) if (t) this.gl.deleteTexture(t);
     this.arrays.length = 0;
     this.free.length = 0;
@@ -61,6 +69,7 @@ export class LayerArrays {
     let array = this.arrays.indexOf(null);
     if (array < 0) array = this.arrays.length;
     this.arrays[array] = tex;
+    addGpuBytes(this.arrayBytes);
     for (let layer = this.layers - 1; layer > 0; layer--) this.free.push({ array, layer });
     return { array, layer: 0 };
   }

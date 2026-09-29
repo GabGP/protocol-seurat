@@ -53,6 +53,10 @@ describe('DeliverySink eviction, decode and revisions', () => {
     expect(client.sentRelease).toEqual([{ handle: 1, reason: 1, ranges: [31, 32, 33, 34, 35, 36] }]);
     expect(sink.book.byDelivery.has(1) && sink.book.byDelivery.has(2)).toBe(true);
     expect(client.sentReceipt.at(-1)?.free).toBe(10); // 40 max - 30 held
+    expect(sink.eviction).toMatchObject({ evicted: 6, evictedBytes: 60, refetched: 0 });
+    sink.ingest(makeDeliveryBytes({ handle: 1, delivery: 99, brushId: makeBrushId(0, 35, 0), from: 0, through: 1, epoch: 1 }), () => 1000, () => {}, 120);
+    expect(sink.eviction.refetched).toBe(1); // the evicted brush came back: the eviction cost a resend
+    expect(sink.eviction.refetchedBytes).toBeGreaterThan(0);
     sink.dispose();
   });
 

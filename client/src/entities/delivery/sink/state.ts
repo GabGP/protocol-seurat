@@ -2,6 +2,7 @@ import { AttentionHeat } from '../attention-heat';
 import { DecodeQueue } from '../decode-queue';
 import { Departures } from '../departures';
 import type { EvictView } from '../evict-candidate';
+import { EvictionStats } from '../eviction-stats';
 import { GazeMotion } from '../gaze-motion';
 import { PaintedCones } from '../painted-cones';
 import { Settlement } from '../settlement';
@@ -53,6 +54,8 @@ export class SinkState {
   readonly cones = new PaintedCones();
   /** Why brushes left the book, for the refusal log. */
   readonly departures = new Departures();
+  /** Local telemetry: what Horizon evicted and what came back. */
+  readonly evictions = new EvictionStats();
   readonly gaze = new GazeMotion();
   readonly heat = new AttentionHeat();
   receiptTimer = 0;

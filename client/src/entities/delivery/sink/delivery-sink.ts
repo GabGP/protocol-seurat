@@ -1,5 +1,6 @@
 import { DEFAULT_SEED_HEIGHT, DEFAULT_SEED_WIDTH, DEFAULT_STRATA } from '@/shared/config/constants';
 import type { Scrape } from '@/shared/proto/messages';
+import type { EvictionView } from '../eviction-stats';
 import { matchesScrape } from '../scrape';
 import { emptyLedger, type DeliveryLedger, type DeliveryRecord } from '../store';
 import { defaultWorker, resolvePoolSize, type WorkerFactory } from '../worker-pool';
@@ -52,6 +53,11 @@ export class DeliverySink {
   get top(): number { return this.s.top; }
   get queueDepthMs(): number { return this.s.decode.ms; }
   get avgDeliveryBytes(): number { return this.s.avgDelivery; }
+
+  /** Local eviction counters for telemetry. */
+  get eviction(): EvictionView { return this.s.evictions.view(); }
+  /** Upper bound of the plane memory the synthesis workers may cache. */
+  get workerCacheBound(): number { return this.s.pool?.cacheBoundBytes() ?? 0; }
 
   /** Pool observability for telemetry: size, busy workers, queued jobs. */
   get synthLoad(): { size: number; busy: number; waiting: number } {

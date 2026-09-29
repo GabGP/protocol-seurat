@@ -1,5 +1,6 @@
 import { AVG_DELIVERY_KEEP, AVG_DELIVERY_NEW, MAX_EARLY_DELIVERIES, MS_PER_S, ReleaseReason } from '@/shared/config/constants';
-import { parseBrushHead, sliceBands, verifyBand, type BrushHead } from '@/shared/proto/brush';
+import { REFETCH_WINDOW_MS } from '@/shared/config/eviction';
+import { brushKey, parseBrushHead, sliceBands, verifyBand, type BrushHead } from '@/shared/proto/brush';
 import { matchesScrape } from '../scrape';
 import { recordFromHead, type DeliveryRecord } from '../store';
 import { sweepExpiry } from './lease-expiry';
@@ -29,6 +30,12 @@ function verifiedBands(s: SinkState, h: BrushHead, bytes: Uint8Array): Uint8Arra
   return bands;
 }
 
+/** A brush Horizon evicted moments ago is on the wire again: the eviction cost a refetch. */
+function noteRefetch(s: SinkState, h: BrushHead, bytes: number, at: number): void {
+  const d = s.departures.last(brushKey(h.brushId, h.edition));
+  if (d?.why === 'evicted' && at - d.at <= REFETCH_WINDOW_MS) s.evictions.refetch(d.delivery, bytes, at - d.at);
+}
+
 /** Spec 4.1.6 and 5.4 on one arrived flow: every check, then synthesis. */
 function accept(s: SinkState, h: BrushHead, bytes: Uint8Array, now: () => number, leaseS: number): void {
   s.failed.delete(h.delivery);
@@ -49,6 +56,7 @@ function accept(s: SinkState, h: BrushHead, bytes: Uint8Array, now: () => number
     release(s, [h.delivery], ReleaseReason.BUDGET);
     return;
   }
+  noteRefetch(s, h, total, now());
   s.avgDelivery = s.avgDelivery === 0
     ? bytes.length
     : AVG_DELIVERY_KEEP * s.avgDelivery + AVG_DELIVERY_NEW * bytes.length;

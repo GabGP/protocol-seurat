@@ -4,6 +4,8 @@ import type { ZoomPreset } from '@/features/zoom-view';
 import type { ChromeApi } from '@/entities/viewport';
 import type { TelemetryInput } from '@/entities/telemetry';
 import type { SeuratState } from '@/app/providers/SeuratProvider';
+import { declareMemMib } from '@/entities/session';
+import { gpuBytes } from '@/shared/lib/gpu-meter';
 import { patchUi, type UiState } from '@/app/store';
 import { POINTILLIST_AUTO_ZOOM, POINTILLIST_ZOOM_THRESHOLD_PCT, ZOOM_STEP_FACTOR } from '@/shared/config/view';
 
@@ -55,6 +57,8 @@ export function useViewerControls({ ui, seurat, api, view, go, back }: Deps) {
       image: seurat.telemetry,
       sink: seurat.sink,
       concession: seurat.concession,
+      gpuBytes: gpuBytes(),
+      declaredMemMiB: declareMemMib(),
     }),
   };
 }

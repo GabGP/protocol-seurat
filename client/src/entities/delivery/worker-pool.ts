@@ -3,7 +3,7 @@ import {
   SYNTH_POOL_MAX,
   SYNTH_POOL_MIN,
 } from '@/shared/config/constants';
-import { SYNTH_CACHE_MIN_PER_WORKER, SYNTH_CACHE_TOTAL, type SynthRequest } from '@/workers/protocol';
+import { SYNTH_CACHE_MIN_PER_WORKER, SYNTH_CACHE_TOTAL, SYNTH_PLANES_BYTES, type SynthRequest } from '@/workers/protocol';
 
 /** Minimal synthesis worker surface; the real Worker satisfies it structurally. */
 export interface SynthWorker {
@@ -61,6 +61,11 @@ export class WorkerPool {
       this.workers.push(w);
       this.busy.push(false);
     }
+  }
+
+  /** Most plane memory the workers' parent caches can hold (telemetry's upper bound). */
+  cacheBoundBytes(): number {
+    return this.size * this.cacheEntries * SYNTH_PLANES_BYTES;
   }
 
   onResults(fn: (index: number, ev: MessageEvent) => void): void {

@@ -1,46 +1,8 @@
-import { BYTES_PER_KIB, MS_PER_S, PERCENT, SEED_STRATUM } from '@/shared/config/constants';
+import { MS_PER_S, PERCENT, SEED_STRATUM } from '@/shared/config/constants';
 import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
-import type { RateMeter } from '@/shared/lib/rate-meter';
-import type { Concession } from '@/shared/proto/messages';
-import type { ImageTelemetry } from './image-telemetry';
-
-export interface TelemetryRow {
-  k: string;
-  v: string;
-}
-
-export interface TelemetrySection {
-  title: string;
-  rows: TelemetryRow[];
-}
-
-/** One held delivery, as telemetry counts it. */
-export interface HeldBrush {
-  stratum: number;
-  bytes: number;
-  rgba: { width: number; height: number } | null;
-}
-
-/** The part of the delivery sink telemetry reads (DeliverySink satisfies it). */
-export interface HeldBrushes {
-  book: { byDelivery: Map<number, HeldBrush>; inFlight: Set<number> };
-  free(): number;
-  queueDepthMs: number;
-  /** Strata of the open work (`top + 1`): levels 0 … top − 1 arrive as brushes, the top one as the seed. */
-  strata: number;
-}
-
-export interface TelemetryInput {
-  now: number;
-  transport: string | null;
-  link: RateMeter | null;
-  image: ImageTelemetry | null;
-  sink: HeldBrushes | null;
-  concession: Concession | null;
-}
-
-/** Stands for a value not known yet: rows keep their place so only values change as data arrives. */
-export const PENDING = '—';
+import { eviction } from './eviction-section';
+import { memory } from './memory-section';
+import { pending, PENDING, type TelemetryInput, type TelemetrySection } from './types';
 
 const THROTTLE: ReadonlyArray<readonly [number, string]> = [
   [1, 'server load'],
@@ -49,7 +11,7 @@ const THROTTLE: ReadonlyArray<readonly [number, string]> = [
 ];
 
 export function telemetrySections(t: TelemetryInput): TelemetrySection[] {
-  return [link(t), image(t), memory(t), plan(t), strata(t)].filter((s) => s.rows.length > 0);
+  return [link(t), image(t), memory(t), eviction(t), plan(t), strata(t)].filter((s) => s.rows.length > 0);
 }
 
 function link({ now, transport, link: meter, sink }: TelemetryInput): TelemetrySection {
@@ -77,29 +39,7 @@ function image({ now, image: img }: TelemetryInput): TelemetrySection {
   };
 }
 
-const MEMORY_KEYS = ['Total in memory', 'Compressed bands', 'Decoded pixels', 'Brushes held', 'In flight', 'Decode queue'];
 const PLAN_KEYS = ['Plan', 'Time', 'Throttled by', 'Cancelled (view moved)'];
-const pending = (keys: string[]): TelemetryRow[] => keys.map((k) => ({ k, v: PENDING }));
-
-function memory({ sink, concession }: TelemetryInput): TelemetrySection {
-  if (!sink) return { title: 'Stored on this device', rows: pending(MEMORY_KEYS) };
-  let bands = 0;
-  let pixels = 0;
-  for (const r of sink.book.byDelivery.values()) {
-    bands += r.bytes;
-    if (r.rgba) pixels += r.rgba.width * r.rgba.height * 4;
-  }
-  const held = sink.book.byDelivery.size;
-  const values = [
-    fmtBytes(bands + pixels),
-    concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * BYTES_PER_KIB)}` : fmtBytes(bands),
-    fmtBytes(pixels),
-    concession ? `${held} of ${concession.maxBrushes}` : String(held),
-    String(sink.book.inFlight.size),
-    fmtMs(sink.queueDepthMs),
-  ];
-  return { title: 'Stored on this device', rows: MEMORY_KEYS.map((k, i) => ({ k, v: values[i] ?? PENDING })) };
-}
 
 function plan({ now, image: img }: TelemetryInput): TelemetrySection {
   if (!img?.plan) return { title: 'Current view', rows: pending(PLAN_KEYS) };

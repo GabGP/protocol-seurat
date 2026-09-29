@@ -62,3 +62,5 @@ export const SYNTH_CACHE_TOTAL = 48;
 export const SYNTH_CACHE_MIN_PER_WORKER = 4;
 /** The probationary queue is one eighth of a worker's entries (at least one). */
 export const SYNTH_CACHE_SMALL_SHARE = 8;
+/** One cached parent: three Int16 planes of a 256 x 256 brush. */
+export const SYNTH_PLANES_BYTES = 3 * 256 * 256 * 2;

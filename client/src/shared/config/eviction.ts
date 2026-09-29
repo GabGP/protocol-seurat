@@ -20,3 +20,7 @@ export const HEAT_HALF_LIFE_S = 120;
 export const HEAT_DWELL_CAP_S = 30;
 /** time-to-need is divided by 1 + GAIN × heat (heat in dwell seconds). */
 export const HEAT_GAIN = 0.5;
+/** A brush the server sends again within this long of Horizon evicting it counts as a refetch (telemetry only). */
+export const REFETCH_WINDOW_MS = 60_000;
+/** Refetch delays kept for the median (the newest ones). */
+export const REFETCH_SAMPLES = 256;

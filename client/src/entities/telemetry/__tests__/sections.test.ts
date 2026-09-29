@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ImageTelemetry } from '../image-telemetry';
-import { PENDING, telemetrySections, type HeldBrush } from '../sections';
+import { telemetrySections } from '../sections';
+import { PENDING, type HeldBrush } from '../types';
 import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
@@ -26,15 +27,26 @@ describe('telemetry sections', () => {
   image.onDelivery(9_000, 3, 400);
   const sections = telemetrySections({
     now: 2000, transport: 'websocket', link, image,
-    sink: { book, free: () => 3, queueDepthMs: 12, strata: 3 },
+    sink: {
+      book, free: () => 3, queueDepthMs: 12, strata: 3, workerCacheBound: 1_000_000,
+      eviction: { evicted: 8, evictedBytes: 64_000, refetched: 2, refetchedBytes: 16_000, medianRefetchMs: 1500 },
+    },
+    gpuBytes: 2_000_000, declaredMemMiB: 64,
     concession: { handle: 7, epoch: 1, minStratum: 0, maxBands: 4, reason: 0, maxBrushes: 768, maxKiB: 36_864, leaseS: 120 },
   });
 
-  it('adds compressed bands and decoded pixels into what the device holds', () => {
+  it('adds bands, planes, bitmaps, GPU textures and the worker caches into the viewer estimate', () => {
     const m = rows('Stored on this device', sections);
-    expect(m['Total in memory']).toBe(fmtBytes(56_000 + 256 * 256 * 4));
+    expect(m['Viewer memory (est.)']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4 + 2_000_000 + 1_000_000)} of 64 MiB declared`);
     expect(m['Brushes held']).toBe('2 of 768');
     expect(m['In flight']).toBe('1');
+  });
+
+  it('reports what eviction dropped and how much of it came back', () => {
+    const m = rows('Eviction', sections);
+    expect(m['Evicted (count · bytes)']).toBe(`8 · ${fmtBytes(64_000)}`);
+    expect(m['Re-sent after evict (count · bytes · % of evicted)']).toBe(`2 · ${fmtBytes(16_000)} · 25%`);
+    expect(m['Median time to refetch']).toBe(fmtMs(1500));
   });
 
   it('shows the link peak and the paced receiver window (the current rate is the graph caption)', () => {

@@ -11,6 +11,13 @@ describe('Departures', () => {
     expect(d.parentMissing('p:2', 2, 4, 1001)).toBe('its parent holds 2 of the 4 bands needed, a server fault');
   });
 
+  it('hands back the last departure of a brush for the refetch counter', () => {
+    const d = new Departures();
+    expect(d.last('p:2')).toBeUndefined();
+    d.note('p:2', 'evicted', 9, 500, 10, 256);
+    expect(d.last('p:2')).toEqual({ why: 'evicted', delivery: 9, at: 500, held: 10, max: 256 });
+  });
+
   it('stays bounded, forgetting the first noted', () => {
     const d = new Departures();
     for (let i = 0; i < 2000; i++) d.note(`b${i}:1`, 'expired', i, 0, 0, 256);
