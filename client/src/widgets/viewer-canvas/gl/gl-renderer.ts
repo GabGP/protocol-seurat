@@ -29,6 +29,8 @@ export class WebGL2Renderer implements ViewRenderer {
   private readonly pass: GLTilePass;
   private readonly loupe: GLLoupe;
   private readonly mainCuller = new BrushCuller();
+  /** The context was lost while this renderer lived: its GL objects are gone, deleting them only warns. */
+  private contextLost = false;
   private lastBrushes: readonly BrushGeom[] | null = null;
   private ready: { src: readonly BrushGeom[]; version: number; list: BrushGeom[] } | null = null;
 
@@ -39,6 +41,7 @@ export class WebGL2Renderer implements ViewRenderer {
     });
     if (!gl) throw new Error('webgl2 unavailable');
     this.gl = gl;
+    canvas.addEventListener('webglcontextlost', () => { this.contextLost = true; });
     this.atlas = new TileAtlas(gl, () => hooks.onVramFailure());
     this.res = new GLResources(gl, canvas);
     this.prims = new GLPrimitives(this.res);
@@ -56,6 +59,10 @@ export class WebGL2Renderer implements ViewRenderer {
   }
 
   dispose(): void {
+    if (this.contextLost) {
+      this.atlas.forget();
+      return;
+    }
     this.atlas.dispose();
     this.res.dispose();
   }

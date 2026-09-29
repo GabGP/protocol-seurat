@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TileAtlas, type AtlasGL } from '../tile-atlas';
 import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
+import { gpuBytes } from '@/shared/lib/gpu-meter';
 
 interface Log {
   storage: number;
@@ -142,5 +143,19 @@ describe('TileAtlas', () => {
     atlas.upload(Infinity);
     expect(atlas.ready(again)).toBe(true);
     expect(atlas.arrayCount).toBe(1);
+  });
+
+  it('forgets the textures of a lost context without a GL call and hands the VRAM count back', () => {
+    const { gl, log } = fakeGL();
+    const before = gpuBytes();
+    const atlas = new TileAtlas(gl, () => undefined, 2);
+    atlas.reconcile([brush(SKETCH_STRATUM, bmp(64)), brush(0, bmp())]);
+    atlas.upload(Infinity);
+    expect(gpuBytes()).toBeGreaterThan(before);
+    atlas.forget();
+    expect(log.deleted).toBe(0);
+    expect(gpuBytes()).toBe(before);
+    expect(atlas.arrayCount).toBe(0);
+    expect(atlas.pending()).toBe(0);
   });
 });

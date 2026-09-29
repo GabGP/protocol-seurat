@@ -57,8 +57,13 @@ export class LayerArrays {
   }
 
   dispose(): void {
-    addGpuBytes(-this.count * this.arrayBytes);
     for (const t of this.arrays) if (t) this.gl.deleteTexture(t);
+    this.forget();
+  }
+
+  /** Lets go without GL calls: the context that owned the arrays is gone (a lost one has already freed them). */
+  forget(): void {
+    addGpuBytes(-this.count * this.arrayBytes);
     this.arrays.length = 0;
     this.free.length = 0;
   }

@@ -101,6 +101,12 @@ export class TileAtlas {
   dispose(): void {
     this.layers.dispose();
     if (this.sketch) this.gl.deleteTexture(this.sketch.tex);
+    this.forget();
+  }
+
+  /** Drops every reference with no GL call: the context that owned the textures is lost. */
+  forget(): void {
+    this.layers.forget();
     this.slots.clear();
     this.queue = [];
     this.sketch = null;
