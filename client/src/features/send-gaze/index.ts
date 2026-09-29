@@ -10,6 +10,8 @@ export class GazeSender {
   private raf = 0;
   private idleTimer = 0;
   private lastSentAt = 0;
+  /** Handles only rise: a view at or below the highest closed one describes a canvas the server has forgotten. */
+  private closedThrough = 0;
 
   /**
    * `onLook` hears every view a MIRADA will describe, with its seq, whoever asked for it: the
@@ -55,6 +57,7 @@ export class GazeSender {
   }
 
   private record(m: Omit<Gaze, 'seq'>): void {
+    if (m.handle <= this.closedThrough) return; // a render frame still holding the old handle
     this.seq += 1;
     this.pending = { ...m, seq: this.seq };
     this.last = this.pending;
@@ -62,6 +65,7 @@ export class GazeSender {
   }
 
   hidden(handle: number): void {
+    if (handle <= this.closedThrough) return;
     this.seq += 1;
     const t = this.transport();
     if (!t) return;
@@ -95,7 +99,8 @@ export class GazeSender {
   }
 
   /** The canvas' handle is closed: nothing pending or remembered may be sent for it (the server would answer ERROR 6). */
-  forget(): void {
+  forget(handle: number): void {
+    this.closedThrough = Math.max(this.closedThrough, handle);
     this.dispose();
     this.last = null;
   }

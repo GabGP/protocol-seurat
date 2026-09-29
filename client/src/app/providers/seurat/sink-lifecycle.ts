@@ -15,7 +15,7 @@ export function retireSink(rt: Runtime, keepBook: boolean): void {
     rt.ledgers.adopt(sink.handle, sink.book);
     rt.client?.closeHandle(sink.handle);
   }
-  rt.gaze?.forget();
+  rt.gaze?.forget(sink.handle);
   sink.dispose();
   rt.sink = null;
 }

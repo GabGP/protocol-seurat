@@ -90,9 +90,17 @@ describe('send-gaze', () => {
     const t = fakeTransport(true);
     const s = new GazeSender(() => t as unknown as SeuratTransport);
     s.motion({ ...base });
-    s.forget();
+    s.forget(1);
     vi.advanceTimersByTime(1000);
     s.again();
+    s.motion({ ...base }); // a render frame with the stale handle
+    s.still({ ...base });
+    s.hidden(1);
+    vi.advanceTimersByTime(1000);
     expect(t.datagrams.length + t.control.length).toBe(0);
+    s.motion({ ...base, handle: 2 });
+    vi.advanceTimersByTime(16);
+    expect(t.datagrams.length).toBe(1);
+    s.dispose();
   });
 });
