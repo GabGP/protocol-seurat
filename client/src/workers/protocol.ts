@@ -48,8 +48,8 @@ export type WorkerOut = SynthResult;
 export const STALE_PARENT = 'stale-parent';
 
 /**
- * Worker plane-cache sizes (worker-owned numbers: workers/ stays free of
- * shared/ imports). ~16 full parents ≈ 6 MB per worker worst case.
+ * Worker plane-cache sizes (worker-owned numbers: the worker imports shared/codec
+ * and shared/config only). ~16 full parents ≈ 6 MB per worker worst case.
  */
 export const SYNTH_CACHE_SMALL = 2;
 export const SYNTH_CACHE_MAIN = 14;

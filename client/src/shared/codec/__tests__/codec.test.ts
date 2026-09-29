@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { sLebDecode, sLebEncode, ulebDecode, ulebEncode, zigzagDecode, zigzagEncode } from '@/shared/codec/leb128';
 import { crc32c } from '@/shared/codec/crc32c';
 import { rgbToYCoCg, yCoCgToRgb } from '@/shared/codec/ycocgr';
-import { dequant, forwardBlock, inverseBlock, quant, spPredictH, spPredictV } from '@/shared/codec/spInverse';
+import { deq, liftBlock, spPredict } from '@/shared/codec/spInverse';
+import { forwardBlock, quant } from './sp-forward';
+
+/** The 2x2 child block of one parent sample, as [a, b, c, d]. */
+function inverseBlock(s: number, h: number, v: number, d: number): number[] {
+  const out = new Int16Array(4);
+  liftBlock(out, 0, 2, s, h, v, d);
+  return [...out];
+}
 
 describe('leb128 + zigzag', () => {
   it('uleb round-trips incl. multi-byte', () => {
@@ -57,13 +65,17 @@ describe('s+inverse', () => {
     ];
     for (const [a, b, c, d] of blocks) {
       const f = forwardBlock(a, b, c, d);
-      expect(inverseBlock(f.s, f.h, f.v, f.dv)).toEqual({ a, b, c, d });
+      expect(inverseBlock(f.s, f.h, f.v, f.dv)).toEqual([a, b, c, d]);
     }
   });
   it('prediction + quantize round-trip at q=1', () => {
-    expect(spPredictH(10, 6)).toBe((10 - 6 + 2) >> 2);
-    expect(spPredictV(10, 6)).toBe((10 - 6 + 2) >> 2);
-    for (const x of [-1020, -5, 0, 7, 1020]) expect(dequant(quant(x, 1), 1)).toBe(x);
+    expect(spPredict(10, 6)).toBe((10 - 6 + 2) >> 2);
+    for (const x of [-1020, -5, 0, 7, 1020]) expect(deq(quant(x, 1), 1)).toBe(x);
+  });
+  it('dequantizes nothing without a quantizer', () => {
+    expect(deq(5, 0)).toBe(0);
+    expect(deq(0, 3)).toBe(0);
+    expect(deq(-2, 4)).toBe(-10);
   });
   it('lossless round-trips a 256x256 plane with S+P prediction', () => {
     const orig = new Int16Array(256 * 256);
@@ -119,11 +131,7 @@ describe('s+inverse', () => {
         const vVal = (qv[idx] ?? 0) + vHat;
         const dVal = qd[idx] ?? 0;
         const p = parent[idx] ?? 0;
-        const inv = inverseBlock(p, hVal, vVal, dVal);
-        recon[(2 * py) * 256 + 2 * px] = inv.a;
-        recon[(2 * py) * 256 + 2 * px + 1] = inv.b;
-        recon[(2 * py + 1) * 256 + 2 * px] = inv.c;
-        recon[(2 * py + 1) * 256 + 2 * px + 1] = inv.d;
+        liftBlock(recon, (2 * py) * 256 + 2 * px, (2 * py + 1) * 256 + 2 * px, p, hVal, vVal, dVal);
       }
     }
     expect(recon).toEqual(orig);

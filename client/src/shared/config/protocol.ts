@@ -8,6 +8,9 @@ export const MAX_DATAGRAM_BYTES = 1200;
 export const TOKEN_BYTES = 32;
 export const TICKET_BYTES = 32;
 export const TILE = 256;
+/** A parent plane is the half-resolution tile: HALF samples a side, HALF_CELLS in all. */
+export const TILE_HALF = TILE / 2;
+export const TILE_HALF_CELLS = TILE_HALF * TILE_HALF;
 export const SEED_STRATUM = 10;
 export const BAND_COUNTS = [2048, 4096, 8192, 16384] as const;
 export const SKETCH_MIN = 7;

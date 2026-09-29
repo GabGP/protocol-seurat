@@ -5,6 +5,9 @@ export interface PlaneSet {
   Cg: Int16Array;
 }
 
+/** Channel order of the transferred plane buffers and of the band details. */
+export const PLANE_CHANNELS = ['Y', 'Co', 'Cg'] as const;
+
 const MAX_FREQ = 3;
 
 /**

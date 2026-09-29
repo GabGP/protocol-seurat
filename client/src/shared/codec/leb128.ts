@@ -1,3 +1,5 @@
+import { ByteReader } from './byte-reader';
+
 export function ulebEncode(v: number): number[] {
   if (!Number.isSafeInteger(v) || v < 0) throw new Error('uleb: expecting non-negative safe int');
   const out: number[] = [];
@@ -11,20 +13,9 @@ export function ulebEncode(v: number): number[] {
 }
 
 export function ulebDecode(bytes: Uint8Array, pos: number): { value: number; next: number } {
-  let value = 0;
-  let shift = 0;
-  let i = pos;
-  for (;;) {
-    const b = bytes[i];
-    if (b === undefined) throw new Error('uleb: truncated');
-    value += (b & 0x7f) * 2 ** shift;
-    i += 1;
-    if ((b & 0x80) === 0) break;
-    shift += 7;
-    if (shift > 53) throw new Error('uleb: overflow');
-  }
-  if (!Number.isSafeInteger(value)) throw new Error('uleb: overflow');
-  return { value, next: i };
+  const r = new ByteReader().reset(bytes, pos);
+  const value = r.uleb();
+  return { value, next: r.pos };
 }
 
 export function zigzagEncode(x: number): number {
@@ -32,9 +23,14 @@ export function zigzagEncode(x: number): number {
   return x >= 0 ? x * 2 : -x * 2 - 1;
 }
 
+/** Unchecked zigzag decode, for the hot loops that already hold a valid uleb. */
+export function zz(n: number): number {
+  return (n & 1) === 0 ? n / 2 : -((n + 1) / 2);
+}
+
 export function zigzagDecode(n: number): number {
   if (!Number.isSafeInteger(n) || n < 0) throw new Error('zigzag: bad input');
-  return (n & 1) === 0 ? n / 2 : -((n + 1) / 2);
+  return zz(n);
 }
 
 export function sLebEncode(x: number): number[] {
