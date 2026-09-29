@@ -1,7 +1,7 @@
 import {
   TAU, BG_COLOR, BG_GRID_COLOR, BG_GRID_SPACING, BG_GRID_DOT_RADIUS, BG_GRID_PARALLAX,
   FRAME_SHADOW_BLUR, FRAME_SHADOW_COLOR, SHADOW_REACH_PER_BLUR,
-  LOUPE_RADIUS, LOUPE_SHADOW_BLUR, LOUPE_SHADOW_COLOR,
+  LOUPE_RADIUS, LOUPE_SHADOW_BLUR, LOUPE_SHADOW_COLOR, SHADOW_MASK_COLOR,
 } from '@/shared/config/render';
 import { FRAME_REACH, FRAME_SPRITE, aroundHole, frameShadowSlices } from '../lib/sprite-geometry';
 import { placePattern } from '../lib/place-pattern';
@@ -30,7 +30,7 @@ function shadowOnly(g: CanvasRenderingContext2D, dpr: number, shift: number, off
   g.shadowBlur = blur * dpr;
   g.shadowOffsetX = shift * dpr;
   g.shadowOffsetY = offY * dpr;
-  g.fillStyle = '#000';
+  g.fillStyle = SHADOW_MASK_COLOR;
   shape(-shift);
 }
 

@@ -16,7 +16,7 @@ export class RateMeter {
   }
 
   /** Bytes/s over the last `windowMs`: a live reading that falls to 0 when the link is idle. */
-  rate(now: number, windowMs = 1000): number {
+  rate(now: number, windowMs = MS_PER_S): number {
     const head = this.advance(now);
     const n = Math.max(1, Math.round(windowMs / BUCKET_MS));
     return this.sum(head - n + 1, head) / ((n * BUCKET_MS) / MS_PER_S);

@@ -128,8 +128,8 @@ export function GalleryGrid({ items, tags, filter, onFilter, onOpen }: Props): J
               <span className={styles.cardDims}>{workDims(w)}</span>
             </div>
             {w.tag && (
-              <div style={{ padding: '0 10px', marginTop: -4 }}>
-                <span style={{ display: 'inline-block', padding: '2px 10px', borderRadius: 10, background: '#DEE1F9', color: '#171B2C', fontSize: 12, fontWeight: 600 }}>
+              <div className={styles.cardTagRow}>
+                <span className={styles.cardTag}>
                   {w.tag}
                 </span>
               </div>

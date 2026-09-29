@@ -46,6 +46,8 @@ export const LOADER_COLORS: readonly string[] = ['#B8C4FF', '#FF8A5B', '#DDE1F9'
 /** Brand accent: the loupe rim and the minimap viewport box. */
 export const ACCENT_COLOR = '#B8C4FF';
 export const FRAME_FILL_COLOR = '#000';
+/** The opaque fill a shadow-only sprite draws with; only its shadow survives (the shape is shifted off-canvas). */
+export const SHADOW_MASK_COLOR = '#000';
 export const PIXEL_OUTLINE_COLOR = '#FFFFFF';
 
 export const MINIMAP_BG_COLOR = '#23242B';

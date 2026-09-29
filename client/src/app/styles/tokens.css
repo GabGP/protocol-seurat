@@ -1,4 +1,5 @@
 :root {
+  --tag-bg: #DEE1F9; --tag-ink: #171B2C;
   --bg: #FBF8FF; --ink: #1A1B21; --card: #E9E7EF;
   --primary: #4355B9; --primary-deep: #00105C; --primary-hover: #3748A8;
   --hero: #DDE1FF; --accent: #FF8A5B;

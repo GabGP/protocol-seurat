@@ -1,4 +1,4 @@
-import { GAZE_PER_S } from '../config/constants';
+import { GAZE_PER_S, MS_PER_S } from '../config/constants';
 import type { CloseHandler, ControlHandler, DeliveryHandler, SeuratTransport } from './transport';
 
 const CONTROL_CHANNEL = 0;
@@ -54,7 +54,7 @@ export class WsTransport implements SeuratTransport {
 
   sendGazeDatagram(payload: Uint8Array): void {
     const now = performance.now();
-    this.gazeTimes = this.gazeTimes.filter((t) => now - t < 1000);
+    this.gazeTimes = this.gazeTimes.filter((t) => now - t < MS_PER_S);
     if (this.gazeTimes.length >= GAZE_PER_S) return;
     this.gazeTimes.push(now);
     const ws = this.ws;

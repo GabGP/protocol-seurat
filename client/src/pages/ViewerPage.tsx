@@ -13,7 +13,7 @@ import { useUi } from '@/app/store';
 import { counterLabel } from '@/features/navigate-work';
 import { fmtPct } from '@/shared/lib/zoom';
 import { createFeed } from '@/shared/lib/feed';
-import { POINTILLIST_ZOOM_THRESHOLD_PCT, VIEWER_MAX_ZOOM } from '@/shared/config/view';
+import { POINTILLIST_ZOOM_THRESHOLD_PCT, VIEWER_FIT_ZOOM_HEADROOM, VIEWER_MAX_ZOOM } from '@/shared/config/view';
 import { useViewerWork } from './useViewerWork';
 import { useViewerControls } from './useViewerControls';
 import { ViewerNotices } from './ViewerNotices';
@@ -39,7 +39,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
   const fitPct = view?.fitPct ?? 100;
   const inDots = view?.inDots ?? false;
 
-  const effectiveMaxZoom = Math.max(VIEWER_MAX_ZOOM, Math.ceil((fitPct / 100) * 4));
+  const effectiveMaxZoom = Math.max(VIEWER_MAX_ZOOM, Math.ceil((fitPct / 100) * VIEWER_FIT_ZOOM_HEADROOM));
 
   const presets = useMemo(
     () => buildPresets(pct, fitPct, effectiveMaxZoom, POINTILLIST_ZOOM_THRESHOLD_PCT / 100),

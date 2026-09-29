@@ -72,6 +72,21 @@
   white-space: nowrap;
 }
 
+.cardTagRow {
+  padding: 0 10px;
+  margin-top: -4px;
+}
+
+.cardTag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  background: var(--tag-bg);
+  color: var(--tag-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .cardDims {
   font-size: 13px;
   color: var(--border-line);

@@ -1,5 +1,7 @@
 export const POINTILLIST_ZOOM_THRESHOLD_PCT = 1200;
 export const VIEWER_MAX_ZOOM = 64;
+/** A fit above this multiple of 100% raises the zoom ceiling so 1:1 stays reachable on big images. */
+export const VIEWER_FIT_ZOOM_HEADROOM = 4;
 export const POINTILLIST_AUTO_ZOOM = 16;
 export const ZOOM_STEP_FACTOR = 1.6;
 export const PRESET_MATCH_TOLERANCE = 0.3;
