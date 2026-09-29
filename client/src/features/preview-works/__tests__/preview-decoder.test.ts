@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PreviewDecoder, type DecodeRequest } from '../model/preview-decoder';
 import { PREVIEW_DECODE_TIMEOUT_MS } from '@/shared/config/constants';
-import type { SynthWorker } from '@/entities/delivery/worker-pool';
+import type { SynthWorker } from '@/entities/delivery';
 import type { SynthRequest } from '@/workers/protocol';
 
 const REQ: DecodeRequest = {

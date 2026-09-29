@@ -1,8 +1,8 @@
 import { useMemo, useLayoutEffect } from 'react';
 import { GalleryHero } from '@/widgets/GalleryHero';
 import { GalleryGrid } from '@/widgets/GalleryGrid';
-import { filterWorks } from '@/entities/work/store';
-import { workTitle } from '@/entities/work/types';
+import { filterWorks } from '@/entities/work';
+import { workTitle } from '@/entities/work';
 import { galleryScroll, goViewer } from '@/app/router';
 import { patchUi, useUi } from '@/app/store';
 import { useSeurat } from '@/app/providers/SeuratProvider';

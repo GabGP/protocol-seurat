@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bandsFor, idealDensity, strataFor, viewToRoi } from '@/entities/viewport/math';
+import { bandsFor, idealDensity, strataFor, viewToRoi } from '../math';
 
 describe('viewport density math (spec 2.2)', () => {
   it('spec 3.4.2 view gives ideal 1, s 1, phi 0, 4 bands', () => {

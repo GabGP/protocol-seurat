@@ -1,4 +1,4 @@
-import type { ViewState } from '../zoom-view/model';
+import type { ViewState } from '../zoom-view';
 import {
   FIT_BREAKPOINT_MOBILE,
   FIT_PAD_MOBILE,

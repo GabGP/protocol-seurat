@@ -1,4 +1,4 @@
-import { matchesScrape } from '@/entities/delivery/scrape';
+import { matchesScrape } from '@/entities/delivery';
 import { MS_PER_S, SEED_STRATUM, TILE } from '@/shared/config/constants';
 import { makeBrushId, parentBrushId, type BrushHead } from '@/shared/proto/brush';
 import type { Scrape } from '@/shared/proto/messages';

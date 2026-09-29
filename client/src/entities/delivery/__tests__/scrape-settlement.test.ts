@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DeliverySink } from '@/app/providers/delivery-sink';
+import { DeliverySink } from '../sink/delivery-sink';
 import { crc32c } from '@/shared/codec/crc32c';
 import { concat, viEncode } from '@/shared/proto/varint';
 import { makeBrushId } from '@/shared/proto/brush';
-import type { SessionClient } from '@/app/providers/session-client';
-import type { SynthWorker } from '@/entities/delivery/worker-pool';
+import type { DeliveryPort } from '../sink/port';
+import type { SynthWorker } from '../worker-pool';
 
 /** Spec 4.2.4 (RASPADO after every number ≤ N is settled) and 5.4 (checks on arrival). */
 
@@ -23,7 +23,7 @@ function fakeClient() {
     sendReceipt() {},
     sendInventory() {},
   };
-  return c as unknown as SessionClient & typeof c;
+  return c as unknown as DeliveryPort & typeof c;
 }
 
 const idleWorker = (): SynthWorker => ({ onmessage: null, postMessage() {}, terminate() {} }) as unknown as SynthWorker;

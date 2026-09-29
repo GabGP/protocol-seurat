@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byteRoom, coming, receiverWindow } from '@/entities/delivery/credit';
+import { byteRoom, coming, receiverWindow } from '../credit';
 import { KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
 
 describe('receiverWindow (RECIBO.libre)', () => {

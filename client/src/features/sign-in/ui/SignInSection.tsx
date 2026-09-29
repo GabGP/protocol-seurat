@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Account } from '@/entities/session/access-key';
+import type { Account } from '@/entities/session';
 import { detailLabel, roleLabel } from '../lib/detail-label';
 import { signIn, signOut, signedIn, type SignInResult } from '../model/sign-in';
 import styles from './SignInSection.module.css';

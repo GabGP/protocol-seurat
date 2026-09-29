@@ -4,7 +4,7 @@ import { crc32c } from '@/shared/codec/crc32c';
 import { concat, viEncode } from '@/shared/proto/varint';
 import { ulebEncode, zigzagEncode } from '@/shared/codec/leb128';
 import { rgbToYCoCg } from '@/shared/codec/ycocgr';
-import type { SynthWorker, WorkerFactory } from '@/entities/delivery/worker-pool';
+import type { SynthWorker, WorkerFactory } from '@/entities/delivery';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
 import { PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 

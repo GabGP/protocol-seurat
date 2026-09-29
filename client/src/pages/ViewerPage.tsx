@@ -8,7 +8,7 @@ import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
 import { TelemetryPanel } from '@/widgets/TelemetryPanel';
 import { RenderSettingsPanel } from '@/widgets/RenderSettingsPanel';
 import { detailLabel } from '@/features/sign-in';
-import type { TelemetryInput } from '@/entities/telemetry/sections';
+import type { TelemetryInput } from '@/entities/telemetry';
 import { ViewerTopBar } from '@/widgets/ViewerTopBar';
 import { LiveStatusPill } from '@/widgets/StatusPill';
 import { LoadError } from '@/widgets/LoadError';

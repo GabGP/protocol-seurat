@@ -1,4 +1,4 @@
-import type { WorkPreview } from '@/entities/work/previews';
+import type { WorkPreview } from '@/entities/work';
 import { brushKey, makeBrushId } from '@/shared/proto/brush';
 import { TILE } from '@/shared/config/constants';
 import { PARENTS_PER_SIDE, type PreviewLoan } from './preview-loan';

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '@/shared/ui/Icon';
-import { telemetrySections, type TelemetryInput } from '@/entities/telemetry/sections';
+import { telemetrySections, type TelemetryInput } from '@/entities/telemetry';
 import { fmtRate } from '@/shared/lib/format-units';
 import styles from './TelemetryPanel.module.css';
 

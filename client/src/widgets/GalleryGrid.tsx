@@ -1,11 +1,11 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { hash3 } from '@/shared/lib/hash3';
 import { notePreviewWidth, previewDpr, useWorkPreview } from '@/entities/work';
-import type { WorkPreview } from '@/entities/work/previews';
+import type { WorkPreview } from '@/entities/work';
 import { drawScaledRgba } from '@/shared/codec/seed';
-import type { Work } from '@/entities/work/types';
-import { workDims, workTitle } from '@/entities/work/types';
-import type { Filter } from '@/entities/work/store';
+import type { Work } from '@/entities/work';
+import { workDims, workTitle } from '@/entities/work';
+import type { Filter } from '@/entities/work';
 import { Icon } from '@/shared/ui/Icon';
 import { GALLERY_PLACEHOLDER_MIN_PX, GALLERY_PLACEHOLDER_PX } from '@/shared/config/layout';
 import styles from './GalleryGrid.module.css';

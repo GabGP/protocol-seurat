@@ -4,7 +4,7 @@ import type { ViewSync } from '@/widgets/ViewerChrome';
 import { goGallery, goViewer } from '@/app/router';
 import { patchUi } from '@/app/store';
 import { stepIndex } from '@/features/navigate-work';
-import { isOpenable, workDims, workMp, workTitle } from '@/entities/work/types';
+import { isOpenable, workDims, workMp, workTitle } from '@/entities/work';
 import { DEFAULT_WORK_WIDTH, DEFAULT_WORK_HEIGHT } from '@/shared/config/view';
 
 export function useViewerWork(id: string, seurat: SeuratState) {

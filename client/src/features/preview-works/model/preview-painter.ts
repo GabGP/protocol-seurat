@@ -1,4 +1,4 @@
-import { dropWorkPreview, setWorkPreview } from '@/entities/work/previews';
+import { dropWorkPreview, setWorkPreview } from '@/entities/work';
 import { PREVIEW_LEVELS_KEEP_MS, PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 import type { PreviewLoan } from './preview-loan';
 import type { PreviewDecoder } from './preview-decoder';

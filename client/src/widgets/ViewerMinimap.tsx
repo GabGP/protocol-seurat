@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { clamp } from '@/shared/lib/clamp';
 import type { Feed } from '@/shared/lib/feed';
 import { useRenderFlags, type RenderFlags } from '@/shared/lib/render-flags';
-import type { DeliverySink } from '@/app/providers/delivery-sink';
+import type { DeliverySink } from '@/entities/delivery';
 import { collectBrushes, cullBrushes } from './brush-cull';
 import type { ChromeApi, ViewRect } from './ViewerChrome';
 

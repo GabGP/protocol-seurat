@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WorkerPool, poolSizeFor } from '@/entities/delivery/worker-pool';
-import { SynthQueue, type ReadyJob } from '@/entities/delivery/synth-queue';
+import { WorkerPool, poolSizeFor } from '../worker-pool';
+import { SynthQueue, type ReadyJob } from '../synth-queue';
 import type { SynthRequest } from '@/workers/protocol';
 
 function req(delivery: number, stratum: number): SynthRequest {

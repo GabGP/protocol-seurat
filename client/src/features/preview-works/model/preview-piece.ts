@@ -1,4 +1,4 @@
-import type { DeliveryRecord } from '@/entities/delivery/store';
+import type { DeliveryRecord } from '@/entities/delivery';
 import { toKib } from '@/shared/config/constants';
 
 /** One delivery a thumbnail holds: the seed, or bands [from, through) of one brush under it. */

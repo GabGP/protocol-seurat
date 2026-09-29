@@ -19,3 +19,6 @@ export const SCRAPE_TIMEOUT_MS = 10_000;
 export const SESSION_MAX_BRUSHES = 1024;
 /** MiB declared per GiB of device memory (a quarter of it), capped at CHROME_MEM_MIB. */
 export const MEM_MIB_PER_DEVICE_GIB = 64;
+/** What a canvas may hold until its CONCESION states the real budget. */
+export const DEFAULT_MAX_KIB = 36_864;
+export const DEFAULT_MAX_BRUSHES = 768;

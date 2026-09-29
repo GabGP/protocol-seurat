@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SessionClient } from '@/app/providers/session-client';
+import { SessionClient } from '../client/session-client';
 import { encodeFrame } from '@/shared/proto/frame';
 import {
   T,

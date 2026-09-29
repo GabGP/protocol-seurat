@@ -1,4 +1,4 @@
-import { hasWorkPreview } from '@/entities/work/previews';
+import { hasWorkPreview } from '@/entities/work';
 import { PREVIEW_OPEN_TIMEOUT_MS } from '@/shared/config/constants';
 import { PreviewLoan } from './preview-loan';
 

@@ -1,4 +1,3 @@
-import type { DeliveryLedger } from '@/entities/delivery/store';
 import { BYTES_PER_KIB, MS_PER_S, PERCENT, SEED_STRATUM } from '@/shared/config/constants';
 import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
 import type { RateMeter } from '@/shared/lib/rate-meter';
@@ -15,9 +14,16 @@ export interface TelemetrySection {
   rows: TelemetryRow[];
 }
 
+/** One held delivery, as telemetry counts it. */
+export interface HeldBrush {
+  stratum: number;
+  bytes: number;
+  rgba: { width: number; height: number } | null;
+}
+
 /** The part of the delivery sink telemetry reads (DeliverySink satisfies it). */
 export interface HeldBrushes {
-  book: DeliveryLedger;
+  book: { byDelivery: Map<number, HeldBrush>; inFlight: Set<number> };
   free(): number;
   queueDepthMs: number;
   /** Strata of the open work (`top + 1`): levels 0 … top − 1 arrive as brushes, the top one as the seed. */

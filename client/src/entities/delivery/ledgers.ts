@@ -1,7 +1,6 @@
-import { toKib } from '@/shared/config/constants';
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape } from './scrape';
-import { emptyLedger, ownedBytes, ownedDeliveries, type DeliveryLedger, type DeliveryRecord } from './store';
+import { emptyLedger, inventoryOf, ownedDeliveries, tallyHeld, type DeliveryLedger, type DeliveryRecord } from './store';
 
 /**
  * Bookkeeping for handles not owned by the live sink (previews, retired
@@ -38,27 +37,22 @@ export class HandleLedgers {
   inventory(handle: number, through: number): { brushCount: number; kib: number; ranges: number[] } {
     const book = this.books.get(handle);
     if (!book) return { brushCount: 0, kib: 0, ranges: [] };
-    const ranges = ownedDeliveries(book).filter((n) => n <= through);
-    const brushCount = new Set([...book.byDelivery.values()].map((r) => r.brushId.toString())).size;
-    return { brushCount, kib: toKib(ownedBytes(book)), ranges };
+    return inventoryOf(book, through);
   }
 
   /** Server-ordered scrape: drop matches, answer with the kept set. */
   applyScrape(r: Scrape): { scraped: number; kib: number; keep: number[] } {
     const book = this.books.get(r.handle);
     if (!book) return { scraped: 0, kib: 0, keep: [] };
-    let scraped = 0;
-    let kib = 0;
-    for (const [n, rec] of [...book.byDelivery]) {
-      if (n > r.through) continue;
-      if (matchesScrape(rec, r.predicate, r.params)) {
-        rec.rgba?.close();
-        kib += toKib(rec.bytes);
-        scraped += 1;
-        book.byDelivery.delete(n);
-      }
+    const matched = [...book.byDelivery]
+      .filter(([n, rec]) => n <= r.through && matchesScrape(rec, r.predicate, r.params))
+      .map(([n]) => n);
+    const tally = tallyHeld(book, matched);
+    for (const n of matched) {
+      book.byDelivery.get(n)?.rgba?.close();
+      book.byDelivery.delete(n);
     }
-    return { scraped, kib, keep: ownedDeliveries(book).filter((n) => n <= r.through) };
+    return { ...tally, keep: ownedDeliveries(book).filter((n) => n <= r.through) };
   }
 
   canceladas(handle: number, ranges: number[]): void {

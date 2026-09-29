@@ -1,4 +1,4 @@
-import type { WorkPreview } from '@/entities/work/previews';
+import type { WorkPreview } from '@/entities/work';
 import type { Rect } from '@/workers/plane-shrink';
 import type { DecodedPlanes } from './preview-decoder';
 

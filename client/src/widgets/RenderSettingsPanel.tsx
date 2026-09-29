@@ -3,7 +3,7 @@ import { Switch } from '@/shared/ui/Switch';
 import {
   DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type RenderFlags,
 } from '@/shared/lib/render-flags';
-import type { Account } from '@/entities/session/access-key';
+import type { Account } from '@/entities/session';
 import { SignInSection } from '@/features/sign-in';
 import styles from './RenderSettingsPanel.module.css';
 

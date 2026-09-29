@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DecodeQueue } from '@/entities/delivery/decode-queue';
+import { DecodeQueue } from '../decode-queue';
 
 describe('DecodeQueue (cola_ms)', () => {
   it('returns to 0 once every brush is answered, however fast they decode', () => {

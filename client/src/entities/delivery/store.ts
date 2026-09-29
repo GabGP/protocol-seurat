@@ -1,4 +1,5 @@
 import { splitBrushId, type BrushHead } from '@/shared/proto/brush';
+import { toKib } from '@/shared/config/constants';
 import { rangesEqual } from '@/shared/proto/ranges';
 
 export interface DeliveryRecord {
@@ -55,6 +56,25 @@ export function ownedBytes(b: DeliveryLedger): number {
   let n = 0;
   for (const r of b.byDelivery.values()) n += r.bytes;
   return n;
+}
+
+/** INVENTARIO content: the brushes held, their size, and the numbers <= through (exact set equality on the wire). */
+export function inventoryOf(b: DeliveryLedger, through: number): { brushCount: number; kib: number; ranges: number[] } {
+  const brushCount = new Set([...b.byDelivery.values()].map((r) => r.brushId.toString())).size;
+  return { brushCount, kib: toKib(ownedBytes(b)), ranges: ownedDeliveries(b).filter((n) => n <= through) };
+}
+
+/** RASPADO's freed-KiB count for the numbers still held among `ids`. */
+export function tallyHeld(b: DeliveryLedger, ids: number[]): { scraped: number; kib: number } {
+  let scraped = 0;
+  let kib = 0;
+  for (const id of ids) {
+    const held = b.byDelivery.get(id);
+    if (!held) continue;
+    kib += toKib(held.bytes);
+    scraped += 1;
+  }
+  return { scraped, kib };
 }
 
 export function confirmScraped(keep: number[], through: number, expected: number[]): boolean {

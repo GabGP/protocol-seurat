@@ -71,3 +71,15 @@ export function splitFrame(bytes: Uint8Array): { type: number; payload: Uint8Arr
   if (pos + l.value > bytes.length) throw new Error('frame: need more bytes');
   return { type: t.value, payload: bytes.slice(pos, pos + l.value), total: pos + l.value };
 }
+
+/** Every frame packed back to back in one control message. */
+export function splitAll(frame: Uint8Array): Array<{ type: number; payload: Uint8Array }> {
+  const out: Array<{ type: number; payload: Uint8Array }> = [];
+  let pos = 0;
+  while (pos < frame.length) {
+    const s = splitFrame(frame.slice(pos));
+    out.push({ type: s.type, payload: s.payload });
+    pos += s.total;
+  }
+  return out;
+}

@@ -1,4 +1,4 @@
-import type { WorkPreview } from '@/entities/work/previews';
+import type { WorkPreview } from '@/entities/work';
 import { shownSize } from '@/workers/plane-shrink';
 import type { Level, PreviewLevels } from './preview-levels';
 import type { PreviewFinisher, PreviewPatch } from './preview-finisher';

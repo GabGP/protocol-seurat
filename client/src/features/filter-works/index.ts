@@ -1,4 +1,4 @@
-import type { Filter } from '@/entities/work/store';
+import type { Filter } from '@/entities/work';
 import styles from './chip.module.css';
 
 export function nextFilter(current: Filter, pick: Filter): Filter {

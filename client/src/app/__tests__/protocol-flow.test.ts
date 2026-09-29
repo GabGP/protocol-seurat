@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SessionClient } from '@/app/providers/session-client';
-import { DeliverySink } from '@/app/providers/delivery-sink';
+import { SessionClient } from '@/entities/session';
+import { DeliverySink } from '@/entities/delivery';
 import { encodeFrame } from '@/shared/proto/frame';
 import {
   T,

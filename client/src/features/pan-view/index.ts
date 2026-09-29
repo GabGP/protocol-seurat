@@ -1,4 +1,4 @@
-import type { ViewState } from '../zoom-view/model';
+import type { ViewState } from '../zoom-view';
 import { FLING_TRAVEL_MS } from '@/shared/config/view';
 
 export function panBy(v: ViewState, dx: number, dy: number): ViewState {

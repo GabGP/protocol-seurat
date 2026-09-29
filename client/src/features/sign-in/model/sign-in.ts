@@ -1,7 +1,7 @@
 import { CLIENT_NAME } from '@/shared/config/constants';
 import { postSession, SessionAuthError } from '@/shared/api/http';
-import { declareMemMib, clearResume } from '@/entities/session/store';
-import { loadAccessKey, saveAccessKey } from '@/entities/session/access-key';
+import { declareMemMib, clearResume } from '@/entities/session';
+import { loadAccessKey, saveAccessKey } from '@/entities/session';
 
 export type SignInResult = 'ok' | 'refused' | 'offline';
 

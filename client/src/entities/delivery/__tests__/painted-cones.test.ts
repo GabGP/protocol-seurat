@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DeliverySink } from '@/app/providers/delivery-sink';
+import { DeliverySink } from '../sink/delivery-sink';
 import { makeBrushId } from '@/shared/proto/brush';
-import type { SessionClient } from '@/app/providers/session-client';
+import type { DeliveryPort } from '../sink/port';
 import { PaintedCones } from '../painted-cones';
 
 const view = (x0: number): { x0: number; y0: number; x1: number; y1: number; focus: number } =>
@@ -48,7 +48,7 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     const client = {
       sendRelease: (_h: number, reason: number, ranges: number[]) => sentRelease.push({ reason, ranges }),
       sendReceipt: () => undefined,
-    } as unknown as SessionClient;
+    } as unknown as DeliveryPort;
     const sink = new DeliverySink(1, () => client, () => 36864, () => 40);
     for (let bx = 0; bx < 36; bx++) { // a row of level-0 brushes; delivery n = bx + 1
       sink.book.byDelivery.set(bx + 1, {
@@ -74,7 +74,7 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
     const client = {
       sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
       sendReceipt: () => undefined,
-    } as unknown as SessionClient;
+    } as unknown as DeliveryPort;
     const sink = new DeliverySink(1, () => client, () => maxKiB, () => max);
     const hold = (n: number, stratum: number, bx: number): void => {
       sink.book.byDelivery.set(n, {

@@ -1,9 +1,9 @@
 import { parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
-import { dropWorkPreview, previewWidth } from '@/entities/work/previews';
-import type { WorkerFactory } from '@/entities/delivery/worker-pool';
+import { dropWorkPreview, previewWidth } from '@/entities/work';
+import type { WorkerFactory } from '@/entities/delivery';
 import { LEASE_S, MS_PER_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
-import type { SessionClient } from '@/app/providers/session-client';
+import type { SessionClient } from '@/entities/session';
 import type { PreviewLoan } from './preview-loan';
 import { piecesKib, type PreviewPiece } from './preview-piece';
 import { gazeLevel, previewGaze, type PreviewGaze } from './preview-gaze';

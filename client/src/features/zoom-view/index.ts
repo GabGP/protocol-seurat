@@ -30,3 +30,5 @@ export function wheelZoom(ts: number, deltaY: number, mode: number, ctrl: boolea
   const dy = deltaY * (mode === 1 ? WHEEL_LINE_PX : mode === 2 ? WHEEL_PAGE_PX : 1);
   return ts * Math.exp(-dy * (ctrl ? PINCH_SCALE_FACTOR : WHEEL_SCALE_FACTOR));
 }
+
+export * from './model';

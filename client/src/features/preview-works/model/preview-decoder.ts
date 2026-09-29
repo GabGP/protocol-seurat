@@ -1,4 +1,4 @@
-import { defaultWorker, resolvePoolSize, type SynthWorker, type WorkerFactory } from '@/entities/delivery/worker-pool';
+import { defaultWorker, resolvePoolSize, type SynthWorker, type WorkerFactory } from '@/entities/delivery';
 import { PREVIEW_DECODERS_MAX, PREVIEW_DECODE_TIMEOUT_MS } from '@/shared/config/constants';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
 

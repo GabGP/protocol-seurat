@@ -11,3 +11,14 @@ export const QUEUE_RED_MS = 400;
 export const SYNTH_POOL_MIN = 2;
 export const SYNTH_POOL_MAX = 8;
 export const SYNTH_POOL_FALLBACK_CORES = 4;
+/** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
+export const COLA_BUSY_MS = 150;
+/** Early (future-epoch) deliveries held at most: max_en_vuelo. */
+export const MAX_EARLY_DELIVERIES = 12;
+/** Moving average of the delivery size: the previous value keeps this weight, the new one the other. */
+export const AVG_DELIVERY_KEEP = 0.8;
+export const AVG_DELIVERY_NEW = 0.2;
+/** Sketch and pyramid shape assumed until the OBRA of the work says otherwise. */
+export const DEFAULT_SEED_WIDTH = 192;
+export const DEFAULT_SEED_HEIGHT = 160;
+export const DEFAULT_STRATA = 11;

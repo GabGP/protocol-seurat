@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadAccessKey } from '@/entities/session/access-key';
+import { loadAccessKey } from '@/entities/session';
 import { detailLabel } from '../lib/detail-label';
 import { signIn, signOut, signedIn } from '../model/sign-in';
 

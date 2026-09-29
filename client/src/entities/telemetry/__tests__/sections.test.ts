@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { emptyLedger, type DeliveryRecord } from '@/entities/delivery/store';
-import { ImageTelemetry } from '@/entities/telemetry/image-telemetry';
-import { PENDING, telemetrySections } from '@/entities/telemetry/sections';
+import { ImageTelemetry } from '../image-telemetry';
+import { PENDING, telemetrySections, type HeldBrush } from '../sections';
 import { fmtBytes, fmtMs, fmtRate } from '@/shared/lib/format-units';
 import { RateMeter } from '@/shared/lib/rate-meter';
 
-function rec(delivery: number, stratum: number, bytes: number, decoded: boolean): DeliveryRecord {
-  return {
-    delivery, brushId: BigInt(delivery), stratum, from: 0, through: 2, bytes, epoch: 1, edition: 2,
-    expires: 0, rgba: decoded ? ({ width: 256, height: 256 } as ImageBitmap) : null,
-  };
+function rec(stratum: number, bytes: number, decoded: boolean): HeldBrush {
+  return { stratum, bytes, rgba: decoded ? { width: 256, height: 256 } : null };
 }
 
 function rows(title: string, sections: ReturnType<typeof telemetrySections>): Record<string, string> {
@@ -18,9 +14,9 @@ function rows(title: string, sections: ReturnType<typeof telemetrySections>): Re
 }
 
 describe('telemetry sections', () => {
-  const book = emptyLedger();
-  book.byDelivery.set(1, rec(1, 10, 16_000, false));
-  book.byDelivery.set(2, rec(2, 0, 40_000, true));
+  const book = { byDelivery: new Map<number, HeldBrush>(), inFlight: new Set<number>() };
+  book.byDelivery.set(1, rec(10, 16_000, false));
+  book.byDelivery.set(2, rec(0, 40_000, true));
   book.inFlight.add(3);
   const link = new RateMeter();
   for (let t = 0; t < 2000; t += 100) link.record(6400, t);

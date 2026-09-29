@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliverySink } from '@/app/providers/delivery-sink';
+import { DeliverySink } from '../sink/delivery-sink';
 import { crc32c } from '@/shared/codec/crc32c';
 import { concat, viEncode } from '@/shared/proto/varint';
 import { makeBrushId, brushKey } from '@/shared/proto/brush';
-import type { SessionClient } from '@/app/providers/session-client';
+import type { DeliveryPort } from '../sink/port';
 import type { SynthRequest } from '@/workers/protocol';
 import { STALE_PARENT } from '@/workers/protocol';
 
@@ -14,7 +14,7 @@ function fakeClient() {
     sendReceipt() {},
     sendInventory() {},
   };
-  return c as unknown as SessionClient;
+  return c as unknown as DeliveryPort;
 }
 
 function makeDeliveryBytes(opts: {

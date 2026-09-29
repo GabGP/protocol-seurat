@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PreviewManager } from '../model/preview-manager';
-import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work/previews';
+import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work';
 import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum, type WorkOpened } from '@/shared/proto/messages';
 import {
   LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, PREVIEW_OPEN_TIMEOUT_MS,
 } from '@/shared/config/constants';
-import type { SessionClient } from '@/app/providers/session-client';
-import type { WorkerFactory } from '@/entities/delivery/worker-pool';
+import type { SessionClient } from '@/entities/session';
+import type { WorkerFactory } from '@/entities/delivery';
 import { brushDelivery, inlineWorkers, seedDelivery, settle } from './preview-fixtures';
 
 /** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
