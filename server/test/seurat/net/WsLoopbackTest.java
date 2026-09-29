@@ -14,6 +14,7 @@ import seurat.proto.MsgCatalog;
 import seurat.proto.MsgGaze;
 import seurat.proto.MsgLoans;
 import seurat.proto.Ranges;
+import static seurat.net.http.HttpConstants.CRLF;
 
 /** Loopback: HTTP + WS handshake + SALUDO..sketch + RECIBO, no internet. */
 public final class WsLoopbackTest {
@@ -30,7 +31,7 @@ public final class WsLoopbackTest {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             socket.setSoTimeout(15000);
             String token = WsClient.postSession(port);
-            WsClient.wsHandshake(socket, "Origin: http://x" + WsClient.CRLF + "Sec-WebSocket-Protocol: seurat.1" + WsClient.CRLF);
+            WsClient.wsHandshake(socket, "Origin: http://x" + CRLF + "Sec-WebSocket-Protocol: seurat.1" + CRLF);
             InputStream in = socket.getInputStream();
             OutputStream out = socket.getOutputStream();
             WsClient.sendWs(out, 0, WsClient.hello(token));

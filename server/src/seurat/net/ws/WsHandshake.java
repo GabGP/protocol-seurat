@@ -14,6 +14,8 @@ public final class WsHandshake {
 
     public static final String PATH = "/seurat/v1/lienzo-ws";
     public static final String SUBPROTOCOL = "seurat.1";
+    /** RFC 6455 4.2.2: the fixed GUID hashed with the client key. */
+    public static final String GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
     public static boolean isUpgrade(String[] parts, Map<String, String> headers) {
         return parts.length == 3 && parts[0].equals("GET") && parts[1].equals(PATH)
@@ -49,6 +51,6 @@ public final class WsHandshake {
 
     public static String acceptKey(String key) throws Exception {
         return Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-1")
-                .digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes(StandardCharsets.UTF_8)));
+                .digest((key + GUID).getBytes(StandardCharsets.UTF_8)));
     }
 }

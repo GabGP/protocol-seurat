@@ -9,6 +9,8 @@ public final class HttpConstants {
     public static final String BINARY = "application/octet-stream";
     public static final String NOT_FOUND_BODY = "{\"error\":\"no existe\"}";
     public static final String INTERNAL_BODY = "{\"error\":\"interno\"}";
+    /** HTTP/1.1 line terminator (RFC 9112). */
+    public static final String CRLF = "\r\n";
     public static final int OK = 200;
     public static final int CREATED = 201;
     public static final int NOT_FOUND = 404;

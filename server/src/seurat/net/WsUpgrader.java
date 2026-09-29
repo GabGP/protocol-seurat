@@ -8,6 +8,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import seurat.config.SeuratConfig;
 import seurat.config.SeuratConstants;
+import static seurat.net.http.HttpConstants.CRLF;
 import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
@@ -31,9 +32,9 @@ final class WsUpgrader {
             return;
         }
         String accept = WsHandshake.acceptKey(headers.get("sec-websocket-key"));
-        out.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                + "Sec-WebSocket-Accept: " + accept + "\r\nSec-WebSocket-Protocol: " + WsHandshake.SUBPROTOCOL
-                + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(("HTTP/1.1 101 Switching Protocols" + CRLF + "Upgrade: websocket" + CRLF + "Connection: Upgrade" + CRLF
+                + "Sec-WebSocket-Accept: " + accept + CRLF + "Sec-WebSocket-Protocol: " + WsHandshake.SUBPROTOCOL
+                + CRLF + CRLF).getBytes(StandardCharsets.UTF_8));
         out.flush();
         BlockingQueue<byte[]> control = new ArrayBlockingQueue<>(SeuratConstants.INPUT_QUEUE_FRAMES);
         Log.info(LogTags.WS, "remote=" + remote + " upgraded subprotocol=" + WsHandshake.SUBPROTOCOL);

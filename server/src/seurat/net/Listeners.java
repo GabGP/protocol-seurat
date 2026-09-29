@@ -12,6 +12,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import seurat.config.SeuratConfig;
+import static seurat.net.http.HttpConstants.CRLF;
 import seurat.net.http.HttpSurface;
 
 /** The TCP listener (TLS 1.3 from a PKCS#12 keystore when configured, pure JDK) and the raw HTTP answers on it. */
@@ -39,12 +40,12 @@ final class Listeners {
     /** Writes one HTTP response and ends the connection (Connection: close, no-store unless set). */
     static void respond(Socket socket, HttpSurface.Response response) throws IOException {
         StringBuilder header = new StringBuilder("HTTP/1.1 " + status(response.code())
-                + "\r\nContent-Type: " + response.type() + "\r\nContent-Length: " + response.body().length
-                + "\r\nConnection: close\r\n");
-        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store\r\n");
-        response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append("\r\n"));
+                + CRLF + "Content-Type: " + response.type() + CRLF + "Content-Length: " + response.body().length
+                + CRLF + "Connection: close" + CRLF);
+        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store" + CRLF);
+        response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append(CRLF));
         OutputStream out = socket.getOutputStream();
-        out.write(header.append("\r\n").toString().getBytes(StandardCharsets.UTF_8));
+        out.write(header.append(CRLF).toString().getBytes(StandardCharsets.UTF_8));
         out.write(response.body());
         out.flush();
         socket.close();
@@ -52,7 +53,7 @@ final class Listeners {
 
     /** An empty answer that ends the connection: a refused upgrade or an unparsable request. */
     static void refuse(Socket socket, int code) throws IOException {
-        socket.getOutputStream().write(("HTTP/1.1 " + status(code) + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+        socket.getOutputStream().write(("HTTP/1.1 " + status(code) + CRLF + "Content-Length: 0" + CRLF + "Connection: close" + CRLF + CRLF)
                 .getBytes(StandardCharsets.US_ASCII));
         socket.close();
     }

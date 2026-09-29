@@ -1,8 +1,6 @@
 package seurat.server;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
@@ -16,13 +14,11 @@ import seurat.catalog.Catalog;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.kit.TestKit;
-import seurat.net.Mapping;
+import seurat.net.RecordingMapping;
 import seurat.net.SocketServer;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.regulate.Regulator;
-import seurat.session.Canvas;
-import seurat.session.Delivery;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
@@ -43,8 +39,8 @@ public final class ShutdownTest {
         FakeListener listener = new FakeListener();
         FakeListener intake = new FakeListener();
         Sessions sessions = new Sessions();
-        FakeMapping a = new FakeMapping();
-        FakeMapping b = new FakeMapping();
+        RecordingMapping a = new RecordingMapping();
+        RecordingMapping b = new RecordingMapping();
         sessions.add(new Session(1, "p", "anonimo", 128, 0, a, new byte[32]));
         sessions.add(new Session(2, "p", "anonimo", 128, 0, b, new byte[32]));
         ScheduledExecutorService clock = Executors.newSingleThreadScheduledExecutor();
@@ -162,29 +158,6 @@ public final class ShutdownTest {
         @Override
         public void close() {
             closes++;
-        }
-    }
-
-    static final class FakeMapping implements Mapping {
-        boolean closed;
-
-        @Override
-        public OutputStream openDelivery(Canvas canvas, Delivery e) {
-            return new ByteArrayOutputStream();
-        }
-
-        @Override
-        public void sendControl(byte[] frame) {}
-
-        @Override
-        public void cancel(long delivery) {}
-
-        @Override
-        public void fail() {}
-
-        @Override
-        public void close() {
-            closed = true;
         }
     }
 }

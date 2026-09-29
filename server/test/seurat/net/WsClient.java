@@ -17,30 +17,25 @@ import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
 import seurat.concession.GrantController;
 import seurat.config.SeuratConfig;
-import seurat.ingest.IngestJob;
 import seurat.kit.TestKit;
 import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsFraming;
+import seurat.net.ws.WsHandshake;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.Headers;
-import seurat.proto.MsgCatalog;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
-import seurat.proto.Ranges;
 import seurat.regulate.Regulator;
 import seurat.concession.GazeGate;
 import seurat.session.Easel;
 import seurat.session.EaselContext;
 import seurat.session.Sessions;
+import static seurat.net.http.HttpConstants.CRLF;
 
 /** Test-side WS client for the seurat.1 mapping, plus a loopback server. */
 final class WsClient {
-    static final String CRLF = "\r\n";
-
     private WsClient() {}
 
     /** Server on a free port over this catalog (painter, grants, WS mapping). */
@@ -111,8 +106,8 @@ final class WsClient {
     static String postSession(int port) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             String body = "{\"memMiB\":128}";
-            String req = "POST /seurat/v1/sesion HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer loopback\r\nContent-Length: "
-                    + body.length() + "\r\nConnection: close\r\n\r\n" + body;
+            String req = "POST /seurat/v1/sesion HTTP/1.1" + CRLF + "Host: x" + CRLF + "Authorization: Bearer loopback" + CRLF + "Content-Length: "
+                    + body.length() + CRLF + "Connection: close" + CRLF + CRLF + body;
             socket.getOutputStream().write(req.getBytes(StandardCharsets.UTF_8));
             byte[] response = socket.getInputStream().readAllBytes();
             String text = new String(response, StandardCharsets.UTF_8);
@@ -132,14 +127,14 @@ final class WsClient {
         byte[] keyBytes = new byte[16];
         new java.util.Random().nextBytes(keyBytes);
         String key = Base64.getEncoder().encodeToString(keyBytes);
-        String req = "GET /seurat/v1/lienzo-ws HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n"
-                + "Connection: Upgrade\r\nSec-WebSocket-Key: " + key + "\r\n"
-                + "Sec-WebSocket-Version: 13\r\n" + extra + "\r\n";
+        String req = "GET /seurat/v1/lienzo-ws HTTP/1.1" + CRLF + "Host: x" + CRLF + "Upgrade: websocket" + CRLF
+                + "Connection: Upgrade" + CRLF + "Sec-WebSocket-Key: " + key + CRLF
+                + "Sec-WebSocket-Version: 13" + CRLF + extra + CRLF;
         socket.getOutputStream().write(req.getBytes(StandardCharsets.UTF_8));
         StringBuilder head = new StringBuilder();
         int b;
         while (!(head.length() >= 4
-                && head.substring(head.length() - 4).equals("\r\n\r\n"))) {
+                && head.substring(head.length() - 4).equals(CRLF + CRLF))) {
             b = socket.getInputStream().read();
             head.append((char) b);
         }
@@ -148,7 +143,7 @@ final class WsClient {
         }
         String accept = Base64.getEncoder().encodeToString(MessageDigest
                 .getInstance("SHA-1").digest(
-                        (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+                        (key + WsHandshake.GUID)
                                 .getBytes(StandardCharsets.UTF_8)));
         TestKit.check(head.toString().contains(accept), "WS accept key");
         TestKit.check(head.toString().contains("Sec-WebSocket-Protocol: seurat.1"), "subprotocol");
