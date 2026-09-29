@@ -1,8 +1,10 @@
 import { PERCENT } from '@/shared/config/constants';
+import { REFETCH_WINDOW_MS } from '@/shared/config/eviction';
+import { MS_PER_S } from '@/shared/config/units';
 import { fmtBytes, fmtMs } from '@/shared/lib/format-units';
 import { pending, PENDING, type TelemetryInput, type TelemetrySection } from './types';
 
-const [EVICTED, REFETCHED, MEDIAN] = ['Evicted', 'Re-sent after evict', 'Median time to refetch'] as const;
+const [EVICTED, REFETCHED, MEDIAN] = ['Evicted since open', `Re-sent within ${REFETCH_WINDOW_MS / MS_PER_S} s`, 'Median time to refetch'] as const;
 const KEYS = [EVICTED, REFETCHED, MEDIAN];
 const TITLE = 'Eviction';
 

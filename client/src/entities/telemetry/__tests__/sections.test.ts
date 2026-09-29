@@ -55,8 +55,8 @@ describe('telemetry sections', () => {
 
   it('reports what eviction dropped and how much of it came back', () => {
     const m = rows('Eviction', sections);
-    expect(m['Evicted']).toBe(`8 · ${fmtBytes(64_000)}`);
-    expect(m['Re-sent after evict']).toBe(`2 · ${fmtBytes(16_000)} · 25%`);
+    expect(m['Evicted since open']).toBe(`8 · ${fmtBytes(64_000)}`);
+    expect(m['Re-sent within 60 s']).toBe(`2 · ${fmtBytes(16_000)} · 25%`);
     expect(m['Median time to refetch']).toBe(fmtMs(1500));
   });
 
