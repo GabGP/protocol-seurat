@@ -3,13 +3,18 @@ import { fmtBytes, fmtMs } from '@/shared/lib/format-units';
 import { pending, PENDING, type TelemetryInput, type TelemetrySection } from './types';
 
 const KEYS = [
-  'Viewer memory (est.)', 'Compressed bands', 'Decoded pixels', 'Brushes held', 'In flight', 'Decode queue',
+  'Viewer memory (est.)', 'Compressed bands', 'Decoded pixels', 'Brushes held', 'Brush data', 'In flight', 'Decode queue',
 ];
 const HEAP_KEY = 'JS heap';
 const TITLE = 'Stored on this device';
 
 interface HeapProbe {
   memory?: { usedJSHeapSize: number };
+}
+
+/** All bytes the held brushes own, and what one costs on average; the placeholder while nothing is held. */
+function brushData(total: number, held: number): string {
+  return held > 0 ? `${fmtBytes(total)} · ${fmtBytes(total / held)} / brush` : PENDING;
 }
 
 const heapKeys = (): string[] => ((performance as HeapProbe).memory ? [HEAP_KEY] : []);
@@ -35,6 +40,7 @@ export function memory({ sink, concession, gpuBytes, declaredMemMiB }: Telemetry
     concession ? `${fmtBytes(bands)} of ${fmtBytes(concession.maxKiB * BYTES_PER_KIB)}` : fmtBytes(bands),
     fmtBytes(pixels),
     concession ? `${held} of ${concession.maxBrushes}` : String(held),
+    brushData(bands + pixels, held),
     String(sink.book.inFlight.size),
     fmtMs(sink.queueDepthMs),
   ];

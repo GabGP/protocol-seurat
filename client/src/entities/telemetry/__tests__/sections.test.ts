@@ -42,6 +42,17 @@ describe('telemetry sections', () => {
     expect(m['In flight']).toBe('1');
   });
 
+  it('shows the data behind the held brushes and the mean per brush, or a placeholder when none is held', () => {
+    const total = 56_000 + 256 * 256 * 4;
+    expect(rows('Stored on this device', sections)['Brush data']).toBe(`${fmtBytes(total)} · ${fmtBytes(total / 2)} / brush`);
+    const none = telemetrySections({
+      now: 0, transport: null, link: null, image: null, concession: null,
+      sink: { book: { byDelivery: new Map(), inFlight: new Set() }, free: () => 0, queueDepthMs: 0, strata: 3, workerCacheBound: 0,
+        eviction: { evicted: 0, evictedBytes: 0, refetched: 0, refetchedBytes: 0, medianRefetchMs: null } },
+    });
+    expect(rows('Stored on this device', none)['Brush data']).toBe(PENDING);
+  });
+
   it('reports what eviction dropped and how much of it came back', () => {
     const m = rows('Eviction', sections);
     expect(m['Evicted']).toBe(`8 · ${fmtBytes(64_000)}`);
