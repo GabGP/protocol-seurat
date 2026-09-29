@@ -2,7 +2,6 @@ import {
   CHROME_MEM_MIB, DEFAULT_MEM_MIB, HEARTBEAT_S, LEASE_S, MEM_MIB_PER_DEVICE_GIB, SESSION_MAX_BRUSHES, TICKET_BYTES, TILE, WIRE_FLOWS,
 } from '@/shared/config/constants';
 import { bytesToHex, hexToBytes } from '@/shared/lib/hex';
-import { loadMemOverride } from './mem-override';
 
 export interface SessionInfo {
   sessionId: bigint | null;
@@ -58,13 +57,7 @@ export function clearResume(): void {
   }
 }
 
-/** SALUDO mem_mib: the user's Settings choice if any, else the spec formula. */
 export function declareMemMib(): number {
-  return loadMemOverride() ?? specMemMib();
-}
-
-/** The spec formula: a quarter of the device memory (Chrome reports at most 8 GiB), else a default. */
-export function specMemMib(): number {
   const dm = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   if (typeof dm === 'number' && dm > 0) return Math.min(CHROME_MEM_MIB, Math.floor(dm * MEM_MIB_PER_DEVICE_GIB));
   return DEFAULT_MEM_MIB;

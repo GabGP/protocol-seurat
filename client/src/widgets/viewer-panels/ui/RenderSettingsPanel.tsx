@@ -4,7 +4,6 @@ import {
   DEFAULT_RENDER_FLAGS, resetRenderFlags, setRenderFlag, useRenderFlags, type RenderFlags,
 } from '@/shared/lib/render-flags';
 import type { Account } from '@/entities/session';
-import { MemorySection } from '@/features/declare-memory';
 import { SignInSection } from '@/features/sign-in';
 import styles from './RenderSettingsPanel.module.css';
 import { ICON_SM } from '@/shared/config/icon';
@@ -64,7 +63,6 @@ export function RenderSettingsPanel({ onClose, account, ceiling }: Props): JSX.E
         </button>
       </div>
       <SignInSection account={account} ceiling={ceiling} />
-      <MemorySection />
       {SECTIONS.map((s) => (
         <section key={s.title} className={styles.section}>
           <span className={styles.sectionTitle}>{s.title}</span>

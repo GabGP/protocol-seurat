@@ -22,10 +22,3 @@ export const MEM_MIB_PER_DEVICE_GIB = 64;
 /** What a canvas may hold until its CONCESION states the real budget. */
 export const DEFAULT_MAX_KIB = 36_864;
 export const DEFAULT_MAX_BRUSHES = 768;
-/** localStorage key of the memory the viewer declares in SALUDO instead of the spec formula. */
-export const MEM_OVERRIDE_KEY = 'seurat.memMib';
-/** The memory choices Settings offers (MiB), besides the spec default; smaller = the server grants fewer brushes. */
-export const MEM_OVERRIDE_OPTIONS_MIB = [80, 64, 48, 32];
-/** Spec 6.1: the server grants max_pinceladas = min(3 x mem_mib, the session cap). */
-export const BRUSHES_PER_MEM_MIB = 3;
-export const SERVER_BRUSH_CAP = 256;
