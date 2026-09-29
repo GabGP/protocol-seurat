@@ -4,13 +4,15 @@
 //
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
-//                                [--max-refused-pct 2] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
+//                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
 //
 // --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
 // `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
 // the canvas backing size, the effective scale and the fps / p95 it read.
 // --size WxH sets the viewport in CSS px (default 1600x900); the "held" line is the settled number of brushes the viewer holds,
 // read from the Telemetry panel after the run. Console errors/warnings the page logs are listed and fail the run.
+// The "re-sent" line reads the Eviction telemetry (brushes Horizon evicted that the server sent again within 60 s, share
+// of the evicted, median delay) and the re-sent bytes against every flow byte received; above --max-resent-pct it fails.
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
@@ -35,6 +37,7 @@ const seconds = Number(args.seconds ?? 20);
 const zoomSteps = Number(args.zoom ?? 3);
 const panSteps = Number(args.pan ?? 0);
 const maxRefusedPct = Number(args['max-refused-pct'] ?? 2);
+const maxResentPct = Number(args['max-resent-pct'] ?? 25);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const dpr = Number(args.dpr ?? 1);
 const renderSwitches = ['fps', args.scale && `scale:${args.scale}`].filter(Boolean).join(',');
@@ -66,7 +69,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hook = `(() => {
   const vi = (b, o) => { const n = 1 << (b[o] >> 6); let v = b[o] & 0x3f;
     for (let i = 1; i < n; i++) v = v * 256 + b[o + i]; return [v, o + n]; };
-  const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0 };
+  const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0, flowBytes: 0 };
   const bump = (m, k) => { m[k] = (m[k] || 0) + 1; };
   const NativeWS = window.WebSocket;
   window.WebSocket = function (...a) {
@@ -74,7 +77,7 @@ const hook = `(() => {
     s.addEventListener('message', (e) => {
       if (!(e.data instanceof ArrayBuffer)) return;
       const b = new Uint8Array(e.data);
-      if (b[0] === 1) { let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]);
+      if (b[0] === 1) { S.flowBytes += b.length; let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]);
         if (b[o] === 0) bump(S.s0bands, b[o + 8] & 0x0f); }
       else bump(S.in, b[1]);
     });
@@ -199,6 +202,8 @@ try {
       .find((e) => e.textContent === ${JSON.stringify(label)})?.nextElementSibling?.textContent ?? 'n/a'`,
   })).result.value;
   const plan = await memRow('Plan');
+  const resent = { evicted: await memRow('Evicted since open'), again: await memRow('Re-sent within 60 s'),
+    median: await memRow('Median time to refetch') };
   const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · total ${await memRow('Total (est.)')}`;
   const probeText = (expression) => cdp('Runtime.evaluate', { returnByValue: true, expression }).then((r) => r.result.value);
   const canvas = await probeText(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
@@ -217,6 +222,11 @@ try {
   console.log(`render dpr ${canvas.dpr} · scale ${args.scale ?? 'default'} · effective ${(canvas.bw / (canvas.cw * canvas.dpr)).toFixed(2)} · backing ${canvas.bw}x${canvas.bh} (css ${canvas.cw}x${canvas.ch}) · meter "${meter}"`);
   console.log(`memory ${memory}`);
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
+  const mib = (t) => { const m = /([\d.]+)\s*(B|KiB|MiB|GiB)/.exec(t ?? ''); return m ? Number(m[1]) * 1024 ** ['B', 'KiB', 'MiB', 'GiB'].indexOf(m[2]) / 2 ** 20 : 0; };
+  const flowMiB = s.flowBytes / 2 ** 20;
+  const resentMiB = mib(resent.again.split('·')[1]);
+  const resentPct = flowMiB ? (100 * resentMiB) / flowMiB : 0;
+  console.log(`re-sent ${resent.again} of evicted ${resent.evicted} · median ${resent.median} · ${resentMiB.toFixed(1)} of ${flowMiB.toFixed(1)} MiB received (${resentPct.toFixed(1)} %)`);
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);
   if (s.strata[0]) console.log(`stratum 0 reached · deliveries by bands-through ${JSON.stringify(s.s0bands)}`);
   console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) ${JSON.stringify(refusals)} · screenshot ${shot}`);
@@ -226,6 +236,7 @@ try {
     s.in[ERROR] && `${s.in[ERROR]} ERROR frame(s) from the server`,
     (s.soltar[RELEASE.decode] || s.soltar[RELEASE.crc] || s.synthFail) && 'decode/CRC failures (SOLTAR 2/6)',
     strata.length < 3 && `no refinement: only strata ${strata.join(',') || 'none'} besides the seed`,
+    resentPct > maxResentPct && `re-sent ${resentPct.toFixed(1)} % of the bytes received > ${maxResentPct} %`,
     refusedPct > maxRefusedPct && `refused ${refusedPct.toFixed(1)} % > ${maxRefusedPct} %`,
   ].filter(Boolean);
   for (const f of failures) console.log('FAIL ' + f);
