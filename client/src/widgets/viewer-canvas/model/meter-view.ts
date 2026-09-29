@@ -1,5 +1,4 @@
 import { renderFlags as flags } from '@/shared/lib/render-flags';
-import { currentBrushes } from './brush-cache';
 import type { ChromeCtx } from './chrome-types';
 import { FrameMeter } from './frame-meter';
 
@@ -18,12 +17,12 @@ export function createMeterView(ctx: ChromeCtx, el: () => HTMLElement | null, ki
   /** The readout, placeholders included: shown from the moment the meter is on, before the first paint. */
   function text(): void {
     const node = el();
-    if (node) node.textContent = (st.meter ??= new FrameMeter()).label(st.drawn, currentBrushes(ctx).length, kind);
+    if (node) node.textContent = (st.meter ??= new FrameMeter()).label(kind);
   }
   return {
     frame(now) {
       const meter = (st.meter ??= new FrameMeter());
-      meter.frame(now, performance.now() - now);
+      meter.frame(now);
       if (now - st.meterAt < METER_TEXT_MS) return;
       st.meterAt = now;
       text();

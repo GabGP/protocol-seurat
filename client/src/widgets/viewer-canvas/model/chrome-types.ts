@@ -52,7 +52,6 @@ export interface ChromeState {
   work: string;
   meter: FrameMeter | null;
   meterAt: number;
-  drawn: number;
   brushCache: { tick: number; revision: number; brushes: BrushGeom[] };
 }
 
@@ -66,7 +65,6 @@ export const createChromeState = (): ChromeState => ({
   work: '',
   meter: null,
   meterAt: -Infinity,
-  drawn: 0,
   brushCache: { tick: -1, revision: -1, brushes: [] },
 });
 

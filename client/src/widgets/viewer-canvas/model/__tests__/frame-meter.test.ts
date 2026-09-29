@@ -5,36 +5,41 @@ import { FrameMeter } from '../frame-meter';
 const plain = (s: string): string => s.replace(/ /g, ' ');
 
 describe('FrameMeter', () => {
-  it('holds placeholders until it has frame gaps, then reports fps and p95', () => {
+  it('holds placeholders until it has frame gaps, then reports fps, mean and p95 frame time', () => {
     const m = new FrameMeter();
-    expect(plain(m.label(3, 9))).toMatch(/^  — fps · p95     — ms · paint +0\.0 ms · draws    3 · loaded    9$/);
-    for (let t = 0; t <= 1000; t += 16) m.frame(t, 2);
-    const text = plain(m.label(3, 9));
-    expect(text).toMatch(/^ 6[23] fps · p95  16\.0 ms · paint +[\d.]+ ms · draws    3 · loaded    9$/);
+    expect(plain(m.label())).toBe('  — fps · mean     — ms · p95     — ms');
+    for (let t = 0; t <= 1000; t += 16) m.frame(t);
+    expect(plain(m.label())).toMatch(/^ 6[23] fps · mean  16\.0 ms · p95  16\.0 ms$/);
   });
 
-  it('keeps one width while measuring and as the numbers grow', () => {
+  it('shows no paint CPU, draw or loaded counts', () => {
     const m = new FrameMeter();
-    const idle = m.label(3, 9).length;
-    for (let t = 0; t <= 1000; t += 16) m.frame(t, 2);
-    expect(m.label(3, 9).length).toBe(idle);
-    expect(m.label(1234, 5678).length).toBe(idle);
+    for (let t = 0; t <= 1000; t += 16) m.frame(t);
+    expect(plain(m.label('webgl2'))).not.toMatch(/paint|draws|loaded/);
+  });
+
+  it('keeps one width while measuring', () => {
+    const m = new FrameMeter();
+    const idle = m.label().length;
+    for (let t = 0; t <= 1000; t += 16) m.frame(t);
+    expect(m.label().length).toBe(idle);
   });
 
   it('never breaks inside a part, only between them', () => {
-    const parts = new FrameMeter().label(1, 2).split(' · ');
-    expect(parts).toHaveLength(5);
+    const parts = new FrameMeter().label().split(' · ');
+    expect(parts).toHaveLength(3);
     expect(parts.some((p) => p.includes(' '))).toBe(false);
   });
 
   it('ignores idle gaps between gestures', () => {
     const m = new FrameMeter();
-    m.frame(0, 1);
-    m.frame(5000, 1);
-    expect(plain(m.label(0, 0))).toMatch(/^ +— fps/);
+    m.frame(0);
+    m.frame(5000);
+    expect(plain(m.label())).toMatch(/^ +— fps/);
   });
 
-  it('names the active renderer first when given', () => {
-    expect(plain(new FrameMeter().label(1, 2, 'webgl2'))).toMatch(/^webgl2 · +— fps/);
+  it('names the active renderer first, exactly as given', () => {
+    expect(plain(new FrameMeter().label('webgl2'))).toMatch(/^webgl2 · +— fps/);
+    expect(plain(new FrameMeter().label('canvas2d'))).toMatch(/^canvas2d · +— fps/);
   });
 });

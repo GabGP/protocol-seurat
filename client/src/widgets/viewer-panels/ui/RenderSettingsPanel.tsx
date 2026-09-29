@@ -20,7 +20,7 @@ interface Option {
 const SECTIONS: Array<{ title: string; options: Option[] }> = [
   {
     title: 'Measure',
-    options: [{ key: 'fps', label: 'Frame meter', hint: 'Frame rate, paint time and tiles drawn, over the canvas' }],
+    options: [{ key: 'fps', label: 'Frame meter', hint: 'Frame rate and frame time, over the canvas' }],
   },
   {
     title: 'Speed',

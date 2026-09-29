@@ -40,7 +40,7 @@ export function createFrameLoop(ctx: ChromeCtx, d: FrameLoopDeps): FrameLoop {
     const p = P();
     const v = st.v;
     const loupe = loupeAt(p.loupe, st.pointer, gestures.dragging, v.s, vc.maxS());
-    st.drawn = renderer.render({
+    renderer.render({
       W: frame.W, H: frame.H, dpr: frame.dpr, tx: v.tx, ty: v.ty, s: v.s, iw: p.iw, ih: p.ih,
       brushes: currentBrushes(ctx), dotThreshold: vc.th(), loupe, flags,
     });
