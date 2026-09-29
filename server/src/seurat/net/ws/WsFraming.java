@@ -5,6 +5,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import seurat.config.SeuratConstants;
 
 /** RFC 6455 server-side framing: masked reads, fragments reassembled, sizes capped before allocating. */
 public final class WsFraming {
@@ -25,6 +26,8 @@ public final class WsFraming {
     public static final int PROTOCOL_ERROR = 1002;
     /** Pseudo-opcode for a message past the cap (a frame over 64 KiB is fatal, spec 3.2). */
     public static final int OVERSIZE = -1;
+    /** Pseudo-opcode for a control frame over 125 bytes or fragmented (RFC 6455 5.5): close 1002. */
+    public static final int BAD_CONTROL = -2;
 
     public record Msg(int opcode, byte[] data) {}
 
@@ -48,6 +51,9 @@ public final class WsFraming {
                 for (int i = 0; i < 8; i++) {
                     len = (len << 8) | in.read();
                 }
+            }
+            if (op >= CLOSE && (len > SeuratConstants.WS_CONTROL_MAX || !fin)) {
+                return new Msg(BAD_CONTROL, new byte[0]);
             }
             if (len < 0 || len > max || (joined != null && joined.size() + len > max)) {
                 return new Msg(OVERSIZE, new byte[0]); // never allocated: the caller fails the session

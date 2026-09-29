@@ -55,10 +55,10 @@ public final class LoanBook {
 
     public synchronized boolean holds(long ed) { return deliveries.values().stream().anyMatch(d -> d.edition() == ed); }
 
-    public synchronized void acknowledge(Ranges r, long nowNs, long leaseNs, long deltaNs) { leases.acknowledge(r, nowNs, leaseNs, deltaNs); }
+    public synchronized void acknowledge(Ranges r, long nowNs, long leaseNs, long deltaNs) { leases.acknowledge(r, deliveries.keySet(), nowNs, leaseNs, deltaNs); }
 
     /** Client confirmed synthesis via RECIBO: safe to audit through it. */
-    public synchronized void settle(Ranges r) { leases.settle(r); }
+    public synchronized void settle(Ranges r) { leases.settle(r, deliveries.keySet()); }
 
     /** Highest N such that every book entry <= N is RECIBO-confirmed: audits never count unsettled numbers. */
     public synchronized long settledThrough() {

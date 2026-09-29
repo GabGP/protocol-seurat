@@ -1,8 +1,10 @@
 package seurat.net;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import seurat.config.SeuratConstants;
 
 /** The request line and headers of one HTTP/1.1 request; the body stays on the stream. */
 record HttpRequestReader(String line, String[] parts, Map<String, String> headers) {
@@ -16,7 +18,11 @@ record HttpRequestReader(String line, String[] parts, Map<String, String> header
         Map<String, String> headers = new HashMap<>();
         if (parts.length >= 2) {
             String header;
+            int count = 0;
             while ((header = SocketIo.readLine(in)) != null && !header.isEmpty()) {
+                if (++count > SeuratConstants.HTTP_HEADERS_MAX) {
+                    throw new IOException("too many headers");
+                }
                 int colon = header.indexOf(':');
                 if (colon > 0) {
                     headers.put(header.substring(0, colon).trim().toLowerCase(), header.substring(colon + 1).trim());

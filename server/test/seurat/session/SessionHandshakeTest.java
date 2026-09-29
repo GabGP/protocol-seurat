@@ -35,6 +35,7 @@ public final class SessionHandshakeTest {
         testResumeRejection();
         testResumeAdoptsOnlyClaims();
         testRetiredWorkNotResumed();
+        testSilentPeerTimesOut();
         System.out.println("SessionHandshakeTest OK");
     }
 
@@ -135,5 +136,17 @@ public final class SessionHandshakeTest {
         Session s = hello(ctx, mapping, new MsgHello.ResumeRequest(400, ticket,
                 List.of(new MsgHello.Claim(1, Ranges.of(1)))));
         TestKit.check(s.canvases().isEmpty() && type(mapping, 0) == FrameType.ERROR, "withdrawn work: ERROR 12");
+    }
+
+    /** A socket that opens and never sends SALUDO does not hold its Easel forever. */
+    private static void testSilentPeerTimesOut() throws Exception {
+        boolean closed = false;
+        try {
+            new SessionHandshake(new RecordingMapping(), new LinkedBlockingQueue<byte[]>(),
+                    ctx(new Sessions(), false), 50).hello();
+        } catch (java.io.EOFException expected) {
+            closed = true;
+        }
+        TestKit.check(closed, "no SALUDO in time ends the handshake");
     }
 }

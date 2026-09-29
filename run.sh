@@ -26,4 +26,4 @@ LOG_FLAGS=(-Dseurat.log.tty=false)
 if [ -t 1 ]; then
   LOG_FLAGS=(-Dseurat.log.tty=true "-Dseurat.log.columns=$(tput cols 2>/dev/null || echo 80)")
 fi
-exec java "${RUN_FLAGS[@]}" $HEAP "${LOG_FLAGS[@]}" ${JAVA_OPTS:-} -cp .seurat/build/seurat.jar:.seurat/build/classes seurat.SeuratServer "$@"
+exec java "${RUN_FLAGS[@]}" $HEAP -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.seurat/runtime/ "${LOG_FLAGS[@]}" ${JAVA_OPTS:-} -cp .seurat/build/seurat.jar:.seurat/build/classes seurat.SeuratServer "$@"

@@ -16,12 +16,21 @@ final class LoanLeases {
     private final Set<Long> settled = new HashSet<>();
 
     /** vence_srv = t_acuse + L + delta. */
-    void acknowledge(Ranges r, long nowNs, long leaseNs, long deltaNs) {
-        r.forEach(n -> deadlineNs.put(n, nowNs + leaseNs + deltaNs));
+    void acknowledge(Ranges r, Set<Long> held, long nowNs, long leaseNs, long deltaNs) {
+        r.forEach(n -> {
+            if (held.contains(n)) {
+                deadlineNs.put(n, nowNs + leaseNs + deltaNs);
+            }
+        });
     }
 
-    void settle(Ranges r) {
-        r.forEach(settled::add);
+    /** Only numbers the book holds are recorded: a stale or invented number would never be forgotten. */
+    void settle(Ranges r, Set<Long> held) {
+        r.forEach(n -> {
+            if (held.contains(n)) {
+                settled.add(n);
+            }
+        });
     }
 
     boolean isSettled(long n) {

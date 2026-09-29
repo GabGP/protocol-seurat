@@ -32,6 +32,7 @@ public final class Liveness {
 
     public void tick() {
         long now = System.nanoTime();
+        sessions.pruneExpired(now);
         for (Session session : sessions.all()) {
             if (now - session.lastEchoNs > SeuratConstants.HEARTBEAT_MISSES * SeuratConstants.HEARTBEAT_S * Units.NANOS_PER_S) {
                 Log.warn(LogTags.LIVENESS, "s" + session.id() + " closing: no ECO for "

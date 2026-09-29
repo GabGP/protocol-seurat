@@ -9,6 +9,7 @@ public final class SessionsTest {
         resumable();
         idempotentUntilFirstReceipt();
         renewedAtDisconnect();
+        retiredSessionIsPruned();
         System.out.println("SessionsTest OK");
     }
 
@@ -76,5 +77,21 @@ public final class SessionsTest {
         sessions.adopted(1, again, second);
         sessions.settled(second);
         TestKit.check(sessions.resumable(1, ticket, "p") == null, "old ticket dies at the first RECIBO");
+    }
+
+    /** A retired session leaves memory at L + delta with no disk reaper or later resume attempt. */
+    private static void retiredSessionIsPruned() {
+        Sessions sessions = new Sessions();
+        byte[] ticket = new byte[32];
+        Session session = new Session(5, "p", "anonimo", 128, 0, null, ticket);
+        sessions.add(session);
+        sessions.retire(session);
+        long now = System.nanoTime();
+        long lease = seurat.config.SeuratConstants.LEASE_S * seurat.config.Units.NANOS_PER_S;
+        sessions.pruneExpired(now + lease / 2);
+        TestKit.check(sessions.resumable(5, ticket, "p") != null, "still resumable inside L + delta");
+        sessions.pruneExpired(now + lease + 10 * seurat.config.Units.NANOS_PER_S);
+        TestKit.check(sessions.resumable(5, ticket, "p") == null, "pruned after L + delta");
+        TestKit.check(!sessions.graves().contains(session), "no grave keeps the session alive");
     }
 }

@@ -103,6 +103,14 @@ public final class BrushBudget {
         }
     }
 
+    /** OBRA(BAJA): the withdrawn work's buckets, coverage maps and global windows leave memory. */
+    public synchronized void forget(String work) {
+        String inner = "\0" + work + "\0";
+        buckets.keySet().removeIf(k -> k.contains(inner));
+        coverages.keySet().removeIf(k -> k.endsWith("\0" + work));
+        global.forget(work);
+    }
+
     private TokenBucket bucket(String principal, String work, int stratum, BudgetPolicy.Rule rule) {
         return buckets.computeIfAbsent(principal + "\0" + work + "\0" + stratum,
                 k -> new TokenBucket(rule.capacity(), rule.perS()));

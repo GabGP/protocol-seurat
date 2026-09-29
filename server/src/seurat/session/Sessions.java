@@ -112,10 +112,14 @@ public final class Sessions {
         session.resumedFrom = 0;
     }
 
+    /** Drops the resumable entries whose L + delta has passed, so their books can be collected. */
+    public void pruneExpired(long nowNs) {
+        resumable.values().removeIf(r -> r.expiresNs() < nowNs);
+    }
+
     /** Dead sessions whose books are still alive (they reference works: files stay). */
     public List<Session> graves() {
-        long now = System.nanoTime();
-        resumable.values().removeIf(r -> r.expiresNs() < now);
+        pruneExpired(System.nanoTime());
         List<Session> out = new ArrayList<>();
         for (Resumable r : resumable.values()) {
             if (!live.containsKey(r.holder().id())) {

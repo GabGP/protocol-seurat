@@ -21,6 +21,14 @@ public final class SeuratConstants {
     /** mem_mib when the client declares none (spec 5.1: no deviceMemory API). */
     public static final long DEFAULT_MEM_MIB = 128;
     public static final long TOKEN_TTL_S = 120;
+    /** Longest HTTP request line or header line accepted before the handshake (bytes). */
+    public static final int HTTP_LINE_MAX = 8 * Units.BYTES_PER_KIB;
+    /** Most headers accepted on one HTTP request. */
+    public static final int HTTP_HEADERS_MAX = 100;
+    /** How long a connection may stay silent before its SALUDO arrives (seconds). */
+    public static final long HANDSHAKE_S = 10;
+    /** Control frames (ping, pong, close) carry at most this many payload bytes (RFC 6455 5.5). */
+    public static final int WS_CONTROL_MAX = 125;
     public static final int BRUSH_SIDE = 256;
     public static final long SCRAPE_TIMEOUT_S = 10;
     public static final long RENEW_S = 60;

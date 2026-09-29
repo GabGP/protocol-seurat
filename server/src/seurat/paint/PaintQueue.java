@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import seurat.session.Canvas;
+import seurat.session.Session;
 
 /**
  * Pending plans, one FIFO per canvas in plan order (passes 1-2-3). The Painter takes
@@ -31,9 +32,18 @@ final class PaintQueue {
         notifyAll();
     }
 
+    /** Re-queues a taken entry; a canvas closed meanwhile (CERRAR ran drop) must not get its queue back. */
     synchronized void pushFront(Pending pending) {
+        if (!open(pending.canvas())) {
+            return;
+        }
         byCanvas.computeIfAbsent(pending.canvas(), k -> new ArrayDeque<>()).addFirst(pending);
         notifyAll();
+    }
+
+    private static boolean open(Canvas canvas) {
+        Session s = canvas.session();
+        return s != null && s.canvases().get(canvas.handle()) == canvas;
     }
 
     synchronized void drop(Canvas canvas) {

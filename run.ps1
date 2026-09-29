@@ -65,5 +65,5 @@ if (-not [Console]::IsOutputRedirected) {
     try { $cols = [Console]::WindowWidth } catch {}
     $logFlags = @("-Dseurat.log.tty=true", "-Dseurat.log.columns=$cols")
 }
-& java @runFlags $heap @logFlags @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
+& java @runFlags $heap "-XX:+HeapDumpOnOutOfMemoryError" "-XX:HeapDumpPath=.seurat/runtime/" @logFlags @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
 exit $LASTEXITCODE

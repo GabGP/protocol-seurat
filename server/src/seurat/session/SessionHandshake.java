@@ -3,7 +3,9 @@ package seurat.session;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import seurat.config.SeuratConstants;
+import seurat.config.Units;
 import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
@@ -23,15 +25,24 @@ final class SessionHandshake {
     private final Mapping mapping;
     private final BlockingQueue<byte[]> entry;
     private final EaselContext ctx;
+    private final long timeoutMs;
 
     SessionHandshake(Mapping mapping, BlockingQueue<byte[]> entry, EaselContext ctx) {
+        this(mapping, entry, ctx, SeuratConstants.HANDSHAKE_S * Units.MS_PER_S);
+    }
+
+    SessionHandshake(Mapping mapping, BlockingQueue<byte[]> entry, EaselContext ctx, long timeoutMs) {
         this.mapping = mapping;
         this.entry = entry;
         this.ctx = ctx;
+        this.timeoutMs = timeoutMs;
     }
 
     Session hello() throws Exception {
-        byte[] raw = entry.take();
+        byte[] raw = entry.poll(timeoutMs, TimeUnit.MILLISECONDS);
+        if (raw == null) {
+            throw new java.io.EOFException("no SALUDO within " + timeoutMs + " ms");
+        }
         if (raw.length == 0) {
             throw new java.io.EOFException("control closed");
         }

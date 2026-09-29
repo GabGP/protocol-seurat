@@ -1,8 +1,10 @@
 package seurat.net;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import seurat.config.SeuratConstants;
 
 /** Helper for reading line-based HTTP requests from stream. */
 final class SocketIo {
@@ -24,6 +26,9 @@ final class SocketIo {
             }
             if (b != '\r') {
                 line.write(b);
+            }
+            if (line.size() > SeuratConstants.HTTP_LINE_MAX) {
+                throw new IOException("line too long");
             }
             prev = b;
         }

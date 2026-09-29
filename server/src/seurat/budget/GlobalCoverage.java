@@ -35,6 +35,10 @@ final class GlobalCoverage {
         window(key).brushes.set(p.by() * width + p.bx());
     }
 
+    synchronized void forget(String work) {
+        windows.keySet().removeIf(k -> k.startsWith(work + "\0"));
+    }
+
     static String key(String work, String role, int stratum) {
         return work + "\0" + role + "\0" + stratum;
     }

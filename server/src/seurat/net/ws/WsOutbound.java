@@ -37,6 +37,9 @@ final class WsOutbound implements Runnable {
         if (stopped || closeCode >= 0) {
             throw new IOException("ws closed");
         }
+        if (opcode == WsFraming.PONG) {
+            control.removeIf(o -> o.opcode() == WsFraming.PONG); // a PING flood keeps one pending PONG
+        }
         control.addLast(new Out(opcode, message));
         notifyAll();
     }
