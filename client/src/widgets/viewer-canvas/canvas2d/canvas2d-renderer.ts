@@ -1,14 +1,13 @@
-import { clamp } from '@/shared/lib/clamp';
 import {
-  TAU, BG_COLOR, IMAGE_SMOOTHING_THRESHOLD, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM,
+  BG_COLOR, IMAGE_SMOOTHING_THRESHOLD, DOT_FADE_RAMP_FACTOR, MAX_BACKGROUND_DIM,
   FRAME_SHADOW_PADDING, FRAME_SHADOW_OFFSET_Y, FRAME_SHADOW_MARGIN,
-  LOUPE_RADIUS, LOUPE_PIXEL_OUTLINE_ZOOM, LOUPE_PIXEL_OUTLINE_WIDTH, LOUPE_RIM_WIDTH,
-  LOADER_COLORS, ACCENT_COLOR, FRAME_FILL_COLOR, PIXEL_OUTLINE_COLOR,
+  FRAME_FILL_COLOR,
 } from '@/shared/config/render';
-import { forEachLoaderDot } from '../lib/loader-dots';
 import { drawPointillism } from '../lib/pointillism';
 import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 import { ViewerSprites } from './render-sprites';
+import { drawLoaderDots } from './draw-loader';
+import { drawLoupe } from './draw-loupe';
 import { snapSpan, tilesCover } from './tile-cover';
 import type { FrameState, LoaderState, ViewRenderer } from '../model/view-renderer';
 
@@ -76,7 +75,10 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.clip();
     this.layer(f, f.tx, f.ty, f.s, 0, 0, this.W, this.H, this.mainCuller);
     ctx.restore();
-    if (f.loupe) this.loupe(f, f.loupe);
+    if (f.loupe) {
+      drawLoupe(ctx, this.sprites, f, f.loupe, (tx, ty, s, x0, y0, x1, y1) =>
+        this.layer(f, tx, ty, s, x0, y0, x1, y1, this.loupeCuller));
+    }
     return this.drawn;
   }
 
@@ -84,12 +86,7 @@ export class Canvas2DRenderer implements ViewRenderer {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.sprites.drawBackground(ctx, this.W, this.H, l.tx, l.ty, l.flags.grid, null);
-    forEachLoaderDot(l.t, this.W, this.H, (i, x, y, r) => {
-      ctx.fillStyle = LOADER_COLORS[i % LOADER_COLORS.length] ?? ACCENT_COLOR;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, TAU);
-      ctx.fill();
-    });
+    drawLoaderDots(ctx, l, this.W, this.H);
   }
 
   /** Brushes (culled, opaque), then the dot mask laid over them once dots are on. */
@@ -131,34 +128,5 @@ export class Canvas2DRenderer implements ViewRenderer {
       const amount = Math.min(1, (s - th) / (th * DOT_FADE_RAMP_FACTOR)) * MAX_BACKGROUND_DIM;
       drawPointillism(ctx, { tx, ty, s, cx0, cy0, cx1, cy1, amount, under: BG_COLOR });
     }
-  }
-
-  private loupe(f: FrameState, { mx, my, L }: { mx: number; my: number; L: number }): void {
-    const ctx = this.ctx;
-    const R = LOUPE_RADIUS;
-    const ix = clamp((mx - f.tx) / f.s, 0, f.iw);
-    const iy = clamp((my - f.ty) / f.s, 0, f.ih);
-    const ltx = mx - ix * L;
-    const lty = my - iy * L;
-    this.sprites.drawLoupeDisc(ctx, mx, my);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(mx, my, R, 0, TAU);
-    ctx.clip();
-    ctx.beginPath();
-    ctx.rect(ltx, lty, f.iw * L, f.ih * L);
-    ctx.clip();
-    this.layer(f, ltx, lty, L, mx - R, my - R, mx + R, my + R, this.loupeCuller);
-    if (L >= LOUPE_PIXEL_OUTLINE_ZOOM) {
-      ctx.strokeStyle = PIXEL_OUTLINE_COLOR;
-      ctx.lineWidth = LOUPE_PIXEL_OUTLINE_WIDTH;
-      ctx.strokeRect(ltx + Math.floor(ix) * L, lty + Math.floor(iy) * L, L, L);
-    }
-    ctx.restore();
-    ctx.lineWidth = LOUPE_RIM_WIDTH;
-    ctx.strokeStyle = ACCENT_COLOR;
-    ctx.beginPath();
-    ctx.arc(mx, my, R, 0, TAU);
-    ctx.stroke();
   }
 }
