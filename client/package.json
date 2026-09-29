@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && vitest run && bash ../scripts/check-loc.sh && bash ../.opencode/skills/frontend-fsd/scripts/check-fsd.sh"
   },
   "dependencies": {
     "react": "18.3.1",

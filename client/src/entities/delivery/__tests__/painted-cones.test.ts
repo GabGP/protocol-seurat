@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { DeliverySink } from '../sink/delivery-sink';
 import { makeBrushId } from '@/shared/proto/brush';
 import type { DeliveryPort } from '../sink/port';
 import { PaintedCones } from '../painted-cones';
+import { makeSink } from '../testing/make-sink';
 
 const view = (x0: number): { x0: number; y0: number; x1: number; y1: number; focus: number } =>
   ({ x0, y0: 0, x1: x0 + 512, y1: 512, focus: 0 });
@@ -49,7 +49,7 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
       sendRelease: (_h: number, reason: number, ranges: number[]) => sentRelease.push({ reason, ranges }),
       sendReceipt: () => undefined,
     } as unknown as DeliveryPort;
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 40);
+    const sink = makeSink({ client, maxBrushes: 40 });
     for (let bx = 0; bx < 36; bx++) { // a row of level-0 brushes; delivery n = bx + 1
       sink.book.byDelivery.set(bx + 1, {
         delivery: bx + 1, brushId: makeBrushId(0, bx, 0), stratum: 0,
@@ -75,7 +75,7 @@ describe('DeliverySink eviction while the old plan is still landing', () => {
       sendRelease: (_h: number, _r: number, ranges: number[]) => released.push(...ranges),
       sendReceipt: () => undefined,
     } as unknown as DeliveryPort;
-    const sink = new DeliverySink(1, () => client, () => maxKiB, () => max);
+    const sink = makeSink({ client, maxKiB, maxBrushes: max });
     const hold = (n: number, stratum: number, bx: number): void => {
       sink.book.byDelivery.set(n, {
         delivery: n, brushId: makeBrushId(stratum, bx, 0), stratum,

@@ -19,32 +19,15 @@ import {
   type WorkMessage,
 } from '@/shared/proto/messages';
 import { makeBrushId } from '@/shared/proto/brush';
-import { crc32c } from '@/shared/codec/crc32c';
-import { concat, viDecode, viEncode } from '@/shared/proto/varint';
+import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { concat, viDecode } from '@/shared/proto/varint';
 import type { SeuratTransport } from '@/shared/api/transport';
 
-function makeBrushBytes(handle: number, delivery: number, brushId: bigint): Uint8Array {
-  const band = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-  const c = crc32c(band);
-  const bIdBuf = new Uint8Array(8);
-  new DataView(bIdBuf.buffer).setBigUint64(0, brushId);
-  const crcBuf = new Uint8Array(4);
-  new DataView(crcBuf.buffer).setUint32(0, c);
+const BAND = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+const QUALITY = 10;
 
-  return concat(
-    viEncode(0x01), // PINCELADA
-    viEncode(handle),
-    viEncode(delivery),
-    bIdBuf,
-    [0x01], // from=0, through=1
-    viEncode(1), // epoch
-    [10, 10], // qY, qC
-    viEncode(1), // edition
-    crcBuf,
-    viEncode(band.length),
-    band,
-  );
-}
+const makeBrushBytes = (handle: number, delivery: number, brushId: bigint): Uint8Array =>
+  makeDeliveryBytes({ handle, delivery, brushId, from: 0, through: 1, epoch: 1, qY: QUALITY, qC: QUALITY, band: BAND });
 
 describe('End-to-End Protocol Flow Integration', () => {
   it('executes full session, catalog, open, delivery, audit, and eviction cycle', async () => {

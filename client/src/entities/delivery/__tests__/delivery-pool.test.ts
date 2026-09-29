@@ -1,72 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliverySink } from '../sink/delivery-sink';
-import { crc32c } from '@/shared/codec/crc32c';
-import { concat, viEncode } from '@/shared/proto/varint';
 import { makeBrushId, brushKey } from '@/shared/proto/brush';
-import type { DeliveryPort } from '../sink/port';
-import type { SynthRequest } from '@/workers/protocol';
+import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { FakeWorker } from '../testing/fake-worker';
+import { makeSink } from '../testing/make-sink';
 import { STALE_PARENT } from '@/workers/protocol';
-
-function fakeClient() {
-  const c = {
-    sendRelease() {},
-    sendScraped() {},
-    sendReceipt() {},
-    sendInventory() {},
-  };
-  return c as unknown as DeliveryPort;
-}
-
-function makeDeliveryBytes(opts: {
-  handle: number;
-  delivery: number;
-  brushId: bigint;
-  from: number;
-  through: number;
-  epoch: number;
-}): Uint8Array {
-  const band = new Uint8Array([10, 20, 30, 40, 50]);
-  const bIdBuf = new Uint8Array(8);
-  new DataView(bIdBuf.buffer).setBigUint64(0, opts.brushId);
-  const crcBuf = new Uint8Array(4);
-  new DataView(crcBuf.buffer).setUint32(0, crc32c(band));
-  const head = concat(
-    viEncode(0x01),
-    viEncode(opts.handle),
-    viEncode(opts.delivery),
-    bIdBuf,
-    new Uint8Array([((opts.from & 0xf) << 4) | (opts.through & 0xf)]),
-    viEncode(opts.epoch),
-    new Uint8Array([4, 6]),
-    viEncode(1),
-    crcBuf,
-    viEncode(band.length),
-  );
-  return concat(head, band);
-}
-
-class FakeWorker {
-  onmessage: ((ev: MessageEvent) => void) | null = null;
-  sent: SynthRequest[] = [];
-  terminated = false;
-  postMessage(req: SynthRequest, _options: { transfer: Transferable[] }): void {
-    this.sent.push(req);
-  }
-  terminate(): void {
-    this.terminated = true;
-  }
-  answer(data: unknown): void {
-    this.onmessage?.({ data } as MessageEvent);
-  }
-}
-
-function makeSink(poolSize: number, workers: FakeWorker[]): DeliverySink {
-  return new DeliverySink(1, () => fakeClient(), () => 36864, () => 768, 192, 160, 11, poolSize, () => {
-    const w = new FakeWorker();
-    workers.push(w);
-    return w;
-  });
-}
 
 describe('DeliverySink pool', () => {
   it('fans out over idle workers, holds the rest, refills on completion', async () => {
@@ -75,7 +12,7 @@ describe('DeliverySink pool', () => {
     });
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })));
     const workers: FakeWorker[] = [];
-    const sink = makeSink(2, workers);
+    const sink = makeSink({ poolSize: 2, workers: workers });
     const seed = makeBrushId(10, 0, 0);
     const ingest = (delivery: number): void => {
       sink.ingest(makeDeliveryBytes({ handle: 1, delivery, brushId: seed, from: 0, through: 1, epoch: 1 }), () => 1000, () => {}, 120);
@@ -98,7 +35,7 @@ describe('DeliverySink pool', () => {
   });
 
   it('runs the newest epoch first when a worker frees', () => {    const workers: FakeWorker[] = [];
-    const sink = makeSink(1, workers);
+    const sink = makeSink({ poolSize: 1, workers: workers });
     const seed = makeBrushId(10, 0, 0);
     const ingest = (delivery: number, epoch: number): void => {
       sink.ingest(makeDeliveryBytes({ handle: 1, delivery, brushId: seed, from: 0, through: 1, epoch }), () => 1000, () => {}, 120);
@@ -118,7 +55,7 @@ describe('DeliverySink pool', () => {
     });
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })));
     const workers: FakeWorker[] = [];
-    const sink = makeSink(2, workers);
+    const sink = makeSink({ poolSize: 2, workers: workers });
     const seed = makeBrushId(10, 0, 0);
     const child = makeBrushId(9, 0, 0);
     const ingest = (delivery: number, brushId: bigint): void => {

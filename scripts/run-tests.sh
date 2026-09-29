@@ -24,5 +24,5 @@ for t in $(cd server/test && find . -name '*Test.java' | sed 's|^\./||; s|\.java
   fi
 done
 echo "---"
-bash "$(dirname "$0")/check-loc.sh" --server
+bash "$(dirname "$0")/check-loc.sh"
 [ "$fail" -eq 0 ]

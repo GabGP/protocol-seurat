@@ -1,7 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 import { makeBrushId } from '@/shared/proto/brush';
-import { crc32c } from '@/shared/codec/crc32c';
-import { concat, viEncode } from '@/shared/proto/varint';
+import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
 import { ulebEncode, zigzagEncode } from '@/shared/codec/leb128';
 import { rgbToYCoCg } from '@/shared/codec/ycocgr';
 import type { SynthWorker, WorkerFactory } from '@/entities/delivery';
@@ -10,14 +9,7 @@ import { PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 
 /** A PINCELADA flow carrying one band: 0 by default (bandas 0x01), or `(from << 4) | through`. */
 function flow(handle: number, delivery: number, brushId: bigint, band: Uint8Array, bands = 0x01): Uint8Array {
-  const id = new Uint8Array(8);
-  new DataView(id.buffer).setBigUint64(0, brushId);
-  const crc = new Uint8Array(4);
-  new DataView(crc.buffer).setUint32(0, crc32c(band));
-  return concat(
-    viEncode(0x01), viEncode(handle), viEncode(delivery), id, [bands], viEncode(1), [1, 1], viEncode(1),
-    crc, viEncode(band.length), band,
-  );
+  return makeDeliveryBytes({ handle, delivery, brushId, from: bands >> 4, through: bands & 0xf, epoch: 1, qY: 1, qC: 1, band });
 }
 
 /** A flat-colour seed of `w × h` (DPCM + zigzag + LEB128 + deflate, spec 3.4.4). */

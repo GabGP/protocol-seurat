@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WorkerPool, poolSizeFor } from '../worker-pool';
 import { SynthQueue, type ReadyJob } from '../synth-queue';
 import type { SynthRequest } from '@/workers/protocol';
+import { FakeWorker } from '../testing/fake-worker';
 
 function req(delivery: number, stratum: number): SynthRequest {
   return { delivery, synthesisId: delivery, stratum, qY: 4, qC: 6, seed: false, seedWidth: 192, seedHeight: 160,
@@ -10,18 +11,6 @@ function req(delivery: number, stratum: number): SynthRequest {
 
 function job(delivery: number, stratum: number, epoch = 1, distTiles = 0): ReadyJob {
   return { req: req(delivery, stratum), brushId: BigInt(delivery), epoch, distTiles, refOk: true };
-}
-
-class FakeWorker {
-  onmessage: ((ev: MessageEvent) => void) | null = null;
-  sent: SynthRequest[] = [];
-  terminated = false;
-  postMessage(r: SynthRequest): void {
-    this.sent.push(r);
-  }
-  terminate(): void {
-    this.terminated = true;
-  }
 }
 
 describe('poolSizeFor', () => {

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { linkParent } from '../sink/brush-graph';
-import { DeliverySink } from '../sink/delivery-sink';
 import { makeBrushId, brushKey } from '@/shared/proto/brush';
-import { fakeClient, makeDeliveryBytes } from './sink-fixtures';
+import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { fakeClient } from '../testing/fake-port';
+import { makeSink } from '../testing/make-sink';
 
 describe('DeliverySink eviction, decode and revisions', () => {
   it('tells the server when a busy decode queue drains, so plans resume without waiting for a renewal', () => {
@@ -14,7 +15,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
       postMessage = vi.fn();
       terminate = vi.fn();
     });
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768, 192, 160, 11, 1);
+    const sink = makeSink({ client, poolSize: 1 });
     for (let n = 1; n <= 40; n++) { // 40 syntheses in the worker ≈ 200 ms of backlog
       sink.ingest(makeDeliveryBytes({ handle: 1, delivery: n, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1 }), () => 1000, () => {}, 120);
     }
@@ -30,7 +31,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
   });
 
   it('re-linking a child to a new parent leaves no stale link on the old one', () => {
-    const sink = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const sink = makeSink();
     linkParent(sink.book, 5, 1);
     linkParent(sink.book, 5, 2);
     expect(sink.book.childrenOf.get(1)?.has(5)).toBe(false);
@@ -40,7 +41,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
 
   it('moving away evicts the farthest brushes (SOLTAR 1) and a RECIBO reopens the window', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 40);
+    const sink = makeSink({ client, maxBrushes: 40 });
     for (let bx = 0; bx < 36; bx++) { // a row of level-0 brushes; delivery n = bx + 1
       sink.book.byDelivery.set(bx + 1, {
         delivery: bx + 1, brushId: makeBrushId(0, bx, 0), stratum: 0,
@@ -57,7 +58,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
 
   it('a failed VRAM reservation evicts a quarter of what is held (SOLTAR 1) even without count pressure', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     for (let bx = 0; bx < 36; bx++) {
       sink.book.byDelivery.set(bx + 1, {
         delivery: bx + 1, brushId: makeBrushId(0, bx, 0), stratum: 0,
@@ -89,7 +90,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
       constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}
     });
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })));
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     sink.book.byDelivery.set(1, {
       delivery: 1, brushId: makeBrushId(10, 0, 0), stratum: 10,
       from: 0, through: 4, bytes: 5, epoch: 1, edition: 1, expires: 121000, rgba: null, planes: [new ArrayBuffer(2)],
@@ -120,8 +121,8 @@ describe('DeliverySink eviction, decode and revisions', () => {
   });
 
   it('assigns a distinct book revision per sink and bumps it on every mutation', () => {
-    const a = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
-    const b = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const a = makeSink();
+    const b = makeSink();
     expect(a.revision).not.toBe(b.revision);
     a.book.byDelivery.set(10, {
       delivery: 10, brushId: makeBrushId(10, 0, 0), stratum: 10,
@@ -143,7 +144,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
       terminate = vi.fn();
       set onmessage(_value: unknown) { /* dispatched only */ }
     });
-    const sink = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const sink = makeSink();
     const r0 = sink.revision;
     sink.ingest(makeDeliveryBytes({
       handle: 1, delivery: 10, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
@@ -160,7 +161,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
       terminate = vi.fn();
       set onmessage(_value: unknown) { /* dispatched only */ }
     });
-    const sink = new DeliverySink(1, () => fakeClient(), () => 36864, () => 768);
+    const sink = makeSink();
     sink.ingest(makeDeliveryBytes({
       handle: 1, delivery: 10, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
     }), () => 1000, () => {}, 120); // vence = 121 000

@@ -2,7 +2,7 @@
 # Enforces file budgets: prod <150 LoC, tests <300 LoC, for .java/.ts/.tsx.
 # Scans server/src, server/test (Java) and client/src (TS/TSX; __tests__/ and *.test.ts(x) count as tests).
 # Usage: bash check-loc.sh [--report] [--server] [root] — root defaults to the repo root.
-#   --server checks server/ only (run-tests.sh uses it until the client budgets land).
+#   --server checks server/ only.
 #   --report lists every over-budget file and always exits 0 (for tracking a refactor in progress).
 set -euo pipefail
 REPORT=0

@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeliverySink } from '../sink/delivery-sink';
 import { concat, viEncode } from '@/shared/proto/varint';
 import { rangesEncode } from '@/shared/proto/ranges';
 import { makeBrushId } from '@/shared/proto/brush';
-import { fakeClient, makeDeliveryBytes } from './sink-fixtures';
+import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { fakeClient } from '../testing/fake-port';
+import { makeSink } from '../testing/make-sink';
 
 describe('DeliverySink', () => {
   it('atomically cleans up synthesis failures and releases the full subtree once', () => {
@@ -16,7 +17,7 @@ describe('DeliverySink', () => {
       postMessage = worker.postMessage;
       terminate = worker.terminate;
     });
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     sink.ingest(makeDeliveryBytes({
       handle: 1, delivery: 10, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
     }), () => 1000, () => {}, 120);
@@ -52,7 +53,7 @@ describe('DeliverySink', () => {
       constructor(public data: Uint8ClampedArray, public width: number, public height: number) {}
     });
     vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })));
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     sink.ingest(makeDeliveryBytes({
       handle: 1, delivery: 11, brushId: makeBrushId(10, 0, 0), from: 0, through: 1, epoch: 1,
     }), () => 1000, () => {}, 120);
@@ -77,7 +78,7 @@ describe('DeliverySink', () => {
 
   it('rejects delivery with mismatched CRC and sends SOLTAR reason=6', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     const bytes = makeDeliveryBytes({
       handle: 1,
       delivery: 10,
@@ -95,7 +96,7 @@ describe('DeliverySink', () => {
 
   it('matchesScrape evaluates all 5 protocol predicates', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
 
     const recE1 = {
       delivery: 5, brushId: makeBrushId(1, 0, 0), stratum: 1,
@@ -136,7 +137,7 @@ describe('DeliverySink', () => {
 
   it('applyScrape removes matching records and sends exact RASPADO', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
 
     sink.book.byDelivery.set(1, {
       delivery: 1, brushId: makeBrushId(0, 0, 0), stratum: 0,
@@ -171,7 +172,7 @@ describe('DeliverySink', () => {
 
   it('applyRenew extends lease and inventory reports accurately', () => {
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
 
     sink.book.byDelivery.set(10, {
       delivery: 10, brushId: makeBrushId(1, 0, 0), stratum: 1,
@@ -195,7 +196,7 @@ describe('DeliverySink', () => {
   it('sweepExpiry purges expired records and sends batched SOLTAR reason=3', () => {
     vi.useFakeTimers();
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
 
     sink.book.byDelivery.set(1, {
       delivery: 1, brushId: makeBrushId(1, 0, 0), stratum: 1,
@@ -215,7 +216,7 @@ describe('DeliverySink', () => {
   it('sweepExpiry releases an expired subtree without duplicate delivery numbers', () => {
     vi.useFakeTimers();
     const client = fakeClient();
-    const sink = new DeliverySink(1, () => client, () => 36864, () => 768);
+    const sink = makeSink({ client });
     sink.book.byDelivery.set(1, {
       delivery: 1, brushId: makeBrushId(2, 0, 0), stratum: 2,
       from: 0, through: 1, bytes: 500, epoch: 1, edition: 1, expires: 500, rgba: null,
