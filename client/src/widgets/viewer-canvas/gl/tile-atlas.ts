@@ -1,19 +1,9 @@
 import { TILE } from '@/shared/config/constants';
 import { GL_ATLAS_LAYERS } from '@/shared/config/render';
+import { allocLayerArray, uploadLayer, uploadSketch, type AtlasGL, type Slot } from './atlas-gl';
+
+export type { AtlasGL };
 import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
-
-/** The slice of WebGL2 the atlas uses (a fake of it drives the tests). */
-export type AtlasGL = Pick<WebGL2RenderingContext,
-  'createTexture' | 'deleteTexture' | 'bindTexture' | 'texStorage3D' | 'texSubImage3D' | 'texImage2D'
-  | 'texParameteri' | 'pixelStorei' | 'getError'
-  | 'TEXTURE_2D' | 'TEXTURE_2D_ARRAY' | 'RGBA8' | 'RGBA' | 'UNSIGNED_BYTE' | 'OUT_OF_MEMORY' | 'NO_ERROR'
-  | 'TEXTURE_WRAP_S' | 'TEXTURE_WRAP_T' | 'CLAMP_TO_EDGE' | 'TEXTURE_MIN_FILTER' | 'TEXTURE_MAG_FILTER' | 'LINEAR'
-  | 'UNPACK_FLIP_Y_WEBGL' | 'UNPACK_PREMULTIPLY_ALPHA_WEBGL' | 'UNPACK_COLORSPACE_CONVERSION_WEBGL' | 'NONE'>;
-
-export interface Slot {
-  array: number;
-  layer: number;
-}
 
 /**
  * Spec §5.1 VRAM: one RGBA8 256² layer of a TEXTURE_2D_ARRAY per owned brush, in arrays of
@@ -117,16 +107,13 @@ export class TileAtlas {
   /** False stops this frame's uploads (no VRAM); a bitmap that fails to upload is dropped. */
   private put(bmp: ImageBitmap): boolean {
     if (bmp === this.sketchWanted) return this.putSketch(bmp);
-    const gl = this.gl;
     const slot = this.free.pop() ?? this.grow();
     if (!slot) {
       this.queue.unshift(bmp); // keep it for when eviction makes room
       return false;
     }
     try {
-      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.arrays[slot.array] ?? null);
-      this.unpack();
-      gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, slot.layer, TILE, TILE, 1, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+      uploadLayer(this.gl, this.arrays[slot.array] ?? null, slot.layer, bmp);
       this.slots.set(bmp, slot);
     } catch {
       this.free.push(slot); // closed under us: its brush left the book, the next reconcile agrees
@@ -139,10 +126,7 @@ export class TileAtlas {
     const tex = gl.createTexture();
     if (!tex) return false;
     try {
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      this.params(gl.TEXTURE_2D);
-      this.unpack();
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+      uploadSketch(gl, tex, bmp);
     } catch {
       gl.deleteTexture(tex);
       return true;
@@ -154,35 +138,10 @@ export class TileAtlas {
 
   /** A new array of layers; a failed reservation is §5.2.3's VRAM pressure signal. */
   private grow(): Slot | null {
-    const gl = this.gl;
-    const tex = gl.createTexture();
+    const tex = allocLayerArray(this.gl, this.layersPerArray, this.onVramFailure);
     if (!tex) return null;
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
-    gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA8, TILE, TILE, this.layersPerArray);
-    if (gl.getError() === gl.OUT_OF_MEMORY) {
-      gl.deleteTexture(tex);
-      this.onVramFailure();
-      return null;
-    }
-    this.params(gl.TEXTURE_2D_ARRAY);
     const array = this.arrays.push(tex) - 1;
     for (let layer = this.layersPerArray - 1; layer > 0; layer--) this.free.push({ array, layer });
     return { array, layer: 0 };
-  }
-
-  private params(target: number): void {
-    const gl = this.gl;
-    gl.texParameteri(target, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(target, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  }
-
-  /** Bitmaps are opaque sRGB bytes already: no flip, premultiply or colour conversion. */
-  private unpack(): void {
-    const gl = this.gl;
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
   }
 }
