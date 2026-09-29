@@ -1,3 +1,4 @@
+import { BAND_COUNTS } from '@/shared/config/constants';
 import { AttentionHeat } from '../attention-heat';
 import { brushCap } from '../brush-cap';
 import { DecodeQueue } from '../decode-queue';
@@ -90,6 +91,10 @@ export class SinkState {
   inflight = new Map<number, InflightSynth>();
   repaint = (): void => undefined;
   view: EvictView | null = null;
+  /** The work's size in image px (ABIERTA); until known, the seed scaled to full size bounds it. */
+  extent: { w: number; h: number } | null = null;
+  /** Bands the plan wants at the view's focus stratum (`focusBands`); coarser core wants all. */
+  focusBands: number = BAND_COUNTS.length;
   /** When `view` went on screen (s), so its brushes get the dwell as attention heat. */
   viewSince = 0;
   lastFree = -1;
@@ -110,5 +115,9 @@ export class SinkState {
 
   get top(): number {
     return Math.max(0, this.strata - 1);
+  }
+
+  get size(): { w: number; h: number } {
+    return this.extent ?? { w: this.seedWidth * 2 ** this.top, h: this.seedHeight * 2 ** this.top };
   }
 }

@@ -1,9 +1,10 @@
 import {
   BYTES_PER_KIB, EVICT_HEADROOM, EVICT_PRESSURE, EVICT_TARGET, MS_PER_S, ReleaseReason, SKETCH_MIN,
 } from '@/shared/config/constants';
-import { collectCandidates, inCore, ownedBrushes } from '../evict-candidate';
+import { collectCandidates, inCone, inCore, ownedBrushes, type EvictCandidate } from '../evict-candidate';
 import { rankHorizon } from '../horizon-rank';
 import { ownedBytes } from '../store';
+import { coreMissing } from './core-deficit';
 import { byteWindow } from './credit-window';
 import { release } from './release';
 import { removeSubtree } from './removal';
@@ -22,9 +23,9 @@ export function warmShown(s: SinkState, nowS: number): void {
 /**
  * §5.2.3 voluntary eviction. Under pressure (owned + in flight >= max - 8, bytes > 90 %, or room
  * in max_kib for fewer than 8 more after what may still come) drop leaf brushes (no owned
- * children) until 75 % full with room for 8. Never the sketch nor the core, and
- * not a cone the server may still be painting unless the book is full (see
- * `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted time-to-need
+ * children) outside the current cone until 75 % full with room for 8, then in-cone ones only
+ * while core brushes are missing. Never the sketch nor the core, and not a cone the server may
+ * still be painting unless the book is full (see `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted time-to-need
  * from the gaze's motion (kinematic Belady), shortened by attention heat.
  * Whole brushes go, all deliveries at once, with SOLTAR reason 1.
  */
@@ -54,13 +55,24 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   const held = (m: number): boolean => book.byDelivery.has(m);
   const painted = book.byDelivery.size >= hold ? []
     : s.cones.views((n) => s.settlement.settledBelow(n, held));
-  while (over()) {
-    const candidates = collectCandidates(book, s.view, painted, sketch);
-    if (candidates.length === 0) break;
-    for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
-      if (!over()) break;
-      for (const r of recs) if (held(r.delivery)) released.push(...removeSubtree(s, r.delivery, 0, 'evicted'));
+  const evict = (more: () => boolean, allowed: (c: EvictCandidate) => boolean): void => {
+    while (more()) {
+      const candidates = collectCandidates(book, s.view, painted, sketch).filter(allowed);
+      if (candidates.length === 0) break;
+      for (const { recs } of rankHorizon(candidates, gaze, heatOf)) {
+        if (!more()) break;
+        for (const r of recs) if (held(r.delivery)) released.push(...removeSubtree(s, r.delivery, 0, 'evicted'));
+      }
     }
+  };
+  // Outside the current cone first (§5.2.3); a failed VRAM reservation sheds whatever it must.
+  evict(over, (c) => vramShort || !inCone(s.view, c.recs[0]!.brushId));
+  // The cone's own rings only make room for a missing core, a few at a time: evicting more would
+  // be re-sent by the next plan. A full book otherwise stays full: libre is 0 and the server waits.
+  const room = (): number => Math.min(hold - load(), byteWindow(s));
+  if (!vramShort && room() < EVICT_HEADROOM) {
+    const need = Math.min(EVICT_HEADROOM, coreMissing(s) - book.inFlight.size);
+    evict(() => room() < need, () => true);
   }
   if (released.length > 0) s.heat.prune(new Set(ownedBrushes(book).keys()));
   release(s, released, ReleaseReason.EVICTED);

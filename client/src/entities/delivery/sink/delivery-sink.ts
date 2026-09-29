@@ -112,6 +112,8 @@ export class DeliverySink {
 
   /** The brush cap changed: apply it now (eviction down to it, or a wider RECIBO window). */
   relieveNow(): void { relieveNow(this.s); }
+  /** The work's size (ABIERTA), image px: which core brushes exist to be missing. */
+  setExtent(w: number, h: number): void { this.s.extent = { w, h }; }
 
   /** RECIBO.libre: what the window still allows (memory and link). */
   free(): number { return free(this.s); }

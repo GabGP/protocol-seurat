@@ -1,5 +1,6 @@
 import { MS_PER_S } from '@/shared/config/constants';
 import { clamp } from '@/shared/lib/clamp';
+import { focusBands } from './core-deficit';
 import { relieve, warmShown } from './eviction';
 import { flushReceipt } from './receipts';
 import type { SinkState } from './state';
@@ -13,9 +14,11 @@ export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: nu
   const nowS = performance.now() / MS_PER_S;
   const zoom = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
   const ideal = Number.isFinite(zoom) ? zoom : 0;
-  const focus = clamp(Math.floor(ideal), 0, s.top - 1);
+  // The server's focus (ConePlanner): never finer than the concession's min_estrato.
+  const focus = clamp(Math.max(Math.floor(ideal), s.grant?.minStratum ?? 0), 0, s.top - 1);
   warmShown(s, nowS);
   s.view = { x0, y0, x1, y1, focus };
+  s.focusBands = focusBands(ideal, focus, s.grant);
   s.cones.look(s.view, seq);
   s.viewSince = nowS;
   s.gaze.observe(nowS, (x0 + x1) / 2, (y0 + y1) / 2, ideal, Math.hypot(x1 - x0, y1 - y0) / 2);

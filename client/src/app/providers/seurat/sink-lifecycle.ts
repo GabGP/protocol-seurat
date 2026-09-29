@@ -36,6 +36,7 @@ export function openSink(rt: Runtime, a: WorkOpened): void {
     a.seedHeight,
     a.strata,
   );
+  sink.setExtent(a.width, a.height);
   rt.sink = sink;
   rt.offBrushCap?.();
   rt.offBrushCap = onBrushCap(() => sink.relieveNow());
