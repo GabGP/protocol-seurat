@@ -24,10 +24,16 @@ export class ParentPlaneCache {
   private readonly freq = new Map<string, number>();
 
   constructor(
-    private readonly smallCap: number,
-    private readonly mainCap: number,
+    private smallCap: number,
+    private mainCap: number,
     private readonly ghostCap: number,
   ) {}
+
+  /** New queue sizes; entries above them leave as new ones arrive. */
+  resize(smallCap: number, mainCap: number): void {
+    this.smallCap = smallCap;
+    this.mainCap = mainCap;
+  }
 
   get size(): number {
     return this.planes.size;

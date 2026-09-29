@@ -1,9 +1,19 @@
 import { TILE, TILE_HALF, TILE_HALF_CELLS } from '@/shared/config/protocol';
-import { SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL, type SynthRequest } from './protocol';
+import {
+  SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL, SYNTH_CACHE_SMALL_SHARE, type SynthRequest,
+} from './protocol';
 import { PLANE_CHANNELS, ParentPlaneCache, type PlaneSet } from './synth-cache';
 
 /** Parent planes this worker synthesized or received: ref hits skip transfers. */
 export const parents = new ParentPlaneCache(SYNTH_CACHE_SMALL, SYNTH_CACHE_MAIN, SYNTH_CACHE_GHOST);
+
+/** Applies the pool's share of the cache budget, when the request carries one. */
+export function sizeCache(req: SynthRequest): void {
+  const entries = req.cacheEntries;
+  if (entries === undefined || entries < 2) return;
+  const small = Math.max(1, Math.floor(entries / SYNTH_CACHE_SMALL_SHARE));
+  parents.resize(small, entries - small);
+}
 
 /** Cache identity: `req.brush` already is the `${brush}/${edition}` key the main thread refers to. */
 export function ownKey(req: SynthRequest): string {
@@ -80,7 +90,11 @@ export function resolveParent(req: SynthRequest): PlaneSet | null {
   return target;
 }
 
-/** Retain a copy for future children: the planes' buffers detach when they are transferred. */
+/**
+ * Retain a copy for future children: the planes' buffers detach when they are transferred. The
+ * finest stratum has no children, so its planes are never worth the memory.
+ */
 export function retain(req: SynthRequest, planes: PlaneSet): void {
+  if (req.stratum === 0 && !req.seed) return;
   parents.store(ownKey(req), { Y: planes.Y.slice(), Co: planes.Co.slice(), Cg: planes.Cg.slice() });
 }

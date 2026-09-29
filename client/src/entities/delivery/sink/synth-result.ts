@@ -4,6 +4,7 @@ import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/pro
 import { brushBands, linkParent, parentFor, sameBrush } from './brush-graph';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
+import { freeSuperseded } from './superseded';
 import { enqueue, pump } from './synth-dispatch';
 import { buildRequest, withParent } from './synth-request';
 import type { SinkState } from './state';
@@ -76,7 +77,7 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
   rec.rgba = bmp;
-  rec.planes = out.planes;
+  rec.planes = rec.stratum >= 1 ? out.planes : null; // the finest stratum has no children to seed
   s.revision++;
   rec.pending = false;
   if (!rec.receiptQueued && !rec.receiptSent) {
@@ -84,6 +85,7 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
     s.book.pendingReceipt.push(out.delivery);
   }
   replaceOlderEditions(s, rec);
+  freeSuperseded(s, rec);
   s.repaint();
   resynthesizeChildren(s, out.delivery);
   flushPending(s);

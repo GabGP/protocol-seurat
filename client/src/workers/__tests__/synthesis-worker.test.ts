@@ -131,4 +131,14 @@ describe('synthesis worker decode (golden)', () => {
     const child = await run(base({ qC: 0, parentRef: 'bare/1', bands: [bandBytes(1, rng(3))], brush: 'kid/2' }));
     expect(child.error).toBe(STALE_PARENT);
   });
+
+  it('keeps no planes for a finest-stratum decode: nothing can hang on it', async () => {
+    const r = rng(7);
+    const seed = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seedBytes(13, 9, r)], brush: 'seed/1', cacheEntries: 4 }));
+    expect(seed.ok).toBe(true);
+    const leaf = await run(base({ qC: 0, parentRef: 'seed/1', bands: [bandBytes(1, r)], brush: 'leaf/1' }));
+    expect(leaf.ok).toBe(true);
+    const grand = await run(base({ qC: 0, parentRef: 'leaf/1', bands: [bandBytes(1, r)], brush: 'x/1' }));
+    expect(grand.error).toBe(STALE_PARENT);
+  });
 });

@@ -1,6 +1,6 @@
 import type { Scrape } from '@/shared/proto/messages';
 import { matchesScrape } from './scrape';
-import { emptyLedger, inventoryOf, ownedDeliveries, tallyHeld, type DeliveryLedger, type DeliveryRecord } from './store';
+import { emptyLedger, inventoryOf, ownedDeliveries, slimRecord, tallyHeld, type DeliveryLedger, type DeliveryRecord } from './store';
 
 /**
  * Bookkeeping for handles not owned by the live sink (previews, retired
@@ -20,10 +20,10 @@ export class HandleLedgers {
       this.books.set(handle, book);
       this.evict();
     }
-    book.byDelivery.set(rec.delivery, rec);
+    book.byDelivery.set(rec.delivery, slimRecord(rec));
   }
 
-  /** Take over a disposed sink's numbers (rgba already closed by caller). */
+  /** Take over a disposed sink's numbers as slim records (its bitmaps are closed by its dispose). */
   adopt(handle: number, from: DeliveryLedger): void {
     let book = this.books.get(handle);
     if (!book) {
@@ -31,7 +31,7 @@ export class HandleLedgers {
       this.books.set(handle, book);
       this.evict();
     }
-    for (const rec of from.byDelivery.values()) book.byDelivery.set(rec.delivery, rec);
+    for (const rec of from.byDelivery.values()) book.byDelivery.set(rec.delivery, slimRecord(rec));
   }
 
   inventory(handle: number, through: number): { brushCount: number; kib: number; ranges: number[] } {

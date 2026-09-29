@@ -25,6 +25,8 @@ export interface SynthRequest {
   bands: ArrayBuffer[];
   /** Reply with the planes alone: no RGBA, no bitmap, nothing kept in the parent cache. */
   planesOnly?: boolean;
+  /** How many parents the receiving worker may keep (the pool's share of SYNTH_CACHE_TOTAL); absent: the default caps. */
+  cacheEntries?: number;
 }
 
 export interface SynthResult {
@@ -49,8 +51,14 @@ export const STALE_PARENT = 'stale-parent';
 
 /**
  * Worker plane-cache sizes (worker-owned numbers: the worker imports shared/codec
- * and shared/config only). ~16 full parents ≈ 6 MB per worker worst case.
+ * and shared/config only). Defaults are for a request that names no size (~16 full parents,
+ * ≈ 6 MB per worker); a pool sizes them from SYNTH_CACHE_TOTAL so more workers do not mean more memory.
  */
 export const SYNTH_CACHE_SMALL = 2;
 export const SYNTH_CACHE_MAIN = 14;
 export const SYNTH_CACHE_GHOST = 32;
+/** Parents kept by the whole pool, and the floor per worker. */
+export const SYNTH_CACHE_TOTAL = 48;
+export const SYNTH_CACHE_MIN_PER_WORKER = 4;
+/** The probationary queue is one eighth of a worker's entries (at least one). */
+export const SYNTH_CACHE_SMALL_SHARE = 8;

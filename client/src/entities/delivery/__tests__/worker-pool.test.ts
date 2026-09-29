@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WorkerPool, poolSizeFor } from '../worker-pool';
+import { WorkerPool, cacheEntriesFor, poolSizeFor } from '../worker-pool';
+import { SYNTH_CACHE_MIN_PER_WORKER, SYNTH_CACHE_TOTAL } from '@/workers/protocol';
 import { SynthQueue, type ReadyJob } from '../synth-queue';
 import type { SynthRequest } from '@/workers/protocol';
 import { FakeWorker } from '../testing/fake-worker';
@@ -21,6 +22,19 @@ describe('poolSizeFor', () => {
     expect(poolSizeFor(4)).toBe(3);
     expect(poolSizeFor(9)).toBe(8);
     expect(poolSizeFor(32)).toBe(8);
+  });
+});
+
+describe('cacheEntriesFor', () => {
+  it('splits the total cache across the pool with a per-worker floor', () => {
+    expect(cacheEntriesFor(3)).toBe(Math.ceil(SYNTH_CACHE_TOTAL / 3));
+    expect(cacheEntriesFor(8)).toBe(Math.max(SYNTH_CACHE_MIN_PER_WORKER, SYNTH_CACHE_TOTAL / 8));
+    expect(cacheEntriesFor(1000)).toBe(SYNTH_CACHE_MIN_PER_WORKER);
+  });
+  it('sends the size with every request', () => {
+    const w = new FakeWorker();
+    new WorkerPool(2, () => w).send(0, req(1, 10), []);
+    expect((w.sent[0] as { cacheEntries?: number }).cacheEntries).toBe(cacheEntriesFor(2));
   });
 });
 

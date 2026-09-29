@@ -4,6 +4,7 @@ import type { Departure } from '../departures';
 import { descendants, unlink } from './brush-graph';
 import { pump } from './synth-dispatch';
 import { release } from './release';
+import { restoreNewest } from './superseded';
 import type { SinkState } from './state';
 
 /** The book size and time a departure is logged with (a refusal reads them back). */
@@ -41,8 +42,10 @@ export function removeSubtree(s: SinkState, root: number, reason: number, why: D
   const removed = new Set(all);
   s.book.pendingReceipt = s.book.pendingReceipt.filter((n) => !removed.has(n));
   const snap = snapshot(s);
+  const gone = all.flatMap((n) => s.book.byDelivery.get(n) ?? []);
   for (const n of all) removeDelivery(s, n, why, snap);
   if (reason !== 0) release(s, all, reason);
+  restoreNewest(s, gone); // an older delivery of a brush may be all that is left of it
   s.revision++;
   pump(s); // prune heap jobs whose delivery just died, refill freed workers
   return all;

@@ -32,6 +32,14 @@ export function recordFromHead(h: BrushHead): DeliveryRecord {
   };
 }
 
+/**
+ * What a retired ledger keeps of a record: the numbers RASPADO/INVENTARIO answer with, no pixels
+ * and no bands (the sink that owned them is gone). The caller closes the original's bitmap.
+ */
+export function slimRecord(rec: DeliveryRecord): DeliveryRecord {
+  return { ...rec, rgba: null, bands: [], planes: null };
+}
+
 export interface DeliveryLedger {
   byDelivery: Map<number, DeliveryRecord>;
   inFlight: Set<number>;

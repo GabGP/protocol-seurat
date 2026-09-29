@@ -3,7 +3,7 @@ import {
   SYNTH_POOL_MAX,
   SYNTH_POOL_MIN,
 } from '@/shared/config/constants';
-import type { SynthRequest } from '@/workers/protocol';
+import { SYNTH_CACHE_MIN_PER_WORKER, SYNTH_CACHE_TOTAL, type SynthRequest } from '@/workers/protocol';
 
 /** Minimal synthesis worker surface; the real Worker satisfies it structurally. */
 export interface SynthWorker {
@@ -33,6 +33,11 @@ export function resolvePoolSize(): number {
   return poolSizeFor(cores);
 }
 
+/** Parents each worker of a pool of `size` may cache: the pool shares one budget, with a floor per worker. */
+export function cacheEntriesFor(size: number): number {
+  return Math.max(SYNTH_CACHE_MIN_PER_WORKER, Math.ceil(SYNTH_CACHE_TOTAL / Math.max(1, size)));
+}
+
 /**
  * Least-loaded pool: each worker holds at most one synthesis (depth 1), so a
  * slow brush never queues behind another inside a worker mailbox. Anything
@@ -42,11 +47,13 @@ export class WorkerPool {
   private readonly workers: SynthWorker[] = [];
   private readonly busy: boolean[] = [];
   private onResult: ((index: number, ev: MessageEvent) => void) | null = null;
+  private readonly cacheEntries: number;
 
   constructor(
     readonly size: number,
     factory: WorkerFactory,
   ) {
+    this.cacheEntries = cacheEntriesFor(size);
     for (let i = 0; i < size; i++) {
       const index = i;
       const w = factory();
@@ -77,7 +84,7 @@ export class WorkerPool {
   send(index: number, req: SynthRequest, transfer: Transferable[]): void {
     const w = this.workers[index];
     if (w === undefined) throw new Error(`no synthesis worker ${index}`);
-    w.postMessage(req, { transfer });
+    w.postMessage({ ...req, cacheEntries: this.cacheEntries }, { transfer });
     this.busy[index] = true;
   }
 

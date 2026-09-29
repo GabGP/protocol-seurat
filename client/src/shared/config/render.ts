@@ -83,8 +83,8 @@ export const HERO_JITTER = 0.35;
 export const HERO_DOT_R_MIN = 0.26;
 export const HERO_DOT_R_SPAN = 0.2;
 
-/** WebGL2 renderer (spec §5.1): tile texture arrays of this many 256² layers (the guaranteed MAX_ARRAY_TEXTURE_LAYERS). */
-export const GL_ATLAS_LAYERS = 256;
+/** WebGL2 renderer (spec §5.1): tile texture arrays of this many 256² layers (16 MiB each; one with no brush left is deleted). */
+export const GL_ATLAS_LAYERS = 64;
 /** Tile uploads stop for the frame once they have taken this long (at least one always goes). */
 export const GL_UPLOAD_BUDGET_MS = 3;
 /** A lost WebGL context not restored within this long is given up on: Canvas2D takes over. */

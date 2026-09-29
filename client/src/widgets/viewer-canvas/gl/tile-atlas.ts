@@ -1,19 +1,19 @@
 import { TILE } from '@/shared/config/constants';
 import { GL_ATLAS_LAYERS } from '@/shared/config/render';
-import { allocLayerArray, uploadLayer, uploadSketch, type AtlasGL, type Slot } from './atlas-gl';
+import { uploadLayer, uploadSketch, type AtlasGL, type Slot } from './atlas-gl';
+import { LayerArrays } from './layer-arrays';
 
 export type { AtlasGL };
 import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 
 /**
  * Spec §5.1 VRAM: one RGBA8 256² layer of a TEXTURE_2D_ARRAY per owned brush, in arrays of
- * GL_ATLAS_LAYERS layers; the sketch (seed-sized) gets its own 2D texture. Layers are keyed by
+ * GL_ATLAS_LAYERS layers (an array with no brush left is deleted); the sketch (seed-sized) gets its own 2D texture. Layers are keyed by
  * the brush's ImageBitmap: a brush that leaves the book (RASPAR, expiry, SOLTAR) frees its layer
  * at the next reconcile, which runs before the next paint.
  */
 export class TileAtlas {
-  private readonly arrays: WebGLTexture[] = [];
-  private readonly free: Slot[] = [];
+  private readonly layers: LayerArrays;
   private readonly slots = new Map<ImageBitmap, Slot>();
   private queue: ImageBitmap[] = [];
   private sketch: { bmp: ImageBitmap; tex: WebGLTexture } | null = null;
@@ -24,16 +24,18 @@ export class TileAtlas {
 
   constructor(
     private readonly gl: AtlasGL,
-    private readonly onVramFailure: () => void,
-    private readonly layersPerArray = GL_ATLAS_LAYERS,
-  ) {}
+    onVramFailure: () => void,
+    layersPerArray = GL_ATLAS_LAYERS,
+  ) {
+    this.layers = new LayerArrays(gl, layersPerArray, onVramFailure);
+  }
 
   get arrayCount(): number {
-    return this.arrays.length;
+    return this.layers.count;
   }
 
   array(i: number): WebGLTexture | undefined {
-    return this.arrays[i];
+    return this.layers.array(i);
   }
 
   sketchTexture(bmp: ImageBitmap): WebGLTexture | null {
@@ -53,12 +55,15 @@ export class TileAtlas {
   reconcile(live: readonly BrushGeom[]): void {
     const keep = new Set<ImageBitmap>();
     for (const b of live) if (b.stratum !== SKETCH_STRATUM) keep.add(b.bmp);
+    let freed = false;
     for (const [bmp, slot] of this.slots) {
       if (keep.has(bmp)) continue;
       this.slots.delete(bmp);
-      this.free.push(slot);
+      this.layers.give(slot);
+      freed = true;
       this.version++;
     }
+    if (freed) this.layers.trim();
     const sketch = live.find((b) => b.stratum === SKETCH_STRATUM);
     this.sketchWanted = sketch?.bmp ?? null;
     if (this.sketch && this.sketch.bmp !== sketch?.bmp) {
@@ -94,10 +99,8 @@ export class TileAtlas {
   }
 
   dispose(): void {
-    for (const t of this.arrays) this.gl.deleteTexture(t);
+    this.layers.dispose();
     if (this.sketch) this.gl.deleteTexture(this.sketch.tex);
-    this.arrays.length = 0;
-    this.free.length = 0;
     this.slots.clear();
     this.queue = [];
     this.sketch = null;
@@ -107,16 +110,16 @@ export class TileAtlas {
   /** False stops this frame's uploads (no VRAM); a bitmap that fails to upload is dropped. */
   private put(bmp: ImageBitmap): boolean {
     if (bmp === this.sketchWanted) return this.putSketch(bmp);
-    const slot = this.free.pop() ?? this.grow();
+    const slot = this.layers.take();
     if (!slot) {
       this.queue.unshift(bmp); // keep it for when eviction makes room
       return false;
     }
     try {
-      uploadLayer(this.gl, this.arrays[slot.array] ?? null, slot.layer, bmp);
+      uploadLayer(this.gl, this.layers.array(slot.array) ?? null, slot.layer, bmp);
       this.slots.set(bmp, slot);
     } catch {
-      this.free.push(slot); // closed under us: its brush left the book, the next reconcile agrees
+      this.layers.give(slot); // closed under us: its brush left the book, the next reconcile agrees
     }
     return true;
   }
@@ -134,14 +137,5 @@ export class TileAtlas {
     if (this.sketch) gl.deleteTexture(this.sketch.tex);
     this.sketch = { bmp, tex };
     return true;
-  }
-
-  /** A new array of layers; a failed reservation is §5.2.3's VRAM pressure signal. */
-  private grow(): Slot | null {
-    const tex = allocLayerArray(this.gl, this.layersPerArray, this.onVramFailure);
-    if (!tex) return null;
-    const array = this.arrays.push(tex) - 1;
-    for (let layer = this.layersPerArray - 1; layer > 0; layer--) this.free.push({ array, layer });
-    return { array, layer: 0 };
   }
 }

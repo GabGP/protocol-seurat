@@ -1,15 +1,13 @@
-import { AVG_DELIVERY_KEEP, AVG_DELIVERY_NEW, MAX_EARLY_DELIVERIES, MS_PER_S, ReleaseReason, SEED_STRATUM } from '@/shared/config/constants';
-import { parentBrushId, parseBrushHead, sliceBands, splitBrushId, verifyBand, type BrushHead } from '@/shared/proto/brush';
+import { AVG_DELIVERY_KEEP, AVG_DELIVERY_NEW, MAX_EARLY_DELIVERIES, MS_PER_S, ReleaseReason } from '@/shared/config/constants';
+import { parseBrushHead, sliceBands, verifyBand, type BrushHead } from '@/shared/proto/brush';
 import { matchesScrape } from '../scrape';
 import { recordFromHead, type DeliveryRecord } from '../store';
-import { linkParent, parentFor } from './brush-graph';
 import { sweepExpiry } from './lease-expiry';
 import type { Grant } from './port';
 import { refuse } from './refusal';
 import { release } from './release';
 import { settle } from './scrape-flow';
-import { enqueue } from './synth-dispatch';
-import { buildRequest, withParent } from './synth-request';
+import { startSynthesis } from './synth-start';
 import type { SinkState } from './state';
 
 /** Verified band buffers of an arrived flow, or null when a CRC failed (the delivery was released, SOLTAR 6). */
@@ -29,20 +27,6 @@ function verifiedBands(s: SinkState, h: BrushHead, bytes: Uint8Array): Uint8Arra
     }
   }
   return bands;
-}
-
-/** Hand the held delivery to the workers, or park it until its parent's planes exist. */
-function synthesize(s: SinkState, rec: DeliveryRecord, h: BrushHead): void {
-  const req = buildRequest(s, rec, h.qY, h.qC);
-  const { stratum, bx, by } = splitBrushId(h.brushId);
-  const parent = parentFor(s.book, s.top, stratum, bx, by, h.edition, h.epoch);
-  if (parent) linkParent(s.book, h.delivery, parent.delivery);
-  if (parent?.planes) withParent(s, req, parent, bx, by);
-  if (stratum < SEED_STRATUM && !parent?.planes) {
-    s.pending.set(h.delivery, { req, parentId: parentBrushId(stratum, bx, by, s.top), edition: h.edition });
-    return;
-  }
-  enqueue(s, req, h.brushId, h.epoch);
 }
 
 /** Spec 4.1.6 and 5.4 on one arrived flow: every check, then synthesis. */
@@ -85,7 +69,7 @@ function accept(s: SinkState, h: BrushHead, bytes: Uint8Array, now: () => number
   s.nextExpiry = Math.min(s.nextExpiry, rec.expires);
   s.book.inFlight.add(h.delivery);
   s.revision++;
-  synthesize(s, rec, h);
+  startSynthesis(s, rec);
 }
 
 export function ingest(s: SinkState, bytes: Uint8Array, now: () => number, onPaint: () => void, leaseS: number): void {

@@ -124,4 +124,23 @@ describe('TileAtlas', () => {
     expect(atlas.ready(s2)).toBe(true);
     expect(log.deleted).toBe(1);
   });
+
+  it('deletes an array whose layers are all free and grows again on demand', () => {
+    const { gl, log } = fakeGL();
+    const atlas = new TileAtlas(gl, () => undefined, 2);
+    const list = [0, 1, 2].map((i) => brush(0, bmp(), i));
+    atlas.reconcile(list);
+    atlas.upload(Infinity);
+    expect(atlas.arrayCount).toBe(2);
+    atlas.reconcile(list.slice(0, 2)); // the third, alone in the second array, left the book
+    expect(atlas.arrayCount).toBe(1);
+    expect(log.deleted).toBe(1);
+    atlas.reconcile([]);
+    expect(atlas.arrayCount).toBe(0);
+    const again = brush(0, bmp(), 5);
+    atlas.reconcile([again]);
+    atlas.upload(Infinity);
+    expect(atlas.ready(again)).toBe(true);
+    expect(atlas.arrayCount).toBe(1);
+  });
 });

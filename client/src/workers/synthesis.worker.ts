@@ -3,13 +3,14 @@ import { planesToRgba, toBitmap } from './planes-rgba';
 import type { SynthRequest } from './protocol';
 import { decodeBandDetails, decodeSeedPlanes } from './synth-decode';
 import { liftPlanes } from './synth-lift';
-import { emptyPlanes, resolveParent, retain } from './synth-parents';
+import { emptyPlanes, resolveParent, retain, sizeCache } from './synth-parents';
 import { postError, postMiss, postSuccess } from './synth-result';
 
 self.onmessage = async (ev: MessageEvent<SynthRequest>) => {
   const t0 = performance.now();
   const req = ev.data;
   try {
+    sizeCache(req);
     const w = req.seed ? req.seedWidth : TILE;
     const h = req.seed ? req.seedHeight : TILE;
     const px = w * h;
