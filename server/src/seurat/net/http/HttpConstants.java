@@ -11,6 +11,12 @@ public final class HttpConstants {
     public static final String INTERNAL_BODY = "{\"error\":\"interno\"}";
     /** HTTP/1.1 line terminator (RFC 9112). */
     public static final String CRLF = "\r\n";
+    /** Cross-origin isolation (Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy): lets the page measure its own memory. */
+    public static final String COOP = "Cross-Origin-Opener-Policy";
+    public static final String COOP_VALUE = "same-origin";
+    public static final String COEP = "Cross-Origin-Embedder-Policy";
+    /** Everything the viewer loads is same-origin (no CDN), so require-corp blocks nothing. */
+    public static final String COEP_VALUE = "require-corp";
     public static final int OK = 200;
     public static final int CREATED = 201;
     public static final int NOT_FOUND = 404;

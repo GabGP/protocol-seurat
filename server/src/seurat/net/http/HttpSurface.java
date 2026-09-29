@@ -38,6 +38,10 @@ public final class HttpSurface {
     private static final String IMMUTABLE =
             "public, max-age=" + SeuratConstants.ASSET_MAX_AGE_S + ", immutable";
 
+    /** Static answers are cross-origin isolated: document, scripts and worker scripts all carry both headers. */
+    private static final Map<String, String> ISOLATION =
+            Map.of(HttpConstants.COOP, HttpConstants.COOP_VALUE, HttpConstants.COEP, HttpConstants.COEP_VALUE);
+
     private final StaticFiles files;
     private final SessionRoute session;
     private final WorkRoutes routes;
@@ -83,9 +87,11 @@ public final class HttpSurface {
         String type = (!path.contains(".") || path.equals("/"))
                 ? HttpConstants.HTML
                 : StaticFiles.contentType(path);
-        return files.hashed(path)
-                ? new Response(HttpConstants.OK, type, body, Map.of(CACHE_CONTROL, IMMUTABLE))
-                : new Response(HttpConstants.OK, type, body);
+        Map<String, String> headers = files.hashed(path)
+                ? Map.of(CACHE_CONTROL, IMMUTABLE, HttpConstants.COOP, HttpConstants.COOP_VALUE,
+                        HttpConstants.COEP, HttpConstants.COEP_VALUE)
+                : ISOLATION;
+        return new Response(HttpConstants.OK, type, body, headers);
     }
 
     static long number(String json, String key, long dflt) {

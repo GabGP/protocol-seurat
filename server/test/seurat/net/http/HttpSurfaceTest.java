@@ -75,6 +75,11 @@ public final class HttpSurfaceTest {
         TestKit.check(worker.headers().getOrDefault(HttpSurface.CACHE_CONTROL, "").contains("immutable"),
                 "a hashed asset is cached as immutable");
         TestKit.check(!index.headers().containsKey(HttpSurface.CACHE_CONTROL), "index.html stays no-store");
+        for (var page : java.util.List.of(index, worker, workerFallback)) {
+            TestKit.check(page.headers().get(HttpConstants.COOP).equals("same-origin")
+                    && page.headers().get(HttpConstants.COEP).equals("require-corp"),
+                    "static answers are cross-origin isolated");
+        }
 
         var sessionResp = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
                 Map.of("authorization", "Bearer k-prof"), "{\"memMiB\":256}".getBytes(),
