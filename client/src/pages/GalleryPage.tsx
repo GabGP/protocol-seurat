@@ -1,6 +1,5 @@
 import { useMemo, useLayoutEffect } from 'react';
-import { GalleryHero } from '@/widgets/GalleryHero';
-import { GalleryGrid } from '@/widgets/GalleryGrid';
+import { GalleryGrid, GalleryHero } from '@/widgets/gallery';
 import { filterWorks } from '@/entities/work';
 import { workTitle } from '@/entities/work';
 import { galleryScroll, goViewer } from '@/app/router';

@@ -32,3 +32,4 @@ export function wheelZoom(ts: number, deltaY: number, mode: number, ctrl: boolea
 }
 
 export * from './model';
+export * from './presets';

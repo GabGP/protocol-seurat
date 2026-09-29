@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import type { SeuratState } from '@/app/providers/SeuratProvider';
-import type { ViewSync } from '@/widgets/ViewerChrome';
+import type { ViewSync } from '@/widgets/viewer-canvas';
 import { goGallery, goViewer } from '@/app/router';
 import { patchUi } from '@/app/store';
 import { stepIndex } from '@/features/navigate-work';

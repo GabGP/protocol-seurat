@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseOpenHash } from '@/features/open-work';
 import { filterWorks, fixtureWorks, sortWorks } from '@/entities/work';
 import { isOpenable, type Work } from '@/entities/work';
-import { buildPresets } from '@/widgets/ZoomMenu';
+import { buildPresets } from '@/features/zoom-view';
 import { counterLabel, stepIndex } from '@/features/navigate-work';
 import { fmtPct, logFrac, logUnfrac } from '@/shared/lib/zoom';
 import { clamp } from '@/shared/lib/clamp';

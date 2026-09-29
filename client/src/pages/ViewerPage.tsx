@@ -1,24 +1,18 @@
 import { useMemo, useRef, useState } from 'react';
-import {
-  ViewerChrome, sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect, type ViewSync,
-} from '@/widgets/ViewerChrome';
-import { ViewerToolbar } from '@/widgets/ViewerToolbar';
-import { ViewerMinimap } from '@/widgets/ViewerMinimap';
-import { ViewerInfoPanel } from '@/widgets/ViewerInfoPanel';
-import { TelemetryPanel } from '@/widgets/TelemetryPanel';
-import { RenderSettingsPanel } from '@/widgets/RenderSettingsPanel';
+import { ViewerChrome, dotsPerSide, type ViewSync } from '@/widgets/viewer-canvas';
+import { ViewerToolbar } from '@/widgets/viewer-toolbar';
+import { ViewerMinimap } from '@/widgets/viewer-minimap';
+import { RenderSettingsPanel, TelemetryPanel, ViewerInfoPanel } from '@/widgets/viewer-panels';
+import { ViewerTopBar } from '@/widgets/viewer-top-bar';
+import { LiveStatusPill, LoadError, SlowScriptNotice } from '@/widgets/viewer-status';
 import { detailLabel } from '@/features/sign-in';
+import { buildPresets } from '@/features/zoom-view';
+import { sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect } from '@/entities/viewport';
 import type { TelemetryInput } from '@/entities/telemetry';
-import { ViewerTopBar } from '@/widgets/ViewerTopBar';
-import { LiveStatusPill } from '@/widgets/StatusPill';
-import { LoadError } from '@/widgets/LoadError';
-import { SlowScriptNotice } from '@/widgets/SlowScriptNotice';
-import { buildPresets } from '@/widgets/ZoomMenu';
 import { useSeurat } from '@/app/providers/SeuratProvider';
 import { patchUi, useUi } from '@/app/store';
 import { counterLabel } from '@/features/navigate-work';
 import { fmtPct } from '@/shared/lib/zoom';
-import { dotsPerSide } from '@/widgets/pointillism';
 import { Icon } from '@/shared/ui/Icon';
 import { createFeed } from '@/shared/lib/feed';
 import {
@@ -30,6 +24,7 @@ import {
 import { useViewerWork } from './useViewerWork';
 import { buildViewerInfoRows } from './viewerInfoRows';
 import styles from './ViewerPage.module.css';
+import { ICON_SM } from '@/shared/config/icon';
 
 export function ViewerPage({ id }: { id: string }): JSX.Element {
   const ui = useUi();
@@ -130,7 +125,7 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       />
       {inDots && (
         <div className={styles.pointillistBanner}>
-          <Icon name="blur_on" size={20} />Pointillist view · each pixel = {dotsPerSide(view?.s ?? 1) ** 2} dots
+          <Icon name="blur_on" size={ICON_SM} />Pointillist view · each pixel = {dotsPerSide(view?.s ?? 1) ** 2} dots
         </div>
       )}
       {loading && (
