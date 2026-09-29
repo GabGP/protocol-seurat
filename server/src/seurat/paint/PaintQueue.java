@@ -80,7 +80,7 @@ final class PaintQueue {
      * pops the best head. An eligible head is stamped ready (CoDel dwell start) even while
      * it loses to other sessions or waits for a global slot: that wait is server queueing.
      */
-    synchronized Pending take(Predicate<Canvas> eligible, BooleanSupplier slotFree, long recheckMs)
+    synchronized Pending take(Predicate<Pending> eligible, BooleanSupplier slotFree, long recheckMs)
             throws InterruptedException {
         for (;;) {
             long now = System.nanoTime();
@@ -89,7 +89,7 @@ final class PaintQueue {
             for (var e : byCanvas.entrySet()) {
                 ArrayDeque<Pending> q = e.getValue();
                 Pending head = q.peekFirst();
-                if (head == null || !eligible.test(e.getKey())) {
+                if (head == null || !eligible.test(head)) {
                     continue;
                 }
                 if (!head.isReady()) {

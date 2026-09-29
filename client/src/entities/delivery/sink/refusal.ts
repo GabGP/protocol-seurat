@@ -1,6 +1,6 @@
 import { BYTES_PER_KIB, SEED_STRATUM, toKib } from '@/shared/config/constants';
 import { brushKey, makeBrushId, parentBrushId, splitBrushId } from '@/shared/proto/brush';
-import { ownedBytes, type DeliveryRecord } from '../store';
+import { heldBrushes, holdsBrush, ownedBytes, type DeliveryRecord } from '../store';
 import { relieve } from './eviction';
 import type { SinkState } from './state';
 
@@ -23,11 +23,11 @@ export function refuse(s: SinkState, rec: DeliveryRecord, bytes: number): [strin
   const fault = grantFault(s, rec);
   if (fault !== null) return fault;
   const { book } = s;
-  const fits = (): boolean => book.byDelivery.size < s.limits.maxBrushes()
+  const fits = (): boolean => (heldBrushes(book) < s.limits.maxBrushes() || holdsBrush(book, rec.brushId, rec.edition))
     && ownedBytes(book) + bytes <= s.limits.maxKiB() * BYTES_PER_KIB;
   if (!fits()) relieve(s); // at capacity the pressure trigger holds: make room first (spec 5.2.3)
   if (!fits()) {
-    return ['capacity', `${book.byDelivery.size} of ${s.limits.maxBrushes()} brushes and `
+    return ['capacity', `${heldBrushes(book)} of ${s.limits.maxBrushes()} brushes and `
       + `${toKib(ownedBytes(book))} of ${s.limits.maxKiB()} KiB held, a server fault`];
   }
   if (s.grant === null || rec.stratum >= SEED_STRATUM) return null;

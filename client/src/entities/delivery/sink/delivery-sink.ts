@@ -2,7 +2,7 @@ import { DEFAULT_SEED_HEIGHT, DEFAULT_SEED_WIDTH, DEFAULT_STRATA } from '@/share
 import type { Scrape } from '@/shared/proto/messages';
 import type { EvictionView } from '../eviction-stats';
 import { matchesScrape } from '../scrape';
-import { emptyLedger, type DeliveryLedger, type DeliveryRecord } from '../store';
+import { emptyLedger, heldBrushes, type DeliveryLedger, type DeliveryRecord } from '../store';
 import { defaultWorker, resolvePoolSize, type WorkerFactory } from '../worker-pool';
 import { applyCancelled } from './cancellation';
 import { free } from './credit-window';
@@ -117,6 +117,9 @@ export class DeliverySink {
 
   /** RECIBO.libre: what the window still allows (memory and link). */
   free(): number { return free(this.s); }
+
+  /** Brushes held (brush+edition, however many deliveries): what the cap and max_pinceladas count. */
+  heldBrushes(): number { return heldBrushes(this.s.book); }
 
   /** Send the pending RECIBO now (SOLTAR first, eviction if the book is under pressure). */
   flushReceipt(): void { flushReceipt(this.s); }

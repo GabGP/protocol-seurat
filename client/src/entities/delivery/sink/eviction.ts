@@ -3,7 +3,7 @@ import {
 } from '@/shared/config/constants';
 import { collectCandidates, inCone, inCore, ownedBrushes, type EvictCandidate } from '../evict-candidate';
 import { rankHorizon } from '../horizon-rank';
-import { ownedBytes } from '../store';
+import { heldBrushes, ownedBytes } from '../store';
 import { coreMissing } from './core-deficit';
 import { byteWindow } from './credit-window';
 import { release } from './release';
@@ -21,9 +21,9 @@ export function warmShown(s: SinkState, nowS: number): void {
 }
 
 /**
- * §5.2.3 voluntary eviction. Under pressure (owned + in flight >= max - 8, bytes > 90 %, or room
- * in max_kib for fewer than 8 more after what may still come) drop leaf brushes (no owned
- * children) outside the current cone until 75 % full with room for 8, then in-cone ones only
+ * §5.2.3 voluntary eviction. Under pressure (brushes held >= max - 8, counted per brush+edition however
+ * many deliveries it took, bytes > 90 %, or room in max_kib for fewer than 8 more after what may still come)
+ * drop leaf brushes (no owned children) outside the current cone until 75 % full with room for 8, then in-cone ones only
  * while core brushes are missing. Never the sketch nor the core, and not a cone the server may
  * still be painting unless the book is full (see `collectCandidates`). Order is Horizon (`rankHorizon`): the largest predicted time-to-need
  * from the gaze's motion (kinematic Belady), shortened by attention heat.
@@ -31,7 +31,7 @@ export function warmShown(s: SinkState, nowS: number): void {
  */
 export function relieve(s: SinkState, vramShort = false): boolean {
   const { book } = s;
-  const load = (): number => book.byDelivery.size + book.inFlight.size;
+  const load = (): number => heldBrushes(book);
   const maxKib = s.limits.maxKiB() * BYTES_PER_KIB;
   // A failed VRAM reservation is pressure whatever the counts say: relieve to 75 % of what is held.
   const hold = holdLimit(s);
@@ -53,7 +53,7 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   // concession cannot stall the view with nothing evictable. Bytes do not stop the server: a cone
   // it may still paint keeps its parents, or its children arrive to find them gone (spec 5.4).
   const held = (m: number): boolean => book.byDelivery.has(m);
-  const painted = book.byDelivery.size >= hold ? []
+  const painted = heldBrushes(book) >= hold ? []
     : s.cones.views((n) => s.settlement.settledBelow(n, held));
   const evict = (more: () => boolean, allowed: (c: EvictCandidate) => boolean): void => {
     while (more()) {
@@ -71,7 +71,7 @@ export function relieve(s: SinkState, vramShort = false): boolean {
   // be re-sent by the next plan. A full book otherwise stays full: libre is 0 and the server waits.
   const room = (): number => Math.min(hold - load(), byteWindow(s));
   if (!vramShort && room() < EVICT_HEADROOM) {
-    const need = Math.min(EVICT_HEADROOM, coreMissing(s) - book.inFlight.size);
+    const need = Math.min(EVICT_HEADROOM, coreMissing(s));
     evict(() => room() < need, () => true);
   }
   if (released.length > 0) s.heat.prune(new Set(ownedBrushes(book).keys()));

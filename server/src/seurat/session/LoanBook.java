@@ -21,6 +21,12 @@ public final class LoanBook {
 
     public synchronized int size() { return deliveries.size(); }
 
+    /** Distinct brushes held, in any edition: |libro| in pinceladas (spec 4.1 c, max_pinceladas). */
+    public synchronized int brushCount() { return holdings.size(); }
+
+    /** True when the current edition of p is already held: a further delivery of it needs no new slot. */
+    public synchronized boolean holds(BrushId p) { return holdings.holds(p, edition); }
+
     /** Edition new deliveries are stamped with and bands() counts. */
     public synchronized void edition(long value) { edition = value; }
 

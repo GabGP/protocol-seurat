@@ -6,7 +6,9 @@ import seurat.codec.BrushId;
 import seurat.kit.PainterRig;
 import seurat.kit.TestKit;
 import seurat.plan.PlanEntry;
+import seurat.session.Concession;
 import seurat.proto.Headers;
+import seurat.proto.Ranges;
 import seurat.store.WorkMeta;
 
 /** Painter gates: red cola_ms (spec 6.1), budget at open (9.2), valid band prefix (8). */
@@ -17,6 +19,7 @@ public final class PainterGatesTest {
         corruptBandServesPrefix();
         knownBadBandsClampBeforeOpen();
         windowWaitIsNotCongestion();
+        fullBookOpensUpgradeRefusesNewBrush();
         System.out.println("PainterGatesTest OK");
     }
 
@@ -42,6 +45,28 @@ public final class PainterGatesTest {
         TestKit.check(rig.mapping.deliveries.size() == 2, "credit releases the parked entry");
         rig.regulator.tick(List.of(rig.session));
         TestKit.check(!rig.regulator.congested(), "waiting on its own window is not server queueing");
+        thread.interrupt();
+    }
+
+    /** Spec 4.1 (c) counts brushes: a full book still opens an upgrade of a held brush and refuses a new one. */
+    private static void fullBookOpensUpgradeRefusesNewBrush() throws Exception {
+        PainterRig rig = PainterRig.create();
+        rig.canvas.setConcession(new Concession(1, 0, 4, 1, 2, 36864, 120));
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().log(new BrushId(1, 0, 0), 0, 2, 10, 1);
+        rig.canvas.book().settle(Ranges.of(1, 2));
+        rig.canvas.free = 10;
+        Thread thread = rig.start();
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)),
+                rig.canvas.plan().start(0, 1));
+        Thread.sleep(300);
+        TestKit.check(rig.mapping.deliveries.isEmpty(), "2 of 2 brushes held: a new brush waits");
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(new BrushId(1, 0, 0), 2, 4, 1)),
+                rig.canvas.plan().start(0, 1));
+        rig.awaitDeliveries(1);
+        TestKit.check(rig.mapping.deliveries.size() == 1, "an upgrade of a held brush needs no new slot");
+        TestKit.check(rig.canvas.book().brushCount() == 2 && rig.canvas.book().size() == 3,
+                "3 deliveries, still 2 brushes");
         thread.interrupt();
     }
 

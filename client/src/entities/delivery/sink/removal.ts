@@ -1,6 +1,7 @@
 import { ReleaseReason } from '@/shared/config/constants';
 import { brushKey } from '@/shared/proto/brush';
 import type { Departure } from '../departures';
+import { heldBrushes } from '../store';
 import { descendants, unlink } from './brush-graph';
 import { pump } from './synth-dispatch';
 import { release } from './release';
@@ -15,7 +16,7 @@ interface Snapshot {
 }
 
 function snapshot(s: SinkState): Snapshot {
-  return { held: s.book.byDelivery.size, max: s.limits.maxBrushes(), at: performance.now() };
+  return { held: heldBrushes(s.book), max: s.limits.maxBrushes(), at: performance.now() };
 }
 
 /** The one way a delivery leaves the book: logged, settled, its image and synthesis state dropped, unlinked. */

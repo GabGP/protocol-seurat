@@ -34,6 +34,8 @@ export interface EvictionFigures {
 export interface HeldBrushes {
   book: { byDelivery: Map<number, HeldBrush>; inFlight: Set<number> };
   free(): number;
+  /** Brushes held: distinct brush+edition, however many deliveries each took (spec 4.1 c). */
+  heldBrushes(): number;
   /** The most brushes this viewer holds: the Settings cap narrowing the concession. */
   holdLimit: number;
   queueDepthMs: number;

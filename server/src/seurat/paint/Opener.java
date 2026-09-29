@@ -17,7 +17,7 @@ import seurat.session.Session;
 
 /**
  * Spec 4.1.4-5 for one entry, under the canvas lock: (a) concession and edition,
- * (b) monotone parent, (c) book size and RECIBO.libre, (e) slots, (d) brush budget
+ * (b) monotone parent, (c) book in brushes and RECIBO.libre, (e) slots, (d) brush budget
  * (failure serves s + 1), then number + book BEFORE any byte.
  */
 final class Opener {
@@ -42,10 +42,9 @@ final class Opener {
      * The session's own gates: (c), its (e) slots, rate and cola_ms. Cheap, leaf locks only
      * (PaintQueue monitor). Waiting on these is flow control, not server queueing (spec 6.3).
      */
-    boolean eligible(Canvas canvas) {
-        Session s = canvas.session();
-        return s != null && canvas.book().size() < canvas.concession().maxBrushes()
-                && canvas.book().unsettled() < canvas.free && s.canOpen();
+    boolean eligible(Pending x) {
+        Session s = x.canvas().session();
+        return s != null && BookGate.open(x.canvas(), x.entry().brush()) && s.canOpen();
     }
 
     /** (e)'s global half: one of the 512 server-wide slots. */
@@ -70,7 +69,7 @@ final class Opener {
                 PlanEvents.resolved(canvas, x.generation()); // no valid band on disk: nothing to send, nothing to retry
                 return;
             }
-            if (!eligible(canvas) || !session.takeSlot()) {
+            if (!eligible(x) || !session.takeSlot()) {
                 queue.pushFront(x.unready());
                 return;
             }
@@ -117,6 +116,7 @@ final class Opener {
         BrushId parent = e.brush().parentCapped(canvas.meta().strata() - 1);
         int have = canvas.book().bands(parent);
         if (parent.stratum() >= SeuratConstants.SEED_STRATUM || have >= e.through()
+                || (have == 0 && !BookGate.admits(canvas, parent))
                 || !permitted(canvas, parent, e.through())
                 || !budget.consume(s.principal(), canvas.workId(), parent, have, e.through(),
                         s.role(), finest, canvas.meta())) {

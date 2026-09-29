@@ -1,4 +1,4 @@
-import { splitBrushId, type BrushHead } from '@/shared/proto/brush';
+import { brushKey, splitBrushId, type BrushHead } from '@/shared/proto/brush';
 import { toKib } from '@/shared/config/constants';
 import { rangesEqual } from '@/shared/proto/ranges';
 
@@ -66,9 +66,22 @@ export function ownedBytes(b: DeliveryLedger): number {
   return n;
 }
 
+/** Brushes held: distinct brush+edition, the unit of max_pinceladas, RECIBO.libre and the cap (spec 4.1 c, 5.4). */
+export function heldBrushes(b: DeliveryLedger): number {
+  const keys = new Set<string>();
+  for (const r of b.byDelivery.values()) keys.add(brushKey(r.brushId, r.edition));
+  return keys.size;
+}
+
+/** True when a delivery of this brush in this edition is held: a further one takes no new slot. */
+export function holdsBrush(b: DeliveryLedger, brushId: bigint, edition: number): boolean {
+  for (const r of b.byDelivery.values()) if (r.brushId === brushId && r.edition === edition) return true;
+  return false;
+}
+
 /** INVENTARIO content: the brushes held, their size, and the numbers <= through (exact set equality on the wire). */
 export function inventoryOf(b: DeliveryLedger, through: number): { brushCount: number; kib: number; ranges: number[] } {
-  const brushCount = new Set([...b.byDelivery.values()].map((r) => r.brushId.toString())).size;
+  const brushCount = heldBrushes(b);
   return { brushCount, kib: toKib(ownedBytes(b)), ranges: ownedDeliveries(b).filter((n) => n <= through) };
 }
 

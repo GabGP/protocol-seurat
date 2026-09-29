@@ -8,6 +8,7 @@ import seurat.proto.Ranges;
 public final class LoanBookTest {
     public static void main(String[] args) {
         annotateBands();
+        brushCount();
         expectedScrape();
         retainOnly();
         pruneExpired();
@@ -36,6 +37,20 @@ public final class LoanBookTest {
         book.cancel(2);
         book.cancel(4);
         TestKit.check(book.size() == 0 && book.bands(p) == 0, "cancel clears bands");
+    }
+
+    /** The book is counted in brushes (spec 4.1 c): two deliveries of one brush are one. */
+    private static void brushCount() {
+        LoanBook book = new LoanBook();
+        BrushId p = new BrushId(1, 3, 4);
+        book.log(p, 0, 2, 100, 1);
+        book.log(p, 2, 4, 100, 1);
+        TestKit.check(book.size() == 2 && book.brushCount() == 1, "two deliveries, one brush");
+        TestKit.check(book.holds(p) && !book.holds(new BrushId(1, 3, 5)), "holds is per brush");
+        book.release(Ranges.of(1));
+        TestKit.check(book.size() == 1 && book.brushCount() == 1, "one delivery left keeps the brush");
+        book.release(Ranges.of(2));
+        TestKit.check(book.brushCount() == 0 && !book.holds(p), "none left, no brush");
     }
 
     private static void expectedScrape() {

@@ -28,7 +28,7 @@ describe('telemetry sections', () => {
   const sections = telemetrySections({
     now: 2000, transport: 'websocket', link, image,
     sink: {
-      book, free: () => 3, holdLimit: 362, queueDepthMs: 12, strata: 3, workerCacheBound: 1_000_000,
+      book, free: () => 3, heldBrushes: () => 1, holdLimit: 362, queueDepthMs: 12, strata: 3, workerCacheBound: 1_000_000,
       eviction: { evicted: 8, evictedBytes: 64_000, refetched: 2, refetchedBytes: 16_000, medianRefetchMs: 1500 },
     },
     gpuBytes: 2_000_000, declaredMemMiB: 64,
@@ -46,16 +46,17 @@ describe('telemetry sections', () => {
 
   it('counts brushes against the Settings cap, naming the grant it narrows', () => {
     const m = rows('Brushes', sections);
-    expect(m['Held']).toBe('2 of 362 · grant 768');
+    expect(m['Held']).toBe('1 of 362 · grant 768'); // two deliveries of one brush
+    expect(m['Deliveries']).toBe('2');
     expect(m['In flight']).toBe('1');
     expect(m['Receiver window']).toBe('3 free');
-    expect(m['Mean size']).toBe(`${fmtBytes((56_000 + 256 * 256 * 4) / 2)} (bands + bitmap)`);
+    expect(m['Mean size']).toBe(`${fmtBytes(56_000 + 256 * 256 * 4)} (bands + bitmap)`);
   });
 
   it('shows the plain count at the grant, and a placeholder mean while nothing is held', () => {
     const none = telemetrySections({
       now: 0, transport: null, link: null, image: null, concession: null,
-      sink: { book: { byDelivery: new Map(), inFlight: new Set() }, free: () => 0, holdLimit: 181, queueDepthMs: 0, strata: 3,
+      sink: { book: { byDelivery: new Map(), inFlight: new Set() }, free: () => 0, heldBrushes: () => 0, holdLimit: 181, queueDepthMs: 0, strata: 3,
         workerCacheBound: 0, eviction: { evicted: 0, evictedBytes: 0, refetched: 0, refetchedBytes: 0, medianRefetchMs: null } },
     });
     expect(rows('Brushes', none)['Held']).toBe('0 of 181');

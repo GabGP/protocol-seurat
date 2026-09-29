@@ -29,6 +29,15 @@ final class BrushHoldings {
         }
     }
 
+    /** Distinct brush+edition groups held (empty groups are removed): the book counted in brushes. */
+    int size() {
+        return byBrush.size();
+    }
+
+    boolean holds(BrushId p, long edition) {
+        return byBrush.containsKey(new Key(p, edition));
+    }
+
     /** Bands held contiguously from 0 in `edition`; seed: all or none. */
     int bands(BrushId p, long edition) {
         TreeMap<Integer, Delivery> group = byBrush.get(new Key(p, edition));
