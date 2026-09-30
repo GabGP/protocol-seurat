@@ -1,12 +1,16 @@
 import { COLA_BUSY_MS } from '@/shared/config/constants';
 import { brushKey, splitBrushId } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
+import { nextImageId } from '../store';
 import { sameBrush } from './brush-graph';
 import { onRebuilt, retryWithBytes } from './parent-recovery';
+import { onPixelsRestored } from './pixel-residency';
 import { keepsPlanes } from './plane-keep';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
+import { endRestore } from './restore-queue';
 import { freeSuperseded } from './superseded';
+import { bitmapOf } from './synth-bitmap';
 import { enqueue, pump } from './synth-dispatch';
 import { flushPending } from './synth-flush';
 import { buildRequest, withParent } from './synth-request';
@@ -48,6 +52,8 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   rec.rgba?.close(); // a resynthesis keeps showing the old image until this one lands
   rec.rgba = bmp;
+  rec.image = nextImageId();
+  endRestore(s, out.delivery); // a rebuild of the old image is moot now
   // Planes only seed children: a brush that cannot have any soon keeps none, and a later one is rebuilt from bands.
   rec.planes = keepsPlanes(s, rec) ? out.planes : null;
   s.rebuilding.delete(out.delivery);
@@ -83,6 +89,10 @@ export function onResult(s: SinkState, index: number, ev: MessageEvent): void {
     onRebuilt(s, out, index, ctx);
     return;
   }
+  if (ctx?.req.restore) {
+    onPixelsRestored(s, out, index, ctx);
+    return;
+  }
   if (!out.ok || (!out.rgba && !out.bitmap)) {
     if (out.error === STALE_PARENT && ctx) retryWithBytes(s, ctx.req, ctx.brushId, ctx.epoch);
     else failSynthesis(s, out.delivery);
@@ -90,10 +100,7 @@ export function onResult(s: SinkState, index: number, ev: MessageEvent): void {
   }
   const rec = s.book.byDelivery.get(out.delivery);
   if (rec) s.origin.set(brushKey(rec.brushId, rec.edition), index);
-  const ready = out.bitmap
-    ? Promise.resolve(out.bitmap)
-    : createImageBitmap(new ImageData(new Uint8ClampedArray(out.rgba ?? new ArrayBuffer(0)), out.width, out.height));
-  ready
+  bitmapOf(out)
     .then((bmp) => land(s, out, bmp))
     .catch(() => {
       if (s.activeSynthesis.get(out.delivery) === out.synthesisId) failSynthesis(s, out.delivery);

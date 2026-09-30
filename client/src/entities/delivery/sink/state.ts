@@ -86,6 +86,9 @@ export class SinkState {
   failed = new Set<number>();
   /** Deliveries whose planes are being rebuilt from their bands (planes-only synthesis): one request each. */
   rebuilding = new Set<number>();
+  /** Released bitmaps asked for again (waiting for a window slot) and those being rebuilt: see `restore-queue`. */
+  wanted = new Set<number>();
+  restoring = new Set<number>();
   nextSynthesisId = 1;
   activeSynthesis = new Map<number, number>();
   /** brushKey -> worker index holding its planes (ref routing + stickiness). */

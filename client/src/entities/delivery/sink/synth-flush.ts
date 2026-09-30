@@ -21,6 +21,11 @@ export function flushPending(s: SinkState): void {
     }
     const { stratum, bx, by } = splitBrushId(rec.brushId);
     const parent = parentFor(s.book, s.top, stratum, bx, by, item.edition, rec.epoch);
+    if (item.req.restore && (rec.rgba || !parent)) { // its image came back some other way, or nothing to rebuild it from
+      s.pending.delete(delivery);
+      s.restoring.delete(delivery);
+      continue;
+    }
     if (!parent?.planes) {
       if (parent) rebuildPlanes(s, parent);
       continue;

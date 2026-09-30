@@ -60,6 +60,7 @@ export function pump(s: SinkState): void {
     } catch {
       s.inflight.delete(job.req.delivery);
       if (job.req.planesOnly) s.rebuilding.delete(job.req.delivery); // the brush is fine: the child stays parked
+      else if (job.req.restore) s.restoring.delete(job.req.delivery); // the brush is fine: it asks again
       else s.hooks.fail(job.req.delivery);
     }
   }

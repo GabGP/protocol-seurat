@@ -17,7 +17,7 @@ export function syncReadout(ctx: ChromeCtx): void {
       const key = ix + ',' + iy + '|' + (p.sink?.revision ?? -1);
       if (key === st.pixelKey) return;
       st.pixelKey = key;
-      out = { x: ix.toLocaleString('en-US'), y: iy.toLocaleString('en-US'), hex: samplePixelHex(currentBrushes(ctx), ix, iy) };
+      out = { x: ix.toLocaleString('en-US'), y: iy.toLocaleString('en-US'), hex: samplePixelHex(currentBrushes(ctx), ix, iy, (d) => p.sink?.wantPlanes(d)) };
     }
   }
   if (!out) st.pixelKey = '';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TileAtlas, type AtlasGL } from '../tile-atlas';
+import { TileAtlas, type AtlasEvents, type AtlasGL } from '../tile-atlas';
 import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 import { gpuBytes } from '@/shared/lib/gpu-meter';
 
@@ -39,9 +39,16 @@ function fakeGL(opts: { oomAfter?: number } = {}): { gl: AtlasGL; log: Log } {
 
 const bmp = (w = 256): ImageBitmap => ({ width: w, height: w }) as unknown as ImageBitmap;
 
-function brush(stratum: number, b: ImageBitmap, bx = 0): BrushGeom {
-  return { delivery: 0, stratum, bx, by: 0, x: 0, y: 0, w: 256, h: 256, bmp: b };
+let images = 0;
+function brush(stratum: number, b: ImageBitmap | null, bx = 0): BrushGeom {
+  return { delivery: 0, stratum, bx, by: 0, x: 0, y: 0, w: 256, h: 256, bmp: b, image: ++images, pw: b?.width ?? 256, ph: b?.height ?? 256 };
 }
+
+const events = (): { uploaded: BrushGeom[]; needed: BrushGeom[]; ev: AtlasEvents } => {
+  const uploaded: BrushGeom[] = [];
+  const needed: BrushGeom[] = [];
+  return { uploaded, needed, ev: { uploaded: (b) => uploaded.push(b), needPixels: (b) => needed.push(b) } };
+};
 
 describe('TileAtlas', () => {
   it('uploads the sketch first, then tiles, one layer each, and reports them ready', () => {
@@ -65,13 +72,13 @@ describe('TileAtlas', () => {
     const b = brush(0, bmp(), 1);
     atlas.reconcile([a, b]);
     atlas.upload(Infinity);
-    const layerOfA = atlas.slotOf(a.bmp)?.layer;
+    const layerOfA = atlas.slotOf(a.image)?.layer;
     atlas.reconcile([b]); // a scraped / expired / released
     expect(atlas.ready(a)).toBe(false);
     const c = brush(0, bmp(), 2);
     atlas.reconcile([b, c]);
     atlas.upload(Infinity);
-    expect(atlas.slotOf(c.bmp)?.layer).toBe(layerOfA);
+    expect(atlas.slotOf(c.image)?.layer).toBe(layerOfA);
     expect(log.storage).toBe(1);
   });
 
@@ -124,6 +131,49 @@ describe('TileAtlas', () => {
     atlas.upload(Infinity);
     expect(atlas.ready(s2)).toBe(true);
     expect(log.deleted).toBe(1);
+  });
+
+  it('reports each uploaded tile so its owner can drop the bitmap, and keeps drawing it by identity', () => {
+    const { gl } = fakeGL();
+    const e = events();
+    const atlas = new TileAtlas(gl, () => undefined, 4, e.ev);
+    const a = brush(0, bmp());
+    atlas.reconcile([a]);
+    atlas.upload(Infinity);
+    expect(e.uploaded).toEqual([a]);
+    const released = { ...a, bmp: null }; // the sink closed it: same image, no bitmap
+    atlas.reconcile([released]);
+    expect(atlas.ready(released)).toBe(true);
+    expect(atlas.slotOf(released.image)).toBeDefined();
+    expect(e.needed).toHaveLength(0);
+  });
+
+  it('asks for the pixels of a live tile that has neither a bitmap nor a layer (a restored context)', () => {
+    const { gl, log } = fakeGL();
+    const e = events();
+    const atlas = new TileAtlas(gl, () => undefined, 4, e.ev);
+    const a = brush(0, bmp());
+    atlas.reconcile([a]);
+    atlas.upload(Infinity);
+    atlas.forget(); // context lost, textures gone
+    const released = { ...a, bmp: null };
+    atlas.reconcile([released]);
+    expect(atlas.ready(released)).toBe(false);
+    expect(e.needed).toEqual([released]);
+    const back = { ...released, bmp: bmp(), image: a.image + 1000 }; // the rebuilt bitmap landed
+    atlas.reconcile([back]);
+    atlas.upload(Infinity);
+    expect(atlas.ready(back)).toBe(true);
+    expect(log.uploads).toHaveLength(2);
+  });
+
+  it('never releases the sketch: its bitmap stays the minimap source', () => {
+    const { gl } = fakeGL();
+    const e = events();
+    const atlas = new TileAtlas(gl, () => undefined, 4, e.ev);
+    atlas.reconcile([brush(SKETCH_STRATUM, bmp(64))]);
+    atlas.upload(Infinity);
+    expect(e.uploaded).toHaveLength(0);
   });
 
   it('deletes an array whose layers are all free and grows again on demand', () => {

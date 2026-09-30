@@ -4,7 +4,7 @@ import type { BrushGeom } from '@/entities/delivery';
 
 function tile(stratum: number, bx: number, by: number): BrushGeom {
   const size = 256 * 2 ** stratum;
-  return { delivery: 0, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: {} as ImageBitmap };
+  return { delivery: 0, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: {} as ImageBitmap, image: 1, pw: 256, ph: 256 };
 }
 
 const row = (out: Float32Array, i: number): number[] => Array.from(out.subarray(i * INSTANCE_FLOATS, (i + 1) * INSTANCE_FLOATS));

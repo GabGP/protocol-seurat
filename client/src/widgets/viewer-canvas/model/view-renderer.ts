@@ -33,6 +33,16 @@ export interface LoaderState {
   flags: Readonly<RenderFlags>;
 }
 
+/** What a renderer tells the viewer about the pixels it holds. */
+export interface RendererHooks {
+  /** A texture reservation failed: spec §5.2.3 voluntary eviction. */
+  onVramFailure(): void;
+  /** A tile's pixels are on the GPU: its decoded bitmap can be released. */
+  onUploaded(b: BrushGeom): void;
+  /** A live tile has no bitmap and is not drawable yet: rebuild its pixels. */
+  onNeedPixels(b: BrushGeom): void;
+}
+
 /** Paints the viewer canvas. One per canvas: a canvas holds a single context type. */
 export interface ViewRenderer {
   readonly kind: 'canvas2d' | 'webgl2';

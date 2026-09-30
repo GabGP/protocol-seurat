@@ -6,11 +6,11 @@ const bmp = (w: number): ImageBitmap => ({ width: w, height: w }) as unknown as 
 
 function tile(stratum: number, bx: number, by: number, delivery = stratum * 1000 + by * 100 + bx): BrushGeom {
   const size = 256 * 2 ** stratum;
-  return { delivery, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: bmp(256) };
+  return { delivery, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: bmp(256), image: delivery, pw: 256, ph: 256 };
 }
 
 function sketch(iw: number, ih: number, px: number): BrushGeom {
-  return { delivery: 1, stratum: SKETCH_STRATUM, bx: 0, by: 0, x: 0, y: 0, w: iw, h: ih, bmp: bmp(px) };
+  return { delivery: 1, stratum: SKETCH_STRATUM, bx: 0, by: 0, x: 0, y: 0, w: iw, h: ih, bmp: bmp(px), image: 1, pw: px, ph: px };
 }
 
 const ids = (l: BrushGeom[]): string[] => l.map((b) => `${b.stratum}:${b.bx},${b.by}`);

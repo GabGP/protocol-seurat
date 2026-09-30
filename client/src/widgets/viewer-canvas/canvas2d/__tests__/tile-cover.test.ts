@@ -5,7 +5,7 @@ import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 
 function tile(stratum: number, bx: number, by: number): BrushGeom {
   const size = 256 * 2 ** stratum;
-  return { delivery: 0, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: {} as ImageBitmap };
+  return { delivery: 0, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: {} as ImageBitmap, image: 1, pw: 256, ph: 256 };
 }
 const sketch: BrushGeom = { ...tile(0, 0, 0), stratum: SKETCH_STRATUM };
 

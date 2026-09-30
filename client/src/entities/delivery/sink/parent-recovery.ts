@@ -4,6 +4,7 @@ import type { InflightSynth, SinkState } from './state';
 import { brushBands, linkParent, parentFor } from './brush-graph';
 import { rebuildPlanes } from './rebuild-planes';
 import { failSynthesis } from './removal';
+import { endRestore } from './restore-queue';
 import { flushPending } from './synth-flush';
 import { enqueue } from './synth-dispatch';
 import { withParent } from './synth-request';
@@ -19,6 +20,9 @@ export function failRebuild(s: SinkState, delivery: number): void {
     if (item.req.planesOnly) {
       s.pending.delete(d);
       failRebuild(s, d);
+    } else if (item.req.restore) {
+      s.pending.delete(d);
+      endRestore(s, d);
     } else failSynthesis(s, d);
   }
 }
@@ -34,6 +38,7 @@ export function retryWithBytes(s: SinkState, req: SynthRequest, brushId: bigint,
   const parent = parentFor(s.book, s.top, stratum, bx, by, req.edition, rec.epoch);
   if (!parent) {
     if (req.planesOnly) failRebuild(s, req.delivery);
+    else if (req.restore) endRestore(s, req.delivery);
     else failSynthesis(s, req.delivery);
     return;
   }

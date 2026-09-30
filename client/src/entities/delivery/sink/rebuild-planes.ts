@@ -13,7 +13,7 @@ import type { SinkState } from './state';
  * bitmap on screen, the receipt and the children's images are already right.
  */
 export function rebuildPlanes(s: SinkState, rec: DeliveryRecord): void {
-  if (rec.planes || rec.pending || !rec.bands?.length || s.rebuilding.has(rec.delivery)) return;
+  if (rec.planes || rec.pending || !rec.bands?.length || s.rebuilding.has(rec.delivery) || s.restoring.has(rec.delivery)) return;
   const { stratum, bx, by } = splitBrushId(rec.brushId);
   const parent = parentFor(s.book, s.top, stratum, bx, by, rec.edition, rec.epoch);
   if (stratum < SEED_STRATUM && !parent) return;

@@ -1,24 +1,36 @@
 import { TILE } from '@/shared/config/constants';
 import { GL_ATLAS_LAYERS } from '@/shared/config/render';
-import { uploadLayer, uploadSketch, type AtlasGL, type Slot } from './atlas-gl';
+import { uploadLayer, type AtlasGL, type Slot } from './atlas-gl';
 import { LayerArrays } from './layer-arrays';
+import { SketchTexture } from './sketch-texture';
+import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
 
 export type { AtlasGL };
-import { SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery';
+
+/** What the atlas tells its owner about the pixels it holds. */
+export interface AtlasEvents {
+  /** A tile is on the GPU: its bitmap is no longer needed here. */
+  uploaded(b: BrushGeom): void;
+  /** A live tile has neither a bitmap nor a layer (a new context, a lost texture): its pixels must be rebuilt. */
+  needPixels(b: BrushGeom): void;
+}
+
+const NO_EVENTS: AtlasEvents = { uploaded: () => undefined, needPixels: () => undefined };
 
 /**
  * Spec §5.1 VRAM: one RGBA8 256² layer of a TEXTURE_2D_ARRAY per owned brush, in arrays of
  * GL_ATLAS_LAYERS layers (an array with no brush left is deleted); the sketch (seed-sized) gets its own 2D texture. Layers are keyed by
- * the brush's ImageBitmap: a brush that leaves the book (RASPAR, expiry, SOLTAR) frees its layer
- * at the next reconcile, which runs before the next paint.
+ * the identity of the brush's landed bitmap (`BrushGeom.image`), which outlives the bitmap itself:
+ * a brush that leaves the book (RASPAR, expiry, SOLTAR) frees its layer at the next reconcile,
+ * which runs before the next paint.
  */
 export class TileAtlas {
   private readonly layers: LayerArrays;
-  private readonly slots = new Map<ImageBitmap, Slot>();
-  private queue: ImageBitmap[] = [];
-  private sketch: { bmp: ImageBitmap; tex: WebGLTexture } | null = null;
-  /** The live sketch's bitmap, known from the brush list (never guessed from its size). */
-  private sketchWanted: ImageBitmap | null = null;
+  private readonly slots = new Map<number, Slot>();
+  private queue: BrushGeom[] = [];
+  private readonly sketch: SketchTexture;
+  /** The live sketch's image, known from the brush list (never guessed from its size). */
+  private sketchWanted = 0;
   /** Bumped whenever the set of drawable brushes changes (upload or free). */
   version = 0;
 
@@ -26,8 +38,10 @@ export class TileAtlas {
     private readonly gl: AtlasGL,
     onVramFailure: () => void,
     layersPerArray = GL_ATLAS_LAYERS,
+    private readonly events: AtlasEvents = NO_EVENTS,
   ) {
     this.layers = new LayerArrays(gl, layersPerArray, onVramFailure);
+    this.sketch = new SketchTexture(gl);
   }
 
   get arrayCount(): number {
@@ -38,45 +52,42 @@ export class TileAtlas {
     return this.layers.array(i);
   }
 
-  sketchTexture(bmp: ImageBitmap): WebGLTexture | null {
-    return this.sketch?.bmp === bmp ? this.sketch.tex : null;
+  sketchTexture(image: number): WebGLTexture | null {
+    return this.sketch.texture(image);
   }
 
-  slotOf(bmp: ImageBitmap): Slot | undefined {
-    return this.slots.get(bmp);
+  slotOf(image: number): Slot | undefined {
+    return this.slots.get(image);
   }
 
   /** On the GPU and drawable now. */
   ready(b: BrushGeom): boolean {
-    return b.stratum === SKETCH_STRATUM ? this.sketch?.bmp === b.bmp : this.slots.has(b.bmp);
+    return b.stratum === SKETCH_STRATUM ? this.sketch.has(b.image) : this.slots.has(b.image);
   }
 
   /** Frees layers of brushes no longer live and queues the new ones (sketch first: it is the base). */
   reconcile(live: readonly BrushGeom[]): void {
-    const keep = new Set<ImageBitmap>();
-    for (const b of live) if (b.stratum !== SKETCH_STRATUM) keep.add(b.bmp);
+    const keep = new Set<number>();
+    for (const b of live) if (b.stratum !== SKETCH_STRATUM) keep.add(b.image);
     let freed = false;
-    for (const [bmp, slot] of this.slots) {
-      if (keep.has(bmp)) continue;
-      this.slots.delete(bmp);
+    for (const [image, slot] of this.slots) {
+      if (keep.has(image)) continue;
+      this.slots.delete(image);
       this.layers.give(slot);
       freed = true;
       this.version++;
     }
     if (freed) this.layers.trim();
     const sketch = live.find((b) => b.stratum === SKETCH_STRATUM);
-    this.sketchWanted = sketch?.bmp ?? null;
-    if (this.sketch && this.sketch.bmp !== sketch?.bmp) {
-      this.gl.deleteTexture(this.sketch.tex);
-      this.sketch = null;
-      this.version++;
-    }
-    const queued = new Set(this.queue);
-    this.queue = this.queue.filter((bmp) => keep.has(bmp) || bmp === sketch?.bmp);
-    if (sketch && !this.sketch && !queued.has(sketch.bmp)) this.queue.unshift(sketch.bmp);
+    this.sketchWanted = sketch?.image ?? 0;
+    if (this.sketch.keepOnly(this.sketchWanted)) this.version++;
+    const queued = new Set(this.queue.map((b) => b.image));
+    this.queue = this.queue.filter((b) => keep.has(b.image) || b.image === this.sketchWanted);
+    if (sketch?.bmp && !this.sketch.loaded && !queued.has(sketch.image)) this.queue.unshift(sketch);
     for (const b of live) {
-      if (b.stratum === SKETCH_STRATUM || this.slots.has(b.bmp) || queued.has(b.bmp)) continue;
-      if (b.bmp.width === TILE && b.bmp.height === TILE) this.queue.push(b.bmp);
+      if (b.stratum === SKETCH_STRATUM || this.slots.has(b.image) || queued.has(b.image)) continue;
+      if (!b.bmp) this.events.needPixels(b);
+      else if (b.pw === TILE && b.ph === TILE) this.queue.push(b);
     }
   }
 
@@ -85,9 +96,9 @@ export class TileAtlas {
     const t0 = now();
     let n = 0;
     while (this.queue.length > 0 && (n === 0 || now() - t0 < budgetMs)) {
-      const bmp = this.queue.shift();
-      if (!bmp) break;
-      if (!this.put(bmp)) break;
+      const b = this.queue.shift();
+      if (!b) break;
+      if (!this.put(b)) break;
       n++;
       this.version++;
     }
@@ -100,7 +111,7 @@ export class TileAtlas {
 
   dispose(): void {
     this.layers.dispose();
-    if (this.sketch) this.gl.deleteTexture(this.sketch.tex);
+    this.sketch.dispose();
     this.forget();
   }
 
@@ -109,39 +120,28 @@ export class TileAtlas {
     this.layers.forget();
     this.slots.clear();
     this.queue = [];
-    this.sketch = null;
-    this.sketchWanted = null;
+    this.sketch.forget();
+    this.sketchWanted = 0;
   }
 
   /** False stops this frame's uploads (no VRAM); a bitmap that fails to upload is dropped. */
-  private put(bmp: ImageBitmap): boolean {
-    if (bmp === this.sketchWanted) return this.putSketch(bmp);
+  private put(b: BrushGeom): boolean {
+    const bmp = b.bmp;
+    if (!bmp) return true;
+    if (b.image === this.sketchWanted) return this.sketch.put(b.image, bmp);
     const slot = this.layers.take();
     if (!slot) {
-      this.queue.unshift(bmp); // keep it for when eviction makes room
+      this.queue.unshift(b); // keep it for when eviction makes room
       return false;
     }
     try {
       uploadLayer(this.gl, this.layers.array(slot.array) ?? null, slot.layer, bmp);
-      this.slots.set(bmp, slot);
+      this.slots.set(b.image, slot);
     } catch {
       this.layers.give(slot); // closed under us: its brush left the book, the next reconcile agrees
-    }
-    return true;
-  }
-
-  private putSketch(bmp: ImageBitmap): boolean {
-    const gl = this.gl;
-    const tex = gl.createTexture();
-    if (!tex) return false;
-    try {
-      uploadSketch(gl, tex, bmp);
-    } catch {
-      gl.deleteTexture(tex);
       return true;
     }
-    if (this.sketch) gl.deleteTexture(this.sketch.tex);
-    this.sketch = { bmp, tex };
+    this.events.uploaded(b);
     return true;
   }
 }

@@ -8,8 +8,9 @@ import { BrushCuller, SKETCH_STRATUM, type BrushGeom } from '@/entities/delivery
 import { ViewerSprites } from './render-sprites';
 import { drawLoaderDots } from './draw-loader';
 import { drawLoupe } from './draw-loupe';
+import { Drawable } from './drawable';
 import { snapSpan, tilesCover } from './tile-cover';
-import type { FrameState, LoaderState, ViewRenderer } from '../model/view-renderer';
+import type { FrameState, LoaderState, RendererHooks, ViewRenderer } from '../model/view-renderer';
 
 /** The Canvas2D path: one drawImage per visible brush. The fallback when WebGL2 is unavailable. */
 export class Canvas2DRenderer implements ViewRenderer {
@@ -19,12 +20,13 @@ export class Canvas2DRenderer implements ViewRenderer {
   private readonly mainCuller = new BrushCuller();
   private readonly loupeCuller = new BrushCuller();
   private readonly visible: BrushGeom[] = [];
+  private readonly drawable = new Drawable();
   private W = 0;
   private H = 0;
   private dpr = 1;
   private drawn = 0;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, private readonly hooks?: Pick<RendererHooks, 'onNeedPixels'>) {
     // Opaque: every frame paints the background first, and the compositor can skip blending.
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('canvas2d unavailable');
@@ -48,8 +50,9 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const iw = f.iw * f.s;
     const ih = f.ih * f.s;
+    const brushes = this.drawable.of(f.brushes, (b) => this.hooks?.onNeedPixels(b));
     // The sketch spans the whole image and is opaque: no background (or black) is needed under it.
-    const sketched = f.brushes[0]?.stratum === SKETCH_STRATUM;
+    const sketched = brushes[0]?.stratum === SKETCH_STRATUM;
     this.sprites.drawBackground(ctx, this.W, this.H, f.tx, f.ty, f.flags.grid,
       sketched ? { x0: f.tx, y0: f.ty, x1: f.tx + iw, y1: f.ty + ih } : null);
     if (
@@ -73,11 +76,11 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.beginPath();
     ctx.rect(f.tx, f.ty, iw, ih);
     ctx.clip();
-    this.layer(f, f.tx, f.ty, f.s, 0, 0, this.W, this.H, this.mainCuller);
+    this.layer(f, brushes, f.tx, f.ty, f.s, 0, 0, this.W, this.H, this.mainCuller);
     ctx.restore();
     if (f.loupe) {
       drawLoupe(ctx, this.sprites, f, f.loupe, (tx, ty, s, x0, y0, x1, y1) =>
-        this.layer(f, tx, ty, s, x0, y0, x1, y1, this.loupeCuller));
+        this.layer(f, brushes, tx, ty, s, x0, y0, x1, y1, this.loupeCuller));
     }
     return this.drawn;
   }
@@ -90,11 +93,11 @@ export class Canvas2DRenderer implements ViewRenderer {
   }
 
   /** Brushes (culled, opaque), then the dot mask laid over them once dots are on. */
-  private layer(f: FrameState, tx: number, ty: number, s: number, cx0: number, cy0: number, cx1: number, cy1: number,
+  private layer(f: FrameState, brushes: BrushGeom[], tx: number, ty: number, s: number, cx0: number, cy0: number, cx1: number, cy1: number,
     culler: BrushCuller): void {
     const ctx = this.ctx;
     const dpr = this.dpr;
-    const list = culler.cull(f.brushes, s * dpr, f.iw, f.ih, f.flags.cull, f.flags.lod);
+    const list = culler.cull(brushes, s * dpr, f.iw, f.ih, f.flags.cull, f.flags.lod);
     if (list.length === 0) return;
     const seen = this.visible;
     seen.length = 0;
@@ -114,7 +117,7 @@ export class Canvas2DRenderer implements ViewRenderer {
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = s < IMAGE_SMOOTHING_THRESHOLD;
     for (const b of seen) {
-      if (skipSketch && b.stratum === SKETCH_STRATUM) continue;
+      if (!b.bmp || (skipSketch && b.stratum === SKETCH_STRATUM)) continue;
       if (snap) {
         const [x, w] = snapSpan(tx + b.x * s, tx + (b.x + b.w) * s, dpr);
         const [y, h] = snapSpan(ty + b.y * s, ty + (b.y + b.h) * s, dpr);

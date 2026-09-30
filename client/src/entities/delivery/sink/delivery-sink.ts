@@ -2,15 +2,18 @@ import { DEFAULT_SEED_HEIGHT, DEFAULT_SEED_WIDTH, DEFAULT_STRATA } from '@/share
 import type { Scrape } from '@/shared/proto/messages';
 import type { EvictionView } from '../eviction-stats';
 import { matchesScrape } from '../scrape';
-import { emptyLedger, heldBrushes, type DeliveryLedger, type DeliveryRecord } from '../store';
+import { heldBrushes, type DeliveryLedger, type DeliveryRecord } from '../store';
 import { defaultWorker, resolvePoolSize, type WorkerFactory } from '../worker-pool';
 import { applyCancelled } from './cancellation';
 import { free } from './credit-window';
+import { disposeSink } from './dispose';
 import { concede, ingest } from './ingest';
 import { checkExpiry, sweepExpiry } from './lease-expiry';
+import { releasePixels, wantPlanes } from './pixel-residency';
 import type { DeliveryPort, Grant } from './port';
 import { applyRenew, flushReceipt } from './receipts';
 import { failSynthesis } from './removal';
+import { wantPixels } from './restore-queue';
 import { applyScrape, answerScrapes, inventory } from './scrape-flow';
 import { holdLimit, SinkState } from './state';
 import { onResult } from './synth-result';
@@ -128,21 +131,14 @@ export class DeliverySink {
     return matchesScrape(rec, predicate, params);
   }
 
-  dispose(): void {
-    const s = this.s;
-    clearTimeout(s.receiptTimer);
-    clearTimeout(s.releaseTimer);
-    s.pool?.dispose();
-    s.pool = null;
-    s.ready.clear();
-    s.pending.clear();
-    s.activeSynthesis.clear();
-    s.inflight.clear();
-    s.origin.clear();
-    s.failed.clear();
-    s.rebuilding.clear();
-    for (const rec of s.book.byDelivery.values()) rec.rgba?.close();
-    s.book = emptyLedger();
-    s.revision++;
-  }
+  /** The GPU holds this tile now: its decoded bitmap can go (`image` says which landing it was). */
+  releasePixels(delivery: number, image: number): void { releasePixels(this.s, delivery, image); }
+
+  /** A released tile is needed as a bitmap again: rebuild it locally from its bands. */
+  wantPixels(delivery: number): void { wantPixels(this.s, delivery); }
+
+  /** A released tile is needed as planes (pixel readout). */
+  wantPlanes(delivery: number): void { wantPlanes(this.s, delivery); }
+
+  dispose(): void { disposeSink(this.s); }
 }

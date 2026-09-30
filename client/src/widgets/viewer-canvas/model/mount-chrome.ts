@@ -46,7 +46,11 @@ export function mountChrome(env: ChromeEnv): (() => void) | undefined {
     st.userMoved = false;
   }
   const wantGpu = flags.gpu && !gpuFailed.current;
-  const renderer = createRenderer(cv, wantGpu, { onVramFailure: () => P().sink?.reportVramFailure() });
+  const renderer = createRenderer(cv, wantGpu, {
+    onVramFailure: () => P().sink?.reportVramFailure(),
+    onUploaded: (b) => P().sink?.releasePixels(b.delivery, b.image),
+    onNeedPixels: (b) => P().sink?.wantPixels(b.delivery),
+  });
   if (!renderer) {
     gpuFailed.current = true;
     env.remountCanvas();

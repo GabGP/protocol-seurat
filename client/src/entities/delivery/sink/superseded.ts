@@ -1,5 +1,5 @@
 import { brushKey } from '@/shared/proto/brush';
-import type { DeliveryRecord } from '../store';
+import { hasPixels, type DeliveryRecord } from '../store';
 import { sameBrush } from './brush-graph';
 import { startSynthesis } from './synth-start';
 import type { SinkState } from './state';
@@ -12,12 +12,13 @@ import type { SinkState } from './state';
 export function freeSuperseded(s: SinkState, rec: DeliveryRecord): void {
   const siblings = sameBrush(s.book, rec);
   let newest: DeliveryRecord | null = null;
-  for (const r of siblings) if (r.rgba && (newest === null || r.delivery > newest.delivery)) newest = r;
+  for (const r of siblings) if (hasPixels(r) && (newest === null || r.delivery > newest.delivery)) newest = r;
   if (newest === null) return;
   for (const r of siblings) {
     if (r.delivery >= newest.delivery) continue;
     r.rgba?.close();
     r.rgba = null;
+    r.image = 0;
     r.planes = null;
   }
 }
@@ -33,7 +34,7 @@ export function restoreNewest(s: SinkState, gone: readonly DeliveryRecord[]): vo
     if (done.has(key)) continue;
     done.add(key);
     const siblings = sameBrush(s.book, g);
-    if (siblings.length === 0 || siblings.some((r) => r.rgba || r.pending)) continue;
+    if (siblings.length === 0 || siblings.some((r) => hasPixels(r) || r.pending)) continue;
     let newest = siblings[0];
     for (const r of siblings) if (newest && r.delivery > newest.delivery) newest = r;
     if (!newest) continue;

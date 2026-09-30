@@ -37,9 +37,10 @@ export function buildThumb(sink: DeliverySink | null | undefined, iw: number, ih
   c.setTransform(z.dpr, 0, 0, z.dpr, 0, 0);
   c.fillStyle = MINIMAP_BG_COLOR;
   c.fillRect(0, 0, z.w, z.h);
-  const all = sink ? collectBrushes(sink.book.byDelivery.values(), iw, ih) : [];
+  // Tiles the GPU holds have released their bitmap: the seed's sketch (never released) and the rest still held make the thumb.
+  const all = sink ? collectBrushes(sink.book.byDelivery.values(), iw, ih).filter((b) => b.bmp) : [];
   const list = flags.cull ? cullBrushes(all, z.k * z.dpr, iw, ih, flags.lod) : all;
-  for (const b of list) c.drawImage(b.bmp, b.x * z.k, b.y * z.k, b.w * z.k, b.h * z.k);
+  for (const b of list) if (b.bmp) c.drawImage(b.bmp, b.x * z.k, b.y * z.k, b.w * z.k, b.h * z.k);
   if (list.length === 0) {
     c.fillStyle = MINIMAP_DOT_COLOR;
     const from = MINIMAP_DOT_STEP / 2;

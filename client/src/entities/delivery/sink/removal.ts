@@ -34,6 +34,8 @@ function removeDelivery(s: SinkState, n: number, why: Departure, snap: Snapshot)
   s.settlement.mark(n); // it was held, so it arrived: settled whatever happens to it now
   s.pending.delete(n);
   s.rebuilding.delete(n);
+  s.wanted.delete(n);
+  s.restoring.delete(n);
   s.inflight.delete(n);
   s.book.byDelivery.delete(n);
   s.book.inFlight.delete(n);

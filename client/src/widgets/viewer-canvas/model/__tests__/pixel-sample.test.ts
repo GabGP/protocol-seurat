@@ -25,8 +25,8 @@ function planes(w: number, h: number, rgb: (x: number, y: number) => [number, nu
 }
 
 describe('samplePixelHex (from decoded planes)', () => {
-  const coarse = { x: 0, y: 0, w: 100, h: 100, bmp: { width: 10, height: 10 }, planes: planes(10, 10, () => [0x12, 0x34, 0x56]) };
-  const fine = { x: 10, y: 10, w: 20, h: 20, bmp: { width: 20, height: 20 }, planes: planes(20, 20, (x) => [x * 10, 200, 7]) };
+  const coarse = { x: 0, y: 0, w: 100, h: 100, pw: 10, ph: 10, planes: planes(10, 10, () => [0x12, 0x34, 0x56]) };
+  const fine = { x: 10, y: 10, w: 20, h: 20, pw: 20, ph: 20, planes: planes(20, 20, (x) => [x * 10, 200, 7]) };
 
   it('reads the finest covering brush, in uppercase hex', () => {
     expect(samplePixelHex([coarse, fine], 15, 15)).toBe('#32C807'); // fine px (5,5): r = 50
@@ -34,7 +34,7 @@ describe('samplePixelHex (from decoded planes)', () => {
   });
 
   it('maps image px onto a smaller bitmap (sketch scale)', () => {
-    const sketch = { x: 0, y: 0, w: 100, h: 100, bmp: { width: 10, height: 10 }, planes: planes(10, 10, (x, y) => [x, y, 0]) };
+    const sketch = { x: 0, y: 0, w: 100, h: 100, pw: 10, ph: 10, planes: planes(10, 10, (x, y) => [x, y, 0]) };
     expect(samplePixelHex([sketch], 95, 42)).toBe('#090400');
   });
 
@@ -46,9 +46,24 @@ describe('samplePixelHex (from decoded planes)', () => {
   });
 
   it('clamps out-of-gamut values like the worker paint does', () => {
-    const hot = { x: 0, y: 0, w: 1, h: 1, bmp: { width: 1, height: 1 }, planes: [
+    const hot = { x: 0, y: 0, w: 1, h: 1, pw: 1, ph: 1, planes: [
       new Int16Array([400]).buffer, new Int16Array([0]).buffer, new Int16Array([0]).buffer,
     ] };
     expect(samplePixelHex([hot], 0, 0)).toBe('#FFFFFF');
+  });
+});
+
+describe('samplePixelHex with released bitmaps', () => {
+  const coarse = { x: 0, y: 0, w: 100, h: 100, pw: 10, ph: 10, delivery: 1, bmp: {}, planes: planes(10, 10, () => [0x12, 0x34, 0x56]) };
+  const released = { x: 10, y: 10, w: 20, h: 20, pw: 20, ph: 20, delivery: 2, bmp: null, planes: planes(20, 20, () => [200, 100, 50]) };
+
+  it('reads the planes of a released brush: the bitmap was never needed', () => {
+    expect(samplePixelHex([coarse, released], 15, 15)).toBe('#C86432');
+  });
+
+  it('asks for the planes of a released brush that has none and answers from the coarser one', () => {
+    const asked: number[] = [];
+    expect(samplePixelHex([coarse, { ...released, planes: null }], 15, 15, (d) => asked.push(d))).toBe('#123456');
+    expect(asked).toEqual([2]);
   });
 });

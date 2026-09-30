@@ -1,5 +1,6 @@
 import { SEED_STRATUM, TILE } from '@/shared/config/constants';
 import { splitBrushId } from '@/shared/proto/brush';
+import { hasPixels } from '../store';
 
 /** The whole-image sketch: never culled, always the base layer (it also fills tile seams). */
 export const SKETCH_STRATUM = SEED_STRATUM;
@@ -13,7 +14,13 @@ export interface BrushGeom {
   y: number;
   w: number;
   h: number;
-  bmp: ImageBitmap;
+  /** The decoded bitmap, or null once the atlas holds the pixels and it was closed (tiles only). */
+  bmp: ImageBitmap | null;
+  /** Identity of the landed bitmap: what the atlas keys its layer by. */
+  image: number;
+  /** Pixel size of the bitmap (kept when it is closed). */
+  pw: number;
+  ph: number;
   /** Decoded Y/Co/Cg planes (bmp-sized), for exact pixel readout without a GPU readback. */
   planes?: ArrayBuffer[] | null;
 }
@@ -22,6 +29,7 @@ interface Painted {
   delivery: number;
   brushId: bigint;
   rgba: ImageBitmap | null;
+  image?: number;
   planes?: ArrayBuffer[] | null;
 }
 
@@ -34,17 +42,17 @@ export function collectBrushes(records: Iterable<Painted>, iw: number, ih: numbe
   const newest = new Map<bigint, Painted>();
   for (const rec of records) {
     const held = newest.get(rec.brushId);
-    if (rec.rgba && (!held || rec.delivery > held.delivery)) newest.set(rec.brushId, rec);
+    if (hasPixels(rec) && (!held || rec.delivery > held.delivery)) newest.set(rec.brushId, rec);
   }
   const out: BrushGeom[] = [];
   for (const rec of newest.values()) {
-    if (!rec.rgba) continue;
     const { stratum, bx, by } = splitBrushId(rec.brushId);
+    const px = { bmp: rec.rgba, image: rec.image ?? 0, pw: rec.rgba?.width ?? TILE, ph: rec.rgba?.height ?? TILE, planes: rec.planes };
     if (stratum === SKETCH_STRATUM) {
-      out.push({ delivery: rec.delivery, stratum, bx: 0, by: 0, x: 0, y: 0, w: iw, h: ih, bmp: rec.rgba, planes: rec.planes });
+      out.push({ delivery: rec.delivery, stratum, bx: 0, by: 0, x: 0, y: 0, w: iw, h: ih, ...px });
     } else {
       const size = TILE * 2 ** stratum;
-      out.push({ delivery: rec.delivery, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, bmp: rec.rgba, planes: rec.planes });
+      out.push({ delivery: rec.delivery, stratum, bx, by, x: bx * size, y: by * size, w: size, h: size, ...px });
     }
   }
   return out.sort((a, b) => b.stratum - a.stratum);
@@ -54,7 +62,7 @@ const key = (s: number, bx: number, by: number): number => (s * 2 ** 20 + by) * 
 
 /** Device px one texel of `b` spans at `devPerPx` device px per image px. */
 function texel(b: BrushGeom, devPerPx: number): number {
-  return (b.w / Math.max(1, b.bmp.width)) * devPerPx;
+  return (b.w / Math.max(1, b.pw)) * devPerPx;
 }
 
 /**

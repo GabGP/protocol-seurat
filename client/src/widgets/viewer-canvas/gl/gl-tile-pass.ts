@@ -43,8 +43,8 @@ export class GLTilePass {
     const groups: Array<{ first: number; count: number; array: number }> = [];
     let total = sketch ? packTiles([sketch], v, () => 0, this.inst) : 0;
     const sketchCount = total;
-    for (const run of arrayRuns(tiles, (b) => this.atlas.slotOf(b.bmp)?.array)) {
-      const count = packTiles(run.tiles, v, (b) => this.atlas.slotOf(b.bmp)?.layer ?? 0, this.inst, total);
+    for (const run of arrayRuns(tiles, (b) => this.atlas.slotOf(b.image)?.array)) {
+      const count = packTiles(run.tiles, v, (b) => this.atlas.slotOf(b.image)?.layer ?? 0, this.inst, total);
       if (count > 0) groups.push({ first: total, count, array: run.array });
       total += count;
     }
@@ -68,7 +68,7 @@ export class GLTilePass {
     gl.bindTexture(gl.TEXTURE_2D, this.r.dotTile);
     if (sketch && sketchCount > 0) {
       gl.activeTexture(gl.TEXTURE1);
-      gl.bindTexture(gl.TEXTURE_2D, this.atlas.sketchTexture(sketch.bmp));
+      gl.bindTexture(gl.TEXTURE_2D, this.atlas.sketchTexture(sketch.image));
       tile.i1('uIsSketch', 1);
       this.pointers(0);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 1);

@@ -13,6 +13,11 @@ export interface DeliveryRecord {
   edition: number;
   expires: number;
   rgba: ImageBitmap | null;
+  /**
+   * Identity of the bitmap this delivery last landed (0 = none). It outlives `rgba`: once the atlas
+   * holds the pixels the bitmap is closed, and the atlas keeps finding its layer by this number.
+   */
+  image?: number;
   /** Validated wire bands are retained as the canonical synthesis source. */
   bands?: ArrayBuffer[];
   planes?: ArrayBuffer[] | null;
@@ -22,6 +27,18 @@ export interface DeliveryRecord {
   receiptQueued?: boolean;
   receiptSent?: boolean;
   parentDelivery?: number;
+}
+
+let lastImage = 0;
+
+/** A fresh identity for a landed bitmap (global, so two sinks never share one). */
+export function nextImageId(): number {
+  return ++lastImage;
+}
+
+/** True while the brush has pixels to show: the bitmap, or a GPU copy released from it. */
+export function hasPixels(rec: { rgba: ImageBitmap | null; image?: number }): boolean {
+  return rec.rgba !== null || (rec.image ?? 0) > 0;
 }
 
 /** The record of an arrived head before its bytes are counted: what scrape predicates read. */
@@ -37,7 +54,7 @@ export function recordFromHead(h: BrushHead): DeliveryRecord {
  * and no bands (the sink that owned them is gone). The caller closes the original's bitmap.
  */
 export function slimRecord(rec: DeliveryRecord): DeliveryRecord {
-  return { ...rec, rgba: null, bands: [], planes: null };
+  return { ...rec, rgba: null, image: 0, bands: [], planes: null };
 }
 
 export interface DeliveryLedger {

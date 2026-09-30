@@ -9,12 +9,7 @@ import { GLPrimitives } from './gl-primitives';
 import { GLResources } from './gl-resources';
 import { dotsAt, GLTilePass } from './gl-tile-pass';
 import { TileAtlas } from './tile-atlas';
-import type { FrameState, LoaderState, ViewRenderer } from '../model/view-renderer';
-
-export interface GLHooks {
-  /** A texture reservation failed: spec §5.2.3 voluntary eviction. */
-  onVramFailure(): void;
-}
+import type { FrameState, LoaderState, RendererHooks, ViewRenderer } from '../model/view-renderer';
 
 /**
  * The WebGL2 path (spec §5.1): brushes live as texture-array layers uploaded once; a frame is a
@@ -36,7 +31,7 @@ export class WebGL2Renderer implements ViewRenderer {
   private lastBrushes: readonly BrushGeom[] | null = null;
   private ready: { src: readonly BrushGeom[]; version: number; list: BrushGeom[] } | null = null;
 
-  constructor(canvas: HTMLCanvasElement, hooks: GLHooks) {
+  constructor(canvas: HTMLCanvasElement, hooks: RendererHooks) {
     const gl = canvas.getContext('webgl2', {
       alpha: false, antialias: false, depth: false, stencil: false, premultipliedAlpha: true,
       preserveDrawingBuffer: false,
@@ -45,7 +40,10 @@ export class WebGL2Renderer implements ViewRenderer {
     this.gl = gl;
     this.canvas = canvas;
     canvas.addEventListener('webglcontextlost', this.onLost); // the canvas outlives us: dispose removes it
-    this.atlas = new TileAtlas(gl, () => hooks.onVramFailure());
+    this.atlas = new TileAtlas(gl, () => hooks.onVramFailure(), undefined, {
+      uploaded: (b) => hooks.onUploaded(b),
+      needPixels: (b) => hooks.onNeedPixels(b),
+    });
     this.res = new GLResources(gl, canvas);
     this.prims = new GLPrimitives(this.res);
     this.pass = new GLTilePass(this.res, this.atlas);

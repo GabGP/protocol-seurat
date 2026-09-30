@@ -23,6 +23,8 @@ export interface SynthRequest {
   parentX?: number;
   parentY?: number;
   bands: ArrayBuffer[];
+  /** A local rebuild of a released bitmap: the worker paints as usual, only the sink treats the answer differently. */
+  restore?: boolean;
   /** Reply with the planes alone: no RGBA, no bitmap, nothing kept in the parent cache. */
   planesOnly?: boolean;
   /** With `planesOnly`: still retain the planes in the worker's cache (a rebuild of a parent children are routed to). */
