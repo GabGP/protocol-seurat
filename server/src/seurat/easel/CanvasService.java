@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.nio.ByteBuffer;
 import seurat.observe.Log;
@@ -10,6 +10,9 @@ import seurat.proto.MsgGaze;
 import seurat.proto.MsgHeartbeat;
 import seurat.proto.VarInt;
 import seurat.proto.Wire;
+import seurat.session.Canvas;
+import seurat.session.Mapping;
+import seurat.session.Session;
 
 /** Session-side frames of an Easel: MIRADA, ABRIR, CERRAR, CATALOGO and ECO. Loan frames are in {@link LoanHandlers}. */
 final class CanvasService {
@@ -61,7 +64,7 @@ final class CanvasService {
     void sendCatalog(Session session, Frame f) {
         Wire.parse(f.type(), () -> Buf.tail(ByteBuffer.wrap(f.payload())));
         for (var message : ctx.catalog().listing()) {
-            Easel.send(mapping, FrameType.OBRA, message.encode());
+            mapping.send(FrameType.OBRA, message.encode());
         }
     }
 }

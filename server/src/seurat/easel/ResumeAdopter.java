@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,6 +13,9 @@ import seurat.proto.MsgHello;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.session.Canvas;
+import seurat.session.Session;
+import seurat.session.Sessions;
 
 /**
  * SALUDO REANUDAR (spec 3.4.4, 8): the ticket matches, the principal is the same,

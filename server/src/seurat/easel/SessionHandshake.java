@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.util.HexFormat;
 import java.util.List;
@@ -19,6 +19,10 @@ import seurat.proto.MsgLoans;
 import seurat.proto.MsgWelcome;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
+import seurat.session.Canvas;
+import seurat.session.Mapping;
+import seurat.session.Session;
+import seurat.session.Sessions;
 
 /** SALUDO (spec 3.4.1): version, single-use token, caps subset, optional REANUDAR. No state before it. */
 final class SessionHandshake {
@@ -68,7 +72,7 @@ final class SessionHandshake {
             resumed = new ResumeAdopter(ctx).adopt(session, hello.resume());
             if (resumed == null) {
                 Log.warn(LogTags.SESSION, "s" + session.id() + " resume rejected");
-                Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
+                mapping.send(FrameType.ERROR, new MsgError.ProtocolError(
                         ProtoCodes.ERR_REANUDACION, 0, FrameType.SALUDO, "REANUDAR").encode());
             }
         }
@@ -76,18 +80,18 @@ final class SessionHandshake {
         List<Long> handles = resumed == null ? List.of() : resumed.handles();
         Log.info(LogTags.SESSION, "s" + session.id() + " established principal=" + token.principal()
                 + " role=" + token.role() + " mem=" + token.memMib() + " MiB caps=0x" + Long.toHexString(caps));
-        Easel.send(mapping, FrameType.BIENVENIDA, new MsgWelcome.Welcome(1, caps, session.id(),
+        mapping.send(FrameType.BIENVENIDA, new MsgWelcome.Welcome(1, caps, session.id(),
                 SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S, SeuratConstants.HEARTBEAT_S,
                 SeuratConstants.MAX_IN_FLIGHT, ctx.sessionMax(), session.ticket(), handles).encode());
         for (long h : handles) {
             Canvas c = session.canvases().get(h);
             synchronized (c) {
                 Concession con = c.concession();
-                Easel.send(mapping, FrameType.CONCESION, new MsgGaze.ConcessionMessage(h, con.epoch(),
+                mapping.send(FrameType.CONCESION, new MsgGaze.ConcessionMessage(h, con.epoch(),
                         con.minStratum(), con.maxBands(), con.reason(), con.maxBrushes(), con.maxKiB(),
                         con.leaseS()).encode());
                 for (MsgLoans.Scrape s : resumed.reissued().getOrDefault(h, List.of())) {
-                    Easel.send(mapping, FrameType.RASPAR, s.encode());
+                    mapping.send(FrameType.RASPAR, s.encode());
                 }
             }
             var work = ctx.catalog().get(c.workId());

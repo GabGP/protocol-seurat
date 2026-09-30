@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
@@ -8,6 +8,10 @@ import seurat.proto.MsgAudit;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
+import seurat.session.Canvas;
+import seurat.session.Delivery;
+import seurat.session.Mapping;
+import seurat.session.Session;
 
 /** Loan-side frames of an Easel: RECIBO, SOLTAR, RASPADO and INVENTARIO, each against the canvas book. */
 final class LoanHandlers {

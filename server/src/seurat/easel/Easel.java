@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.util.concurrent.BlockingQueue;
 import seurat.observe.Log;
@@ -10,6 +10,8 @@ import seurat.proto.FrameType;
 import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
+import seurat.session.Mapping;
+import seurat.session.Session;
 
 /**
  * Caballete: one virtual thread per session, the only writer of its session state.
@@ -24,14 +26,6 @@ public final class Easel implements Runnable {
         this.mapping = mapping;
         this.entry = entry;
         this.ctx = ctx;
-    }
-
-    public static void send(Mapping mapping, long type, byte[] payload) {
-        try {
-            mapping.sendControl(new Frame(type, payload).encode());
-        } catch (Exception ex) {
-            throw new RuntimeException(ex);
-        }
     }
 
     @Override
@@ -61,7 +55,7 @@ public final class Easel implements Runnable {
     /** ERROR with fatal = 1 precedes the close (spec 3.3); a protocol failure closes with 1002. */
     private void fail(int code, long refType, String msg) {
         try {
-            send(mapping, FrameType.ERROR, new MsgError.ProtocolError(code, 1, refType, msg).encode());
+            mapping.send(FrameType.ERROR, new MsgError.ProtocolError(code, 1, refType, msg).encode());
         } catch (RuntimeException ignored) {
         }
         mapping.fail();

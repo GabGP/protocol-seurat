@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -18,6 +18,10 @@ import seurat.proto.FrameType;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.session.Canvas;
+import seurat.session.Regulator;
+import seurat.session.Session;
+import seurat.session.Sessions;
 import seurat.store.WorkMeta;
 
 /** SOLTAR CRC (spec 5.3, 8): the first one is resent, a second one on the brush alerts the operator. */

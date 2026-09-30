@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import seurat.catalog.WorkRecord;
 import seurat.concession.Concessions;
@@ -10,6 +10,9 @@ import seurat.proto.MsgCatalog;
 import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
+import seurat.session.Canvas;
+import seurat.session.Mapping;
+import seurat.session.Session;
 
 /** ABRIR (spec 3.3, 7.3): ABIERTA, then CONCESION and the sketch. RECIBIENDO is ERROR 5, not fatal. */
 final class CanvasOpener {
@@ -20,7 +23,7 @@ final class CanvasOpener {
         WorkRecord work = ctx.catalog().get(request.id());
         if (work == null || work.meta.state() == ProtoCodes.ST_RETIRADA) {
             Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id() + ": no such work");
-            Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
+            mapping.send(FrameType.ERROR, new MsgError.ProtocolError(
                     ProtoCodes.ERR_OBRA_INEXISTENTE, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
@@ -28,7 +31,7 @@ final class CanvasOpener {
         if (work.store == null || state == ProtoCodes.ST_RECIBIENDO || state == ProtoCodes.ST_FALLIDA) {
             Log.warn(LogTags.SESSION, "s" + session.id() + " open failed work=" + request.id()
                     + ": not ready state=" + ProtoCodes.stateName(state));
-            Easel.send(mapping, FrameType.ERROR, new MsgError.ProtocolError(
+            mapping.send(FrameType.ERROR, new MsgError.ProtocolError(
                     ProtoCodes.ERR_OBRA_NO_LISTA, 0, FrameType.ABRIR, request.id()).encode());
             return;
         }
@@ -47,7 +50,7 @@ final class CanvasOpener {
                 + work.meta.strata() + " ed=" + work.meta.edition());
         synchronized (canvas) {
             session.canvases().put(handle, canvas);
-            Easel.send(mapping, FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,
+            mapping.send(FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,
                     work.meta.width(), work.meta.height(), work.meta.strata(), work.meta.edition(),
                     (int) ceiling[0], (int) ceiling[1], paddedW >> top, paddedH >> top).encode());
             ctx.grants().open(session, canvas);

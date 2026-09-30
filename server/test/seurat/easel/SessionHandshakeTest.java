@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.easel;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -23,6 +23,10 @@ import seurat.proto.MsgGaze;
 import seurat.proto.MsgHello;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.session.Canvas;
+import seurat.session.Regulator;
+import seurat.session.Session;
+import seurat.session.Sessions;
 import seurat.store.WorkMeta;
 
 /** SALUDO (spec 3.4.1) and REANUDAR (spec 3.4.4, 8): token, caps, claims, idempotency. */

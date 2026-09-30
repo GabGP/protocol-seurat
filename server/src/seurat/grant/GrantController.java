@@ -17,7 +17,6 @@ import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Easel;
 import seurat.session.Session;
 import seurat.session.Sessions;
 
@@ -35,7 +34,7 @@ public final class GrantController {
     }
 
     static void send(Session session, long type, byte[] payload) {
-        Easel.send(session.mapping(), type, payload);
+        session.mapping().send(type, payload);
     }
 
     /** ABRIR follow-up (spec 3.4.1): initial concession (floor: sketch only) + sketch plan. */
