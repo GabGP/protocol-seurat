@@ -14,7 +14,7 @@ import seurat.observe.Progress;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGoodbye;
+import seurat.proto.msg.MsgGoodbye;
 import seurat.session.Session;
 import seurat.session.Sessions;
 

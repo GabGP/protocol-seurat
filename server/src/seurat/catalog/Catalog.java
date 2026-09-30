@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import seurat.config.Units;
-import seurat.proto.MsgCatalog;
 import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgCatalog;
 import seurat.store.BrushStore;
 
 /** id -> work map + meta.json. Every change is pushed as OBRA to its observers (spec 7.3). */

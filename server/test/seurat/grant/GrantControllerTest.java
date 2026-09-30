@@ -6,10 +6,10 @@ import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
-import seurat.proto.MsgAudit;
-import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgAudit;
+import seurat.proto.msg.MsgLoans;
 import seurat.session.CanvasOrders;
 import seurat.concession.Concession;
 

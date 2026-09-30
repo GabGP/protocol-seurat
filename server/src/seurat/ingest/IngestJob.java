@@ -7,6 +7,7 @@ import seurat.catalog.WorkRecord;
 import seurat.codec.Geometry;
 import seurat.codec.Quant;
 import seurat.ingest.decode.MasterReader;
+import seurat.ingest.sketch.SketchPhase;
 import seurat.observe.AuditLog;
 import seurat.observe.Log;
 import seurat.observe.LogTags;

@@ -9,7 +9,7 @@ import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.plan.PlanEntry;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGaze;
+import seurat.proto.msg.MsgGaze;
 import seurat.session.Canvas;
 import seurat.session.Session;
 

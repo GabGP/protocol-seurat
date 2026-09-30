@@ -8,9 +8,9 @@ import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgCatalog;
-import seurat.proto.MsgHeartbeat;
 import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgCatalog;
+import seurat.proto.msg.MsgHeartbeat;
 import seurat.session.Session;
 import seurat.session.Sessions;
 

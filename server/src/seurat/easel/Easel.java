@@ -7,9 +7,9 @@ import seurat.observe.LogUnits;
 import seurat.proto.FatalProtocol;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgError;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Wire;
+import seurat.proto.msg.MsgError;
 import seurat.session.Mapping;
 import seurat.session.Session;
 

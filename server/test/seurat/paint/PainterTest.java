@@ -5,10 +5,10 @@ import seurat.codec.BrushId;
 import seurat.kit.PainterRig;
 import seurat.kit.TestKit;
 import seurat.plan.PlanEntry;
+import seurat.concession.Concession;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.Headers;
-import seurat.concession.Concession;
 
 /** Painter: checks a-e order, annotate-before-bytes, PLAN FIN. */
 public final class PainterTest {

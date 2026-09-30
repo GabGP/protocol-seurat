@@ -3,7 +3,7 @@ package seurat.catalog;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import seurat.proto.MsgCatalog;
+import seurat.proto.msg.MsgCatalog;
 
 /** The OBRA observers and the message one work change becomes (spec 7.3). */
 final class CatalogEvents {

@@ -3,6 +3,8 @@ package seurat.proto;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import seurat.kit.TestKit;
+import seurat.proto.msg.MsgHello;
+import seurat.proto.msg.MsgWelcome;
 
 /** Frames: §3.4.1 SALUDO/BIENVENIDA byte-exact, skip/fatal rules, TLV. */
 public final class FrameTest {

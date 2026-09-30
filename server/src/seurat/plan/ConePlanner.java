@@ -7,9 +7,9 @@ import java.util.Map;
 import seurat.codec.BrushId;
 import seurat.codec.Geometry;
 import seurat.config.SeuratConstants;
-import seurat.proto.MsgGaze;
-import seurat.proto.ProtoCodes;
 import seurat.concession.Concession;
+import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgGaze;
 
 /** Stateless cone: MIRADA + concession + book -> 3-pass delivery list. */
 public final class ConePlanner {

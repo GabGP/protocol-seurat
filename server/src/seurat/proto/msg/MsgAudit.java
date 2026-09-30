@@ -1,7 +1,10 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import seurat.proto.Buf;
+import seurat.proto.Ranges;
+import seurat.proto.VarInt;
 
 /** RENEW / AUDIT / INVENTORY: lease renewal and exact-set auditing. */
 public final class MsgAudit {

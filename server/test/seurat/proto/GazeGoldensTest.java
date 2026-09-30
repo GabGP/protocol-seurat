@@ -2,6 +2,8 @@ package seurat.proto;
 
 import java.nio.ByteBuffer;
 import seurat.kit.TestKit;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 
 /** §3.4.2 goldens: MIRADA, CONCESION e2, PLAN INICIO, PINCELADA e64, RECIBO. */
 public final class GazeGoldensTest {

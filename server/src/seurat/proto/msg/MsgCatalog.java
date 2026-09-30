@@ -1,7 +1,9 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import seurat.proto.Buf;
+import seurat.proto.VarInt;
 
 /** CATALOGO / OBRA / ABRIR / ABIERTA / CERRAR. */
 public final class MsgCatalog {

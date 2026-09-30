@@ -4,8 +4,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import seurat.kit.TestKit;
-import seurat.proto.MsgCatalog;
 import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgCatalog;
 import seurat.store.WorkMeta;
 
 /** Catalog: register/progress/ready/withdraw push OBRA to observers. */

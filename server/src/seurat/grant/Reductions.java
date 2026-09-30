@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import seurat.concession.Concession;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 import seurat.session.Canvas;
 import seurat.session.Delivery;
 

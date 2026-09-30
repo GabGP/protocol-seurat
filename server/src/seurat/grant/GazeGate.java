@@ -7,8 +7,8 @@ import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.proto.FatalProtocol;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGaze;
 import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgGaze;
 import seurat.session.Canvas;
 import seurat.session.Session;
 

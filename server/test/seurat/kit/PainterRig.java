@@ -9,7 +9,7 @@ import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGaze;
+import seurat.proto.msg.MsgGaze;
 import seurat.session.Regulator;
 import seurat.session.Canvas;
 import seurat.concession.Concession;

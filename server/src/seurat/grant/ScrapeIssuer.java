@@ -4,9 +4,9 @@ import java.util.List;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 import seurat.session.Canvas;
 import seurat.session.CanvasOrders;
 

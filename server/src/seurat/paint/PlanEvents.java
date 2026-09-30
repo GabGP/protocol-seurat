@@ -5,8 +5,8 @@ import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgGaze;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgGaze;
 import seurat.session.Canvas;
 
 /** PLAN FIN / PLAN CANCELADAS emitted by the paint side. Callers hold the canvas lock. */

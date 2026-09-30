@@ -1,7 +1,9 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import seurat.proto.Buf;
+import seurat.proto.VarInt;
 
 /** ADIOS (spec 3.3): orderly close, either way. */
 public record MsgGoodbye(long code, String msg) {

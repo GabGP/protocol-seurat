@@ -10,10 +10,10 @@ import seurat.ingest.IngestJob;
 import seurat.kit.TestKit;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgCatalog;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgCatalog;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 import static seurat.net.http.HttpConstants.CRLF;
 
 /** Loopback: HTTP + WS handshake + SALUDO..sketch + RECIBO, no internet. */
@@ -76,7 +76,7 @@ public final class WsLoopbackTest {
             do {
                 err = WsClient.readControl(in);
             } while (err.type() != FrameType.ERROR);
-            var pe = seurat.proto.MsgError.ProtocolError.parse(err.payload());
+            var pe = seurat.proto.msg.MsgError.ProtocolError.parse(err.payload());
             TestKit.check(pe.code() == 6 && pe.fail() == 0 && pe.refType() == FrameType.MIRADA,
                     "unknown handle: ERROR 6, ref_tipo = MIRADA");
         }

@@ -1,6 +1,7 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
+import seurat.proto.Buf;
 
 /** LATIDO / ECO: the 8-byte nonce both directions. Factory of records. */
 public final class MsgHeartbeat {

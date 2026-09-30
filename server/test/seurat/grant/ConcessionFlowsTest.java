@@ -6,11 +6,11 @@ import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
-import seurat.proto.MsgError;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgError;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 import seurat.store.WorkMeta;
 
 /** Concession flows: policy bands (2.3), floor until LISTA (7.3), edition swap (7.3), withdrawal (7.4). */

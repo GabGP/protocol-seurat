@@ -5,7 +5,7 @@ import java.util.Comparator;
 import java.util.List;
 import seurat.codec.BrushId;
 import seurat.config.SeuratConstants;
-import seurat.proto.MsgGaze;
+import seurat.proto.msg.MsgGaze;
 import seurat.store.WorkMeta;
 
 /** Brush tiling over ROIs and rings, plus the opening sketch list. */

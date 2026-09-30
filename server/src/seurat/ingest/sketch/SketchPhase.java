@@ -1,4 +1,4 @@
-package seurat.ingest;
+package seurat.ingest.sketch;
 
 import java.nio.file.Path;
 import seurat.catalog.Catalog;
@@ -14,15 +14,15 @@ import seurat.store.SeedFile;
  * pass left its edition 1, spec 7.2), the ed1 sketch and OBRA(ESTADO, BOCETO). Without one there
  * is no sketch: the work stays unopenable until LISTA, and the master is read once, by the pass.
  */
-final class SketchPhase {
+public final class SketchPhase {
     private SketchPhase() {}
 
     /** The ed1 store to write into, created only when there is a sketch to write. */
-    interface Ed1 {
+    public interface Ed1 {
         FileBrushStore open() throws Exception;
     }
 
-    static void run(String id, Path master, Path ed1Dir, Ed1 ed1, int top, int w, int h, Catalog catalog) {
+    public static void run(String id, Path master, Path ed1Dir, Ed1 ed1, int top, int w, int h, Catalog catalog) {
         try {
             boolean kept = SeedFile.present(ed1Dir);
             Overview.Sampled overview = kept ? null : Overview.probe(master, w, h, SketchBuilder.sampling(top));

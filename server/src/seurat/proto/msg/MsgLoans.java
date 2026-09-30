@@ -1,7 +1,11 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import seurat.proto.Buf;
+import seurat.proto.ProtoCodes;
+import seurat.proto.Ranges;
+import seurat.proto.VarInt;
 
 /** RASPAR / RASPADO / RECIBO / SOLTAR / RENOVAR / AUDITAR / INVENTARIO. */
 public final class MsgLoans {

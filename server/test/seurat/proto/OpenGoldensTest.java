@@ -1,6 +1,8 @@
 package seurat.proto;
 
 import seurat.kit.TestKit;
+import seurat.proto.msg.MsgCatalog;
+import seurat.proto.msg.MsgGaze;
 
 /** Spec 3.4.1 after BIENVENIDA, byte for byte: ABRIR, ABIERTA, initial CONCESION, the seed's header. */
 public final class OpenGoldensTest {

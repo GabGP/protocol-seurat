@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
-import seurat.proto.MsgLoans;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgLoans;
 
 /**
  * Server orders of one canvas (spec 3.3): one `orden` counter shared by RASPAR,

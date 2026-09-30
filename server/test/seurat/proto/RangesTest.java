@@ -2,6 +2,7 @@ package seurat.proto;
 
 import java.nio.ByteBuffer;
 import seurat.kit.TestKit;
+import seurat.proto.msg.MsgLoans;
 
 /** SACK ranges: §3.4.2 RECIBO, §3.4.3 RASPADO, §3.4.4 RENOVAR vectors. */
 public final class RangesTest {

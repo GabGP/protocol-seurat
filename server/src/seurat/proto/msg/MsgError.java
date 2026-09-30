@@ -1,7 +1,9 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import seurat.proto.Buf;
+import seurat.proto.VarInt;
 
 /** ERROR: code, fatal flag, offending type and text. Factory of records. */
 public final class MsgError {

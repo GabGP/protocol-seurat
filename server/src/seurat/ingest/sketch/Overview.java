@@ -1,4 +1,4 @@
-package seurat.ingest;
+package seurat.ingest.sketch;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;

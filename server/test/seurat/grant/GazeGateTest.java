@@ -3,8 +3,8 @@ package seurat.grant;
 import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 import seurat.proto.FatalProtocol;
-import seurat.proto.MsgGaze;
 import seurat.proto.ProtoCodes;
+import seurat.proto.msg.MsgGaze;
 
 /** MIRADA bucket (spec 4.1.1, 6.2): burst 40, the excess coalesced (last wins), ERROR 9 only for abuse. */
 public final class GazeGateTest {

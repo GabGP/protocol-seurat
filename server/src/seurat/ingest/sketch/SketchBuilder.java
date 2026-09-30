@@ -1,4 +1,4 @@
-package seurat.ingest;
+package seurat.ingest.sketch;
 
 import java.nio.file.Files;
 import seurat.codec.BrushEncoder;

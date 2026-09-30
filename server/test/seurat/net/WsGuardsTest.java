@@ -40,7 +40,7 @@ public final class WsGuardsTest {
             WsClient.readControl(socket.getInputStream());
             WsClient.sendWs(socket.getOutputStream(), 0, WsClient.frame(FrameType.RECIBO, new byte[]{1, 0x41}));
             Frame err = WsClient.readControl(socket.getInputStream());
-            var pe = seurat.proto.MsgError.ProtocolError.parse(err.payload());
+            var pe = seurat.proto.msg.MsgError.ProtocolError.parse(err.payload());
             TestKit.check(err.type() == FrameType.ERROR && pe.code() == 1 && pe.fail() == 1, "ERROR 1 fatal");
             WsFraming.Msg close = WsFraming.read(socket.getInputStream(), Integer.MAX_VALUE);
             TestKit.check(close.opcode() == WsFraming.CLOSE && ((close.data()[0] & 0xFF) << 8

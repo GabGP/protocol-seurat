@@ -1,10 +1,14 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import seurat.config.SeuratConstants;
+import seurat.proto.Buf;
+import seurat.proto.Ranges;
+import seurat.proto.Tlv;
+import seurat.proto.VarInt;
 
 /** SALUDO: the client hello and its REANUDAR request. Factory of records. */
 public final class MsgHello {

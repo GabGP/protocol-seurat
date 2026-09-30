@@ -3,6 +3,10 @@ package seurat.proto;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import seurat.kit.TestKit;
+import seurat.proto.msg.MsgAudit;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgHello;
+import seurat.proto.msg.MsgLoans;
 
 /** §3.4.3 scrape + §3.4.4 renew/resume goldens. */
 public final class ScrapeGoldensTest {

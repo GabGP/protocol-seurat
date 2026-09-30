@@ -5,7 +5,7 @@ import java.util.Set;
 import seurat.codec.BrushId;
 import seurat.concession.Concession;
 import seurat.config.SeuratConstants;
-import seurat.proto.MsgGaze;
+import seurat.proto.msg.MsgGaze;
 import seurat.store.BrushStore;
 import seurat.store.WorkMeta;
 

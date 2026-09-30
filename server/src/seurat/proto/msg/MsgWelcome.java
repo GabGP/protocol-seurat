@@ -1,8 +1,10 @@
-package seurat.proto;
+package seurat.proto.msg;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import seurat.proto.Tlv;
+import seurat.proto.VarInt;
 
 /** BIENVENIDA: the server welcome, its ticket and the resumed handles. Factory of records. */
 public final class MsgWelcome {

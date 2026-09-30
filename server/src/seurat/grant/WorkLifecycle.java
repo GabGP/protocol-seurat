@@ -9,11 +9,11 @@ import seurat.observe.LogTags;
 import seurat.paint.Painter;
 import seurat.plan.ConePlanner;
 import seurat.proto.FrameType;
-import seurat.proto.MsgError;
-import seurat.proto.MsgGaze;
-import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
+import seurat.proto.msg.MsgError;
+import seurat.proto.msg.MsgGaze;
+import seurat.proto.msg.MsgLoans;
 import seurat.session.Canvas;
 import seurat.session.Session;
 
