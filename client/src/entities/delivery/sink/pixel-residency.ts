@@ -1,10 +1,10 @@
 import { SEED_STRATUM } from '@/shared/config/constants';
 import { PLANES_READOUT_KEEP } from '@/shared/config/memory';
-import { brushKey } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
 import { nextImageId } from '../store';
 import { retryWithBytes } from './parent-recovery';
 import { keepsPlanes, settlePlanes } from './plane-keep';
+import { adoptPlanes } from './plane-origin';
 import { rebuildPlanes } from './rebuild-planes';
 import { endRestore, pumpRestores } from './restore-queue';
 import { bitmapOf } from './synth-bitmap';
@@ -47,16 +47,14 @@ export function onPixelsRestored(s: SinkState, out: SynthResult, index: number, 
     else endRestore(s, out.delivery);
     return;
   }
-  const rec = s.book.byDelivery.get(out.delivery);
-  if (rec) s.origin.set(brushKey(rec.brushId, rec.edition), index);
   bitmapOf(out)
-    .then((bmp) => landRestored(s, out, bmp))
+    .then((bmp) => landRestored(s, out, bmp, index))
     .catch(() => {
       if (s.activeSynthesis.get(out.delivery) === out.synthesisId) endRestore(s, out.delivery);
     });
 }
 
-function landRestored(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
+function landRestored(s: SinkState, out: SynthResult, bmp: ImageBitmap, worker: number): void {
   if (s.activeSynthesis.get(out.delivery) !== out.synthesisId) {
     bmp.close();
     return;
@@ -71,7 +69,7 @@ function landRestored(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   rec.rgba = bmp;
   rec.image = nextImageId();
-  if (!rec.planes && keepsPlanes(s, rec)) rec.planes = out.planes;
+  if (!rec.planes && keepsPlanes(s, rec)) adoptPlanes(s, rec, out.planes, out.synthesisId, worker);
   s.revision++;
   s.repaint();
   flushPending(s);

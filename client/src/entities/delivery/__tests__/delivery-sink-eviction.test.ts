@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { linkParent } from '../sink/brush-graph';
 import { makeBrushId, brushKey } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { planesKey } from '@/workers/protocol';
 import { fakeClient } from '../testing/fake-port';
 import { makeSink } from '../testing/make-sink';
 
@@ -118,7 +119,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
     await Promise.resolve();
     const redo = postMessage.mock.calls[2]?.[0] as { delivery: number; parentRef?: string; parentPlanes?: ArrayBuffer[] };
     expect(redo.delivery).toBe(4); // hung on the sketch (2), rebuilt on the retouch's planes
-    expect(redo.parentRef).toBe(brushKey(brush, 1)); // by reference: made[1] just made them
+    expect(redo.parentRef).toBe(planesKey(brushKey(brush, 1), retouch.synthesisId)); // by reference: made[1] just made them
     expect(redo.parentPlanes).toBeUndefined();
     sink.dispose();
     vi.unstubAllGlobals();

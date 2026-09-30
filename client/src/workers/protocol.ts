@@ -7,11 +7,11 @@ export interface SynthRequest {
   seed: boolean;
   seedWidth: number;
   seedHeight: number;
-  /** Cache/family identity `${brush}/${edition}`; the worker keys its plane cache on it. */
+  /** Family identity `${brush}/${edition}`; with `synthesisId` it keys the retained planes (`planesKey`). */
   brush: string;
   edition: number;
   parentPlanes?: ArrayBuffer[];
-  /** Which parent the bytes belong to (insert under this key). */
+  /** Which parent planes the bytes are (`planesKey`): insert under this key. */
   parentKey?: string;
   /**
    * Reference a cached parent instead of transferring bytes (crop geometry
@@ -68,3 +68,11 @@ export const SYNTH_CACHE_MIN_PER_WORKER = 4;
 export const SYNTH_CACHE_SMALL_SHARE = 8;
 /** One cached parent: three Int16 planes of a 256 x 256 brush. */
 export const SYNTH_PLANES_BYTES = 3 * 256 * 256 * 2;
+
+/**
+ * Worker cache identity of one set of planes: the brush (`${brush}/${edition}`) and the synthesis
+ * that made them. A brush's planes change as its bands arrive, so a key never names two contents.
+ */
+export function planesKey(brush: string, synthesisId: number): string {
+  return `${brush}@${synthesisId}`;
+}

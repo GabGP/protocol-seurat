@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { brushKey, makeBrushId } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
+import { planesKey } from '@/workers/protocol';
 import { STALE_PARENT, type SynthRequest } from '@/workers/protocol';
 import type { DeliverySink } from '../sink/delivery-sink';
 import { FakeWorker } from '../testing/fake-worker';
@@ -144,7 +145,7 @@ describe('a child whose parent lost its planes', () => {
     const child = lastSent();
     expect(child.delivery).toBe(3);
     expect(child.planesOnly).toBeUndefined();
-    expect(child.parentKey).toBe(brushKey(MID, 1));
+    expect(child.parentKey).toBe(planesKey(brushKey(MID, 1), rebuild.synthesisId));
     await land(child);
     expect(sink.book.byDelivery.get(3)?.rgba).not.toBeNull();
     expect(sink.book.byDelivery.get(3)?.pending).toBe(false);

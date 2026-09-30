@@ -27,7 +27,7 @@ export function buildRequest(s: SinkState, rec: DeliveryRecord, qY: number, qC: 
 export function withParent(s: SinkState, req: SynthRequest, parent: DeliveryRecord, bx: number, by: number): void {
   const seed = parent.stratum === SEED_STRATUM;
   const half = TILE / 2;
-  req.parentKey = brushKey(parent.brushId, parent.edition);
+  req.parentKey = parent.planesKey;
   req.parentPlanes = (parent.planes ?? []).map((plane) => plane.slice(0));
   req.parentPlaneWidth = seed ? s.seedWidth : TILE;
   req.parentPlaneHeight = seed ? s.seedHeight : TILE;

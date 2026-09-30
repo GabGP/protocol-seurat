@@ -1,11 +1,12 @@
 import { COLA_BUSY_MS } from '@/shared/config/constants';
-import { brushKey, splitBrushId } from '@/shared/proto/brush';
+import { splitBrushId } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
 import { nextImageId } from '../store';
 import { sameBrush } from './brush-graph';
 import { onRebuilt, retryWithBytes } from './parent-recovery';
 import { onPixelsRestored } from './pixel-residency';
 import { settlePlanes } from './plane-keep';
+import { adoptPlanes } from './plane-origin';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
 import { endRestore } from './restore-queue';
@@ -40,7 +41,7 @@ function resynthesizeChildren(s: SinkState, parentDelivery: number): void {
 }
 
 /** A synthesized image landed: show it, queue its receipt, redo what hangs on it. */
-function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
+function land(s: SinkState, out: SynthResult, bmp: ImageBitmap, worker: number): void {
   if (s.activeSynthesis.get(out.delivery) !== out.synthesisId) {
     bmp.close();
     return;
@@ -54,7 +55,7 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   rec.rgba = bmp;
   rec.image = nextImageId();
   endRestore(s, out.delivery); // a rebuild of the old image is moot now
-  rec.planes = out.planes; // they seed what hangs on this brush below, then `settlePlanes` gives back what nobody needs
+  adoptPlanes(s, rec, out.planes, out.synthesisId, worker); // they seed what hangs on this brush below, then `settlePlanes` gives back what nobody needs
   s.rebuilding.delete(out.delivery);
   s.revision++;
   rec.pending = false;
@@ -98,10 +99,8 @@ export function onResult(s: SinkState, index: number, ev: MessageEvent): void {
     else failSynthesis(s, out.delivery);
     return;
   }
-  const rec = s.book.byDelivery.get(out.delivery);
-  if (rec) s.origin.set(brushKey(rec.brushId, rec.edition), index);
   bitmapOf(out)
-    .then((bmp) => land(s, out, bmp))
+    .then((bmp) => land(s, out, bmp, index))
     .catch(() => {
       if (s.activeSynthesis.get(out.delivery) === out.synthesisId) failSynthesis(s, out.delivery);
     });

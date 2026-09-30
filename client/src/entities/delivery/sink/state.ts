@@ -97,7 +97,7 @@ export class SinkState {
   readout: number[] = [];
   nextSynthesisId = 1;
   activeSynthesis = new Map<number, number>();
-  /** brushKey -> worker index holding its planes (ref routing + stickiness). */
+  /** planesKey -> worker index that retained those planes (ref routing + stickiness); one entry per record. */
   origin = new Map<string, number>();
   inflight = new Map<number, InflightSynth>();
   repaint = (): void => undefined;

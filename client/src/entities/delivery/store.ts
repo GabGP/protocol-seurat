@@ -21,6 +21,8 @@ export interface DeliveryRecord {
   /** Validated wire bands are retained as the canonical synthesis source. */
   bands?: ArrayBuffer[];
   planes?: ArrayBuffer[] | null;
+  /** Which synthesis made `planes` (`planesKey`): the one name a worker caches that exact content under. */
+  planesKey?: string;
   qY?: number;
   qC?: number;
   pending?: boolean;
@@ -54,7 +56,7 @@ export function recordFromHead(h: BrushHead): DeliveryRecord {
  * and no bands (the sink that owned them is gone). The caller closes the original's bitmap.
  */
 export function slimRecord(rec: DeliveryRecord): DeliveryRecord {
-  return { ...rec, rgba: null, image: 0, bands: [], planes: null };
+  return { ...rec, rgba: null, image: 0, bands: [], planes: null, planesKey: undefined };
 }
 
 export interface DeliveryLedger {

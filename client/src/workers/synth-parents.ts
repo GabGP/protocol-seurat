@@ -1,6 +1,6 @@
 import { TILE, TILE_HALF, TILE_HALF_CELLS } from '@/shared/config/protocol';
 import {
-  SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL, SYNTH_CACHE_SMALL_SHARE, type SynthRequest,
+  planesKey, SYNTH_CACHE_GHOST, SYNTH_CACHE_MAIN, SYNTH_CACHE_SMALL, SYNTH_CACHE_SMALL_SHARE, type SynthRequest,
 } from './protocol';
 import { PLANE_CHANNELS, ParentPlaneCache, type PlaneSet } from './synth-cache';
 
@@ -15,9 +15,9 @@ export function sizeCache(req: SynthRequest): void {
   parents.resize(small, entries - small);
 }
 
-/** Cache identity: `req.brush` already is the `${brush}/${edition}` key the main thread refers to. */
+/** Cache identity of the planes this request makes: the key the main thread refers to them by. */
 export function ownKey(req: SynthRequest): string {
-  return req.brush;
+  return planesKey(req.brush, req.synthesisId);
 }
 
 export function emptyPlanes(cells: number): PlaneSet {

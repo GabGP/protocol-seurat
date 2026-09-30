@@ -3,6 +3,7 @@ import { brushKey } from '@/shared/proto/brush';
 import type { Departure } from '../departures';
 import { heldBrushes } from '../store';
 import { descendants, unlink } from './brush-graph';
+import { forgetOrigin } from './plane-origin';
 import { pump } from './synth-dispatch';
 import { release } from './release';
 import { restoreNewest } from './superseded';
@@ -25,7 +26,7 @@ function removeDelivery(s: SinkState, n: number, why: Departure, snap: Snapshot)
   if (rec) {
     const key = brushKey(rec.brushId, rec.edition);
     s.departures.note(key, why, n, snap.at, snap.held, snap.max);
-    s.origin.delete(key);
+    forgetOrigin(s, rec);
     rec.rgba?.close();
     rec.planes = null;
     rec.bands = [];

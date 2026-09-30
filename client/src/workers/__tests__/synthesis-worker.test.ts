@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
-import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
+import { planesKey, STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 
 /** Deterministic xorshift32 so the golden hashes never drift. */
 function rng(seed: number): () => number {
@@ -113,10 +113,12 @@ describe('synthesis worker decode (golden)', () => {
 
   it('serves its own result to a child that refers to it by the main-thread key', async () => {
     const r = rng(5);
-    const key = 'own/1'; // brushKey(id, edition): what the main thread puts in parentRef
-    const parent = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seedBytes(13, 9, r)], brush: key }));
+    const key = 'own/1'; // brushKey(id, edition); with the synthesis, what the main thread puts in parentRef
+    const parent = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seedBytes(13, 9, r)], brush: key, synthesisId: 7 }));
     expect(parent.ok).toBe(true);
-    const child = await run(base({ qC: 0, parentRef: key, bands: [bandBytes(1, r)], brush: 'kid/1' }));
+    const older = await run(base({ qC: 0, parentRef: planesKey(key, 6), bands: [bandBytes(1, r)], brush: 'kid/1' }));
+    expect(older.error).toBe(STALE_PARENT); // another synthesis of the brush: other planes
+    const child = await run(base({ qC: 0, parentRef: planesKey(key, 7), bands: [bandBytes(1, r)], brush: 'kid/1' }));
     expect(child.ok).toBe(true);
   });
 
@@ -128,7 +130,7 @@ describe('synthesis worker decode (golden)', () => {
     expect(bare.rgba).toBeNull();
     expect(bare.bitmap ?? null).toBeNull();
     expect(fnv(...(bare.planes ?? []))).toBe(fnv(...(full.planes ?? [])));
-    const child = await run(base({ qC: 0, parentRef: 'bare/1', bands: [bandBytes(1, rng(3))], brush: 'kid/2' }));
+    const child = await run(base({ qC: 0, parentRef: planesKey('bare/1', 1), bands: [bandBytes(1, rng(3))], brush: 'kid/2' }));
     expect(child.error).toBe(STALE_PARENT);
   });
 
@@ -136,9 +138,9 @@ describe('synthesis worker decode (golden)', () => {
     const r = rng(7);
     const seed = await run(base({ seed: true, seedWidth: 13, seedHeight: 9, bands: [seedBytes(13, 9, r)], brush: 'seed/1', cacheEntries: 4 }));
     expect(seed.ok).toBe(true);
-    const leaf = await run(base({ qC: 0, parentRef: 'seed/1', bands: [bandBytes(1, r)], brush: 'leaf/1' }));
+    const leaf = await run(base({ qC: 0, parentRef: planesKey('seed/1', 1), bands: [bandBytes(1, r)], brush: 'leaf/1' }));
     expect(leaf.ok).toBe(true);
-    const grand = await run(base({ qC: 0, parentRef: 'leaf/1', bands: [bandBytes(1, r)], brush: 'x/1' }));
+    const grand = await run(base({ qC: 0, parentRef: planesKey('leaf/1', 1), bands: [bandBytes(1, r)], brush: 'x/1' }));
     expect(grand.error).toBe(STALE_PARENT);
   });
 });

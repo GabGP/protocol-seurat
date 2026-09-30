@@ -3,7 +3,7 @@ import { makeBrushId, brushKey } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
 import { FakeWorker } from '../testing/fake-worker';
 import { makeSink } from '../testing/make-sink';
-import { STALE_PARENT } from '@/workers/protocol';
+import { planesKey, STALE_PARENT } from '@/workers/protocol';
 
 describe('DeliverySink pool', () => {
   it('fans out over idle workers, holds the rest, refills on completion', async () => {
@@ -70,7 +70,7 @@ describe('DeliverySink pool', () => {
     expect(sink.synthLoad).toEqual({ size: 2, busy: 1, waiting: 0 });
     const sent = workers[0]?.sent[1];
     expect(sent?.delivery).toBe(2);
-    expect(sent?.parentRef).toBe(brushKey(seed, 1));
+    expect(sent?.parentRef).toBe(planesKey(brushKey(seed, 1), 1));
     expect(sent?.parentPlanes).toBeUndefined();
     structuredClone(sent?.bands, { transfer: sent?.bands }); // postMessage detached them
     workers[0]?.answer({ delivery: 2, synthesisId: 2, ok: false, error: STALE_PARENT,
@@ -88,6 +88,32 @@ describe('DeliverySink pool', () => {
     sink.dispose();
     expect(sink.synthLoad).toEqual({ size: 0, busy: 0, waiting: 0 });
     expect(workers.every((w) => w.terminated)).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('never routes a child to a worker that holds an older synthesis of its parent', async () => {
+    vi.stubGlobal('ImageData', class {});
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => ({ close: vi.fn() })));
+    const workers: FakeWorker[] = [];
+    const sink = makeSink({ poolSize: 2, workers: workers });
+    const seed = makeBrushId(10, 0, 0);
+    const ingest = (delivery: number, brushId: bigint, from: number): void => {
+      sink.ingest(makeDeliveryBytes({ handle: 1, delivery, brushId, from, through: from + 1, epoch: 1 }), () => 1000, () => {}, 120);
+    };
+    const ok = (delivery: number, synthesisId: number) => ({ delivery, synthesisId, ok: true, rgba: new ArrayBuffer(4),
+      planes: [new ArrayBuffer(8), new ArrayBuffer(8), new ArrayBuffer(8)], width: 1, height: 1, elapsedMs: 5 });
+    const settle = async (): Promise<void> => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+    ingest(1, seed, 0); // worker 0: bands [0,1)
+    ingest(2, seed, 1); // worker 1: bands [0,2), the better planes
+    workers[1]?.answer(ok(2, 2));
+    await settle();
+    workers[0]?.answer(ok(1, 1)); // the older synthesis lands last
+    await settle();
+    ingest(3, makeBrushId(9, 0, 0), 0);
+    const child = [...(workers[0]?.sent ?? []), ...(workers[1]?.sent ?? [])].find((r) => r.delivery === 3);
+    expect(child?.parentKey).toBe(planesKey(brushKey(seed, 1), 2));
+    if (child?.parentRef !== undefined) expect(workers[1]?.sent).toContain(child);
+    sink.dispose();
     vi.unstubAllGlobals();
   });
 });
