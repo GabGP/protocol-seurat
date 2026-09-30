@@ -12,6 +12,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLServerSocket;
 import seurat.config.SeuratConfig;
+import seurat.net.http.HttpConstants;
 import static seurat.net.http.HttpConstants.CRLF;
 import seurat.net.http.HttpSurface;
 
@@ -39,14 +40,19 @@ final class Listeners {
 
     /** Writes one HTTP response and ends the connection (Connection: close, no-store unless set). */
     static void respond(Socket socket, HttpSurface.Response response) throws IOException {
-        StringBuilder header = new StringBuilder("HTTP/1.1 " + status(response.code())
-                + CRLF + "Content-Type: " + response.type() + CRLF + "Content-Length: " + response.body().length
-                + CRLF + "Connection: close" + CRLF);
-        if (!response.headers().containsKey(HttpSurface.CACHE_CONTROL)) header.append("Cache-Control: no-store" + CRLF);
+        StringBuilder header = new StringBuilder("HTTP/1.1 ").append(status(response.code())).append(CRLF);
+        if (response.code() != HttpConstants.NOT_MODIFIED) {
+            header.append("Content-Type: ").append(response.type()).append(CRLF)
+                    .append("Content-Length: ").append(response.body().length).append(CRLF);
+        }
+        header.append("Connection: close").append(CRLF);
+        if (!response.headers().containsKey(HttpConstants.CACHE_CONTROL)) header.append("Cache-Control: no-store").append(CRLF);
         response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append(CRLF));
         OutputStream out = socket.getOutputStream();
         out.write(header.append(CRLF).toString().getBytes(StandardCharsets.UTF_8));
-        out.write(response.body());
+        if (response.code() != HttpConstants.NOT_MODIFIED) {
+            out.write(response.body());
+        }
         out.flush();
         socket.close();
     }
@@ -63,6 +69,7 @@ final class Listeners {
             case 200 -> "200 OK";
             case 201 -> "201 Created";
             case 202 -> "202 Accepted";
+            case 304 -> "304 Not Modified";
             case 400 -> "400 Bad Request";
             case 401 -> "401 Unauthorized";
             case 403 -> "403 Forbidden";

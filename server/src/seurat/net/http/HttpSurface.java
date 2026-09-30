@@ -8,7 +8,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.catalog.Catalog;
 import seurat.config.SeuratConfig;
-import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
@@ -33,14 +32,7 @@ public final class HttpSurface {
         }
     }
 
-    /** Every response is no-store unless it names its own Cache-Control. */
-    public static final String CACHE_CONTROL = "Cache-Control";
-    private static final String IMMUTABLE =
-            "public, max-age=" + SeuratConstants.ASSET_MAX_AGE_S + ", immutable";
-
-    /** Static answers are cross-origin isolated: document, scripts and worker scripts all carry both headers. */
-    private static final Map<String, String> ISOLATION =
-            Map.of(HttpConstants.COOP, HttpConstants.COOP_VALUE, HttpConstants.COEP, HttpConstants.COEP_VALUE);
+    private static final byte[] EMPTY_BODY = new byte[0];
 
     private final StaticFiles files;
     private final SessionRoute session;
@@ -62,7 +54,7 @@ public final class HttpSurface {
     public Response route(Request req) {
         try {
             if (req.method().equals("GET") || req.method().equals("HEAD")) {
-                return staticGet(req.path());
+                return staticGet(req);
             }
             if (req.method().equals("POST") && req.path().equals("/seurat/v1/sesion")) {
                 return session.issue(req);
@@ -77,21 +69,29 @@ public final class HttpSurface {
         }
     }
 
-    private Response staticGet(String target) throws Exception {
-        int query = target.indexOf('?');
-        String path = query < 0 ? target : target.substring(0, query); // `?` names no file
-        byte[] body = files.get(path);
-        if (body == null) {
+    private Response staticGet(Request req) throws Exception {
+        int query = req.path().indexOf('?');
+        String path = query < 0 ? req.path() : req.path().substring(0, query); // `?` names no file
+        StaticFiles.Entry file = files.get(path);
+        if (file == null) {
             return json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
+        }
+        Map<String, String> headers = staticHeaders(file.etag());
+        if (ETags.matches(req.headers(), file.etag())) {
+            return new Response(HttpConstants.NOT_MODIFIED, "", EMPTY_BODY, headers);
         }
         String type = (!path.contains(".") || path.equals("/"))
                 ? HttpConstants.HTML
                 : StaticFiles.contentType(path);
-        Map<String, String> headers = files.hashed(path)
-                ? Map.of(CACHE_CONTROL, IMMUTABLE, HttpConstants.COOP, HttpConstants.COOP_VALUE,
-                        HttpConstants.COEP, HttpConstants.COEP_VALUE)
-                : ISOLATION;
-        return new Response(HttpConstants.OK, type, body, headers);
+        return new Response(HttpConstants.OK, type, file.body(), headers);
+    }
+
+    private static Map<String, String> staticHeaders(String etag) {
+        return Map.of(
+                HttpConstants.CACHE_CONTROL, HttpConstants.NO_CACHE,
+                HttpConstants.ETAG, etag,
+                HttpConstants.COOP, HttpConstants.COOP_VALUE,
+                HttpConstants.COEP, HttpConstants.COEP_VALUE);
     }
 
     static long number(String json, String key, long dflt) {

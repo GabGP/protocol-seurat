@@ -68,14 +68,35 @@ public final class HttpSurfaceTest {
                 "/assets/synthesis.worker-99999.js", Map.of(), new byte[0], "localhost"));
         TestKit.check(workerFallback.code() == 200
                 && new String(workerFallback.body()).contains("worker-body"), "worker fallback serves");
-        TestKit.check(!workerFallback.headers().containsKey(HttpSurface.CACHE_CONTROL),
-                "a worker served under another name is not cached");
+        TestKit.check(workerFallback.headers().get(HttpConstants.CACHE_CONTROL).equals(HttpConstants.NO_CACHE)
+                && workerFallback.headers().containsKey(HttpConstants.ETAG),
+                "worker fallback gets no-cache + ETag");
         var worker = http.route(new HttpSurface.Request("GET",
                 "/assets/synthesis.worker-12345.js", Map.of(), new byte[0], "localhost"));
-        TestKit.check(worker.headers().getOrDefault(HttpSurface.CACHE_CONTROL, "").contains("immutable"),
-                "a hashed asset is cached as immutable");
-        TestKit.check(!index.headers().containsKey(HttpSurface.CACHE_CONTROL), "index.html stays no-store");
-        for (var page : java.util.List.of(index, worker, workerFallback)) {
+        String etag = worker.headers().get(HttpConstants.ETAG);
+        TestKit.check(worker.code() == 200
+                && worker.headers().get(HttpConstants.CACHE_CONTROL).equals(HttpConstants.NO_CACHE)
+                && etag != null && !etag.isEmpty()
+                && worker.headers().get(HttpConstants.COEP).equals("require-corp"),
+                "a hashed worker asset gets no-cache + ETag + COEP");
+        var matched = http.route(new HttpSurface.Request("GET",
+                "/assets/synthesis.worker-12345.js", Map.of("If-None-Match", etag), new byte[0], "localhost"));
+        TestKit.check(matched.code() == 304
+                && matched.body().length == 0
+                && matched.headers().get(HttpConstants.COEP).equals("require-corp")
+                && matched.headers().get(HttpConstants.ETAG).equals(etag)
+                && matched.headers().get(HttpConstants.CACHE_CONTROL).equals(HttpConstants.NO_CACHE),
+                "a request with the matching If-None-Match gets 304, empty body, COEP present");
+        var stale = http.route(new HttpSurface.Request("GET",
+                "/assets/synthesis.worker-12345.js", Map.of("If-None-Match", "\"stale-etag\""), new byte[0], "localhost"));
+        TestKit.check(stale.code() == 200
+                && stale.body().length > 0
+                && new String(stale.body()).contains("worker-body"),
+                "a stale/different ETag gets 200 with the body");
+        TestKit.check(index.headers().get(HttpConstants.CACHE_CONTROL).equals(HttpConstants.NO_CACHE)
+                && index.headers().containsKey(HttpConstants.ETAG),
+                "index.html carries no-cache and ETag");
+        for (var page : java.util.List.of(index, worker, workerFallback, matched, stale)) {
             TestKit.check(page.headers().get(HttpConstants.COOP).equals("same-origin")
                     && page.headers().get(HttpConstants.COEP).equals("require-corp"),
                     "static answers are cross-origin isolated");

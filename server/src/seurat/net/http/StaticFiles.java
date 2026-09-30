@@ -3,16 +3,24 @@ package seurat.net.http;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Static root: client/dist. No CDN. */
 final class StaticFiles {
+    record Entry(byte[] body, String etag) {}
+    private record CacheRecord(long mtime, Entry entry) {}
+
+    private static final Entry FAVICON_ICO = new Entry(DefaultFavicon.ICO, ETags.of(DefaultFavicon.ICO));
+    private static final Entry FAVICON_SVG = new Entry(DefaultFavicon.SVG, ETags.of(DefaultFavicon.SVG));
+
     private final Path root;
+    private final ConcurrentHashMap<Path, CacheRecord> cache = new ConcurrentHashMap<>();
 
     StaticFiles(Path root) {
         this.root = root.toAbsolutePath().normalize();
     }
 
-    byte[] get(String path) throws IOException {
+    Entry get(String path) throws IOException {
         String clean = path.startsWith("/") ? path.substring(1) : path;
         String rel = clean.isEmpty() ? "index.html" : clean;
         Path file = root.resolve(rel).normalize();
@@ -20,22 +28,27 @@ final class StaticFiles {
             file = fallback(rel);
             if (file == null) {
                 if (rel.equals("favicon.ico")) {
-                    return DefaultFavicon.ICO;
+                    return FAVICON_ICO;
                 }
                 if (rel.equals("favicon.svg")) {
-                    return DefaultFavicon.SVG;
+                    return FAVICON_SVG;
                 }
                 return null;
             }
         }
-        return Files.readAllBytes(file);
+        return readCached(file);
     }
 
-    /** A build asset served under its own name: its name changes with its content, so it may be cached. */
-    boolean hashed(String path) {
-        String rel = path.startsWith("/") ? path.substring(1) : path;
-        Path file = root.resolve(rel).normalize();
-        return rel.startsWith("assets/") && file.startsWith(root) && Files.isRegularFile(file);
+    private Entry readCached(Path file) throws IOException {
+        long mtime = Files.getLastModifiedTime(file).toMillis();
+        CacheRecord rec = cache.get(file);
+        if (rec != null && rec.mtime == mtime) {
+            return rec.entry;
+        }
+        byte[] body = Files.readAllBytes(file);
+        Entry entry = new Entry(body, ETags.of(body));
+        cache.put(file, new CacheRecord(mtime, entry));
+        return entry;
     }
 
     private Path fallback(String rel) {
