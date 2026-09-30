@@ -36,7 +36,8 @@ final class ETags {
         return false;
     }
 
-    private static String header(Map<String, String> headers, String name) {
+    /** Case-insensitive header lookup; null when absent. */
+    static String header(Map<String, String> headers, String name) {
         if (headers == null || headers.isEmpty()) {
             return null;
         }
