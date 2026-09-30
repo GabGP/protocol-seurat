@@ -38,3 +38,14 @@ export const BRUSH_CAP_OPTIONS: ReadonlyArray<{ label: string; cap: number }> = 
 export const BRUSH_CAP_DEFAULT = 362;
 /** localStorage key of the chosen cap. */
 export const BRUSH_CAP_KEY = 'seurat.brushCap';
+/**
+ * The default cap is "auto": round(K x brushes per screen) between MIN and MAX, where brushes per screen is the tiles the
+ * backing store covers (a tile of slack per side). K leaves room for the core, the sketch, the rings and a pan margin.
+ */
+export const BRUSH_CAP_AUTO_K = 5.5;
+export const BRUSH_CAP_AUTO_MIN = 160;
+export const BRUSH_CAP_AUTO_MAX = 448;
+/** Whatever the bounds say, auto holds at least this many screens of tiles: the core at the focus plus the first ring. */
+export const BRUSH_CAP_AUTO_FLOOR_K = 2;
+/** The Settings value of "Auto" (no stored cap). */
+export const BRUSH_CAP_AUTO = 0;

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { brushCap, onBrushCap, setBrushCap } from '@/entities/delivery';
+import { autoBrushCap, capChoice, onBrushCap, setBrushCap } from '@/entities/delivery';
 import { ChoiceGroup } from '@/shared/ui/ChoiceGroup';
 import { capChoices } from '../model/cap-choices';
 import styles from './CapSection.module.css';
@@ -11,8 +11,9 @@ interface Props {
 
 /** Max brushes: how many this viewer keeps at once; changing it applies at once, no reload. */
 export function CapSection({ grant }: Props): JSX.Element {
-  const chosen = useSyncExternalStore(onBrushCap, brushCap);
-  const choices = capChoices(grant).map((c) => ({ value: c.cap, label: c.label }));
+  const chosen = useSyncExternalStore(onBrushCap, capChoice);
+  const auto = useSyncExternalStore(onBrushCap, autoBrushCap);
+  const choices = capChoices(grant, auto).map((c) => ({ value: c.cap, label: c.label }));
   return (
     <section className={styles.section} aria-label="Max brushes">
       <span className={styles.sectionTitle}>Max brushes</span>

@@ -1,4 +1,4 @@
-export { brushCap, onBrushCap, setBrushCap } from './brush-cap';
+export { autoBrushCap, brushCap, capChoice, onBrushCap, setBrushCap } from './brush-cap';
 export { HandleLedgers } from './ledgers';
 export type { EvictionView } from './eviction-stats';
 export { matchesScrape } from './scrape';

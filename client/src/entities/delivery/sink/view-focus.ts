@@ -1,5 +1,6 @@
 import { MS_PER_S } from '@/shared/config/constants';
 import { clamp } from '@/shared/lib/clamp';
+import { setViewport } from '../brush-cap';
 import { focusBands } from './core-deficit';
 import { dropColdPlanes } from './cold-planes';
 import { relieve, warmShown } from './eviction';
@@ -19,6 +20,7 @@ export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: nu
   const focus = clamp(Math.max(Math.floor(ideal), s.grant?.minStratum ?? 0), 0, s.top - 1);
   warmShown(s, nowS);
   s.view = { x0, y0, x1, y1, focus };
+  setViewport(vw, vh); // auto cap follows the backing store; a change relieves through onBrushCap
   s.focusBands = focusBands(ideal, focus, s.grant);
   s.cones.look(s.view, seq);
   s.viewSince = nowS;
