@@ -5,7 +5,7 @@
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
-//                                [--max-tab-mib N] [--lose-context restore|giveup]
+//                                [--max-tab-mib N] [--lose-context restore|giveup] [--sample S] [--breakdown 1]
 //
 // --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
 // `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
@@ -22,6 +22,9 @@
 // restores it and checks the recovery; `giveup` never restores it, so the viewer falls back to Canvas2D. Either way the viewer must
 // draw again (the screenshot is not blank), the bitmaps it released on the GPU are rebuilt from bands, and that sent no RECIBO. The
 // page's own "context lost / restored / not restored" console lines are expected then, other issues still fail.
+// --sample S adds a "curve:" line: every S seconds during the run the tab measured (page + workers), the renderer and GPU
+// process private bytes and the JS heap in use, to see whether memory plateaus on a long pan loop (--seconds 200 --pan 90).
+// --breakdown 1 lists what `measureUserAgentSpecificMemory` attributes the tab total to, by type and scope.
 // On Windows an `os:` line adds what Task Manager shows for the smoke's own browser: the private bytes of its renderer, GPU and
 // browser processes (what `measureUserAgentSpecificMemory` cannot see: bitmap pixels and the GPU process).
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
@@ -52,6 +55,7 @@ const maxResentPct = Number(args['max-resent-pct'] ?? 25);
 const maxTabMiB = args['max-tab-mib'] === undefined ? Infinity : Number(args['max-tab-mib']);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const dpr = Number(args.dpr ?? 1);
+const sampleEvery = Number(args.sample ?? 0);
 const loseContext = args['lose-context'] !== undefined;
 const RECOVER_MS = 60000; // the software renderer is slow: the rebuild of every released bitmap may take a while
 const BLANK_RATIO = 0.5; // a recovered screenshot must weigh at least this share of the one before the loss
@@ -132,8 +136,8 @@ const hook = `(() => {
 
 let exitCode = 1;
 // Private bytes per browser process of this run (matched by its profile dir), MiB by --type; Windows only.
-const osMemory = () => {
-  if (process.platform !== 'win32') return 'n/a (not Windows)';
+const osBy = () => {
+  if (process.platform !== 'win32') return null;
   const ps = `Get-CimInstance Win32_Process -Filter "Name='${exe.split('/').pop()}'" | Where-Object { $_.CommandLine -like '*${profile}*' } | ForEach-Object { $t = if ($_.CommandLine -match '--type=([a-z-]+)') { $Matches[1] } else { 'browser' }; $p = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue; if ($p) { "$t $($p.PrivateMemorySize64)" } }`;
   try {
     const by = {};
@@ -141,9 +145,14 @@ const osMemory = () => {
       const [t, b] = l.trim().split(' ');
       by[t] = (by[t] ?? 0) + Number(b) / 2 ** 20;
     }
-    const total = Object.values(by).reduce((a, b) => a + b, 0);
-    return `${total.toFixed(0)} MiB private (${Object.entries(by).map(([t, m]) => `${t} ${m.toFixed(0)}`).join(' · ')})`;
-  } catch (e) { return `n/a (${String(e.message).split('\n')[0]})`; }
+    return by;
+  } catch { return null; }
+};
+const osMemory = () => {
+  const by = osBy();
+  if (!by) return 'n/a (not Windows or not readable)';
+  const total = Object.values(by).reduce((a, b) => a + b, 0);
+  return `${total.toFixed(0)} MiB private (${Object.entries(by).map(([t, m]) => `${t} ${m.toFixed(0)}`).join(' · ')})`;
 };
 try {
   let targets;
@@ -225,6 +234,21 @@ try {
     const afterS = await read();
     return { lost, restoredCall, sizeBefore, size, ms: Date.now() - t0, beforeS, afterS };
   }
+  const tabMeasure = async () => (await cdp('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    if (!self.crossOriginIsolated || !performance.measureUserAgentSpecificMemory) return null;
+    const m = await performance.measureUserAgentSpecificMemory();
+    const by = (f) => m.breakdown.filter((e) => f(e.attribution[0]?.scope ?? '')).reduce((a, e) => a + e.bytes, 0);
+    const parts = m.breakdown.filter((e) => e.bytes > 0).map((e) => ({ bytes: e.bytes, types: e.types, scope: e.attribution[0]?.scope ?? '-', url: e.attribution[0]?.url ?? '' }));
+    return { total: m.bytes, page: by((c) => c === 'Window'), workers: by((c) => c.endsWith('WorkerGlobalScope')), parts };
+  })()` })).result.value;
+  const curve = [];
+  const sampleNow = async (t) => {
+    const tab = await tabMeasure();
+    const os = osBy() ?? {};
+    await cdp('HeapProfiler.enable');
+    const heap = ((await cdp('Runtime.getHeapUsage')).usedSize ?? 0) / 2 ** 20;
+    curve.push(`${t}s tab ${tab ? (tab.total / 2 ** 20).toFixed(0) : 'n/a'} (page ${tab ? (tab.page / 2 ** 20).toFixed(0) : '-'}) renderer ${(os.renderer ?? 0).toFixed(0)} gpu ${(os['gpu-process'] ?? 0).toFixed(0)} heap ${heap.toFixed(0)}`);
+  };
   const panFrom = 4 + 2 * zoomSteps;
   let lastInput = Date.now();
   for (let t = 2; t <= seconds; t += 2) {
@@ -237,6 +261,7 @@ try {
       await drag(k % 2 ? -700 : 0, k % 2 ? 0 : -400); // alternate half-screen moves: new ground each time
       lastInput = Date.now();
     }
+    if (sampleEvery && t % sampleEvery === 0) await sampleNow(t);
   }
   // Time to settle: how long after the last input the deliveries kept arriving (quiet for 2 s = settled).
   const totalNow = async () => Object.values((await read()).strata).reduce((a, b) => a + b, 0);
@@ -283,16 +308,16 @@ try {
   await cdp('HeapProfiler.enable');
   await cdp('HeapProfiler.collectGarbage');
   const heapAfterGc = ((await cdp('Runtime.getHeapUsage')).usedSize ?? 0) / 2 ** 20;
-  const tab = (await cdp('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
-    if (!self.crossOriginIsolated || !performance.measureUserAgentSpecificMemory) return null;
-    const m = await performance.measureUserAgentSpecificMemory();
-    const by = (f) => m.breakdown.filter((e) => f(e.attribution[0]?.scope ?? '')).reduce((a, e) => a + e.bytes, 0);
-    return { total: m.bytes, page: by((c) => c === 'Window'), workers: by((c) => c.endsWith('WorkerGlobalScope')) };
-  })()` })).result.value;
+  const tab = await tabMeasure();
   const osText = osMemory();
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
   writeFileSync(shot, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+  const extra = { rows: {}, canvases: '' };
+  if (args.breakdown) { // read while the socket is still open
+    for (const k of ['Compressed bands', 'GPU textures', 'Worker caches (max)', 'JS heap']) extra.rows[k] = await memRow(k);
+    extra.canvases = await probeText(`JSON.stringify([...document.querySelectorAll('canvas')].map((c) => c.width + 'x' + c.height))`);
+  }
   ws.close();
 
   const strata = Object.keys(s.strata).map(Number).filter((k) => k !== 10).sort((a, b) => a - b);
@@ -307,6 +332,13 @@ try {
     : 'n/a (not cross-origin isolated)';
   console.log(`memory: tab ${tabText} · js heap after gc ${heapAfterGc.toFixed(0)} MiB · estimate ${memory.split('estimate ')[1]}`);
   console.log(`os: ${osText}`);
+  if (curve.length) console.log(`curve: ${curve.join(' | ')}`);
+  if (args.breakdown && tab) {
+    const rows = tab.parts.map((e) => `  ${(e.bytes / 2 ** 20).toFixed(1)} MiB ${e.types.join('+')} ${e.scope} ${e.url}`);
+    console.log(['tab breakdown:', ...rows].join('\n'));
+    console.log(`viewer rows ${JSON.stringify(extra.rows)}`);
+    console.log(`canvases ${extra.canvases}`);
+  }
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   const mib = (t) => { const m = /([\d.]+)\s*(B|KiB|MiB|GiB)/.exec(t ?? ''); return m ? Number(m[1]) * 1024 ** ['B', 'KiB', 'MiB', 'GiB'].indexOf(m[2]) / 2 ** 20 : 0; };
   const flowMiB = s.flowBytes / 2 ** 20;
