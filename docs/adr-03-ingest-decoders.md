@@ -132,7 +132,7 @@ That conversion was the entire 2.3 Mpx/s bottleneck.
 
 ## Evidence
 
-- **Reader tests** in `server/test/seurat/ingest/`:
+- **Reader tests** in `server/test/seurat/ingest/` (per format under `decode/<format>/`):
   - `TiffReaderTest`:
     - every compression, in strips and in tiles, including with the predictor
     - BigTIFF in both byte orders

@@ -17,7 +17,6 @@ import javax.imageio.plugins.tiff.TIFFDirectory;
 import javax.imageio.plugins.tiff.TIFFField;
 import javax.imageio.stream.ImageOutputStream;
 import seurat.ingest.decode.MasterReader;
-import seurat.ingest.decode.PackBits;
 import seurat.kit.TestKit;
 
 /**

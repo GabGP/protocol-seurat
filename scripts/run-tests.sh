@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compiles and runs every Java test (JDK-only mains, `java -ea`).
+# Compiles and runs every Java test (JDK-only mains, `java -ea`), then the LoC and layer gates.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=".seurat/build/test-classes"
@@ -25,4 +25,5 @@ for t in $(cd server/test && find . -name '*Test.java' | sed 's|^\./||; s|\.java
 done
 echo "---"
 bash "$(dirname "$0")/check-loc.sh"
+bash "$(dirname "$0")/check-layers.sh"
 [ "$fail" -eq 0 ]
