@@ -14,7 +14,7 @@ import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import seurat.config.Units;
-import seurat.ingest.FormatMarkers;
+import seurat.ingest.decode.FormatMarkers;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;

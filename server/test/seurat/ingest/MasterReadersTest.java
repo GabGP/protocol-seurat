@@ -11,6 +11,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import javax.imageio.ImageIO;
+import seurat.ingest.decode.ImageIoReader;
+import seurat.ingest.decode.MasterReader;
+import seurat.ingest.decode.jpeg.JpegReader;
+import seurat.ingest.decode.png.PngReader;
+import seurat.ingest.decode.psb.PsbFixture;
+import seurat.ingest.decode.psb.PsbReader;
+import seurat.ingest.decode.tiff.TiffFixture;
+import seurat.ingest.decode.tiff.TiffLayout;
+import seurat.ingest.decode.tiff.TiffReader;
 import seurat.kit.TestKit;
 import seurat.store.MasterNames;
 

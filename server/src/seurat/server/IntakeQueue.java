@@ -5,7 +5,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
-import seurat.ingest.FormatMarkers;
+import seurat.ingest.decode.FormatMarkers;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.Progress;

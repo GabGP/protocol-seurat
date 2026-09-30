@@ -9,6 +9,7 @@ import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import seurat.codec.YCoCgR;
+import seurat.ingest.decode.RasterSamples;
 
 /**
  * Spec 7.1 step 2 (SONDEO): the overview the master carries, if any, sampled at 1/q of the master

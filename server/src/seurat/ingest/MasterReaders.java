@@ -2,6 +2,12 @@ package seurat.ingest;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import seurat.ingest.decode.ImageIoReader;
+import seurat.ingest.decode.MasterReader;
+import seurat.ingest.decode.jpeg.JpegReader;
+import seurat.ingest.decode.png.PngReader;
+import seurat.ingest.decode.psb.PsbReader;
+import seurat.ingest.decode.tiff.TiffReader;
 
 /**
  * The reader for a master, chosen by content, never by extension: the first streaming reader that

@@ -2,6 +2,10 @@ package seurat.ingest;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import seurat.ingest.decode.FormatMarkers;
+import seurat.ingest.decode.psb.PsbReader;
+import seurat.ingest.decode.tiff.TiffFile;
+import seurat.ingest.decode.tiff.TiffLayout;
 import seurat.store.MasterNames;
 
 /**

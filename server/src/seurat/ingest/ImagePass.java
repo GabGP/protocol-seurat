@@ -11,6 +11,7 @@ import seurat.codec.Geometry;
 import seurat.codec.SeedCodec;
 import seurat.codec.YCoCgR;
 import seurat.config.Units;
+import seurat.ingest.decode.MasterReader;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;

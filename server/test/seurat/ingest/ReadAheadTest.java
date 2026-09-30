@@ -1,6 +1,7 @@
 package seurat.ingest;
 
 import java.io.IOException;
+import seurat.ingest.decode.MasterReader;
 import seurat.kit.TestKit;
 
 /** Producer-consumer order, EOF stickiness, failure propagation, fraction. */
