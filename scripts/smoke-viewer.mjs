@@ -5,7 +5,7 @@
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
-//                                [--max-tab-mib N]
+//                                [--max-tab-mib N] [--lose-context restore|giveup]
 //
 // --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
 // `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
@@ -18,12 +18,18 @@
 // HeapProfiler.collectGarbage) and `performance.measureUserAgentSpecificMemory()` (the tab total, page vs workers; the server
 // serves the page cross-origin isolated and Chrome runs with ForceEagerMeasureMemory so it resolves at once) is read next to the
 // viewer's own "Estimate (sum)" telemetry row. --max-tab-mib N fails the run when the measured tab total exceeds N MiB (off by default).
+// --lose-context restore|giveup also loses the WebGL context once the run settled (WEBGL_lose_context.loseContext). `restore`
+// restores it and checks the recovery; `giveup` never restores it, so the viewer falls back to Canvas2D. Either way the viewer must
+// draw again (the screenshot is not blank), the bitmaps it released on the GPU are rebuilt from bands, and that sent no RECIBO. The
+// page's own "context lost / restored / not restored" console lines are expected then, other issues still fail.
+// On Windows an `os:` line adds what Task Manager shows for the smoke's own browser: the private bytes of its renderer, GPU and
+// browser processes (what `measureUserAgentSpecificMemory` cannot see: bitmap pixels and the GPU process).
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
 // With --key it signs in first (seurat.conf auth.accounts) and reports the finest stratum reached
 // and the bands delivered there. Use a large work (1.6-31 GP): small ones never leave the sketch.
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,6 +52,10 @@ const maxResentPct = Number(args['max-resent-pct'] ?? 25);
 const maxTabMiB = args['max-tab-mib'] === undefined ? Infinity : Number(args['max-tab-mib']);
 const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const dpr = Number(args.dpr ?? 1);
+const loseContext = args['lose-context'] !== undefined;
+const RECOVER_MS = 60000; // the software renderer is slow: the rebuild of every released bitmap may take a while
+const BLANK_RATIO = 0.5; // a recovered screenshot must weigh at least this share of the one before the loss
+const RECIBO = `0:${0x26}`;
 const renderSwitches = ['fps', args.scale && `scale:${args.scale}`].filter(Boolean).join(',');
 const SETTLE_MS = 4000;
 const QUIET_MS = 3000; // no delivery for this long = settled
@@ -78,6 +88,9 @@ const hook = `(() => {
     for (let i = 1; i < n; i++) v = v * 256 + b[o + i]; return [v, o + n]; };
   const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0, flowBytes: 0 };
   const bump = (m, k) => { m[k] = (m[k] || 0) + 1; };
+  S.synth = {}; // by kind: count, worker ms, round trip ms (queue + work)
+  const sent = new Map();
+  const acc = (k, f, v) => { const e = S.synth[k] ||= { n: 0, work: 0, trip: 0 }; e[f] += v; };
   const NativeWS = window.WebSocket;
   window.WebSocket = function (...a) {
     const s = new NativeWS(...a);
@@ -102,13 +115,36 @@ const hook = `(() => {
   const NativeWorker = window.Worker;
   window.Worker = function (...a) {
     const w = new NativeWorker(...a);
-    w.addEventListener('message', (e) => { if (e.data && e.data.ok === false && e.data.error !== 'stale-parent') S.synthFail++; });
+    const post = w.postMessage.bind(w);
+    w.postMessage = (d, t) => {
+      if (d && d.synthesisId !== undefined) sent.set(d.synthesisId, { t: performance.now(), k: d.restore ? 'restore' : d.planesOnly ? 'planes' : 'synth' });
+      return post(d, t);
+    };
+    w.addEventListener('message', (e) => {
+      if (e.data && e.data.ok === false && e.data.error !== 'stale-parent') S.synthFail++;
+      const q = e.data && sent.get(e.data.synthesisId);
+      if (q && e.data.ok) { sent.delete(e.data.synthesisId); acc(q.k, 'n', 1); acc(q.k, 'work', e.data.elapsedMs || 0); acc(q.k, 'trip', performance.now() - q.t); }
+    });
     return w;
   };
   window.Worker.prototype = NativeWorker.prototype;
 })();`;
 
 let exitCode = 1;
+// Private bytes per browser process of this run (matched by its profile dir), MiB by --type; Windows only.
+const osMemory = () => {
+  if (process.platform !== 'win32') return 'n/a (not Windows)';
+  const ps = `Get-CimInstance Win32_Process -Filter "Name='${exe.split('/').pop()}'" | Where-Object { $_.CommandLine -like '*${profile}*' } | ForEach-Object { $t = if ($_.CommandLine -match '--type=([a-z-]+)') { $Matches[1] } else { 'browser' }; $p = Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue; if ($p) { "$t $($p.PrivateMemorySize64)" } }`;
+  try {
+    const by = {};
+    for (const l of execFileSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8' }).split(/\r?\n/).filter(Boolean)) {
+      const [t, b] = l.trim().split(' ');
+      by[t] = (by[t] ?? 0) + Number(b) / 2 ** 20;
+    }
+    const total = Object.values(by).reduce((a, b) => a + b, 0);
+    return `${total.toFixed(0)} MiB private (${Object.entries(by).map(([t, m]) => `${t} ${m.toFixed(0)}`).join(' · ')})`;
+  } catch (e) { return `n/a (${String(e.message).split('\n')[0]})`; }
+};
 try {
   let targets;
   for (let i = 0; i < 50 && !targets; i++) {
@@ -120,6 +156,7 @@ try {
   const pending = new Map();
   const exceptions = [];
   const refusals = {}; // the viewer's own spec 5.4 verdicts, by reason
+  const contextLog = []; // the viewer's expected lines while --lose-context is on
   const consoleIssues = []; // the page's own console.error / console.warn (refusal verdicts are counted apart)
   const [cx, cy] = [W / 2, H / 2];
   const drag = async (dx, dy) => {
@@ -142,6 +179,7 @@ try {
       const text = String(m.params.args?.[0]?.value ?? '');
       const why = /refused \((\w+)\)/.exec(text);
       if (why) refusals[why[1]] = (refusals[why[1]] ?? 0) + 1;
+      else if (loseContext && /WebGL context (lost|restored|not restored)/.test(text)) contextLog.push(text);
       else if (m.params.type === 'error' || m.params.type === 'warning') consoleIssues.push(`${m.params.type}: ${text}`);
     } else if (m.method === 'Log.entryAdded' && (m.params.entry.level === 'error' || m.params.entry.level === 'warning')) {
       consoleIssues.push(`${m.params.entry.level}: ${m.params.entry.text} ${m.params.entry.url ?? ''}`);
@@ -163,6 +201,30 @@ try {
   await cdp('Page.navigate', { url: `${base}/?render=${renderSwitches}#/visor/${encodeURIComponent(args.work)}` });
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',
     { expression: 'JSON.stringify(window.__smoke)', returnByValue: true })).result.value);
+  // --lose-context: lose the context, restore it, wait until the picture is back; what the recovery cost.
+  async function loseAndRestore() {
+    const shotSize = async () => Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64').length;
+    const ext = (call) => cdp('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+      const cv = [...document.querySelectorAll('canvas')].sort((a, b) => b.width * b.height - a.width * a.height)[0];
+      const gl = cv.getContext('webgl2') || cv.getContext('webgl');
+      const x = window.__loseX ||= gl && gl.getExtension('WEBGL_lose_context'); // only a live context hands it out
+      if (!x) return 'no-gl'; x.${call}(); return 'ok'; })()` }).then((r) => r.result.value);
+    const giveUp = args['lose-context'] === 'giveup';
+    const beforeS = await read();
+    const sizeBefore = await shotSize();
+    const lost = await ext('loseContext');
+    await sleep(1500);
+    const restoredCall = args['lose-context'] === 'giveup' ? 'skipped' : await ext('restoreContext');
+    const t0 = Date.now();
+    let size = 0;
+    while (Date.now() - t0 < RECOVER_MS) {
+      await sleep(1000);
+      size = await shotSize();
+      if (contextLog.some((l) => (giveUp ? /Canvas2D/ : /context restored/).test(l)) && size >= BLANK_RATIO * sizeBefore) break;
+    }
+    const afterS = await read();
+    return { lost, restoredCall, sizeBefore, size, ms: Date.now() - t0, beforeS, afterS };
+  }
   const panFrom = 4 + 2 * zoomSteps;
   let lastInput = Date.now();
   for (let t = 2; t <= seconds; t += 2) {
@@ -193,6 +255,7 @@ try {
   const settleSec = ((changedAt - lastInput) / 1000).toFixed(1);
   const afterInput = seen - before;
   await sleep(SETTLE_MS);
+  const recovery = loseContext ? await loseAndRestore() : null;
   // Settled held count: open Telemetry (T) and read the Brushes section's "Held" row ("362 of 768" -> 362).
   await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 't', code: 'KeyT', text: 't' });
   await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key: 't', code: 'KeyT' });
@@ -226,6 +289,7 @@ try {
     const by = (f) => m.breakdown.filter((e) => f(e.attribution[0]?.scope ?? '')).reduce((a, e) => a + e.bytes, 0);
     return { total: m.bytes, page: by((c) => c === 'Window'), workers: by((c) => c.endsWith('WorkerGlobalScope')) };
   })()` })).result.value;
+  const osText = osMemory();
   const s = await read();
   const shot = args.shot ?? '.seurat/smoke-viewer.png'; // .seurat/ is gitignored
   writeFileSync(shot, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
@@ -242,6 +306,7 @@ try {
   const tabText = tab ? `${tabMiB.toFixed(0)} MiB (measured: page ${(tab.page / 2 ** 20).toFixed(0)} · workers ${(tab.workers / 2 ** 20).toFixed(0)})`
     : 'n/a (not cross-origin isolated)';
   console.log(`memory: tab ${tabText} · js heap after gc ${heapAfterGc.toFixed(0)} MiB · estimate ${memory.split('estimate ')[1]}`);
+  console.log(`os: ${osText}`);
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   const mib = (t) => { const m = /([\d.]+)\s*(B|KiB|MiB|GiB)/.exec(t ?? ''); return m ? Number(m[1]) * 1024 ** ['B', 'KiB', 'MiB', 'GiB'].indexOf(m[2]) / 2 ** 20 : 0; };
   const flowMiB = s.flowBytes / 2 ** 20;
@@ -251,7 +316,27 @@ try {
   console.log(`deliveries ${deliveries} · strata ${JSON.stringify(s.strata)} · SOLTAR ${JSON.stringify(s.soltar)}`);
   if (s.strata[0]) console.log(`stratum 0 reached · deliveries by bands-through ${JSON.stringify(s.s0bands)}`);
   console.log(`receipts ${s.out[`0:${0x26}`] ?? 0} · refused on arrival ${refused} (${refusedPct.toFixed(1)} %) ${JSON.stringify(refusals)} · screenshot ${shot}`);
+  const synthText = Object.entries(s.synth).map(([k, e]) => `${k} ${e.n} (worker ${(e.work / Math.max(e.n, 1)).toFixed(0)} ms, round trip ${(e.trip / Math.max(e.n, 1)).toFixed(0)} ms each)`).join(' · ');
+  console.log(`worker jobs ${synthText}`);
+  let recoveryFail = null;
+  if (recovery) {
+    const back = contextLog.some((l) => /context restored/.test(l));
+    const giveUp = args['lose-context'] === 'giveup';
+    const gaveUp = contextLog.some((l) => /Canvas2D/.test(l));
+    const receipts = (recovery.afterS.out[RECIBO] ?? 0) - (recovery.beforeS.out[RECIBO] ?? 0);
+    const rebuilt = (recovery.afterS.synth.restore?.n ?? 0) - (recovery.beforeS.synth.restore?.n ?? 0);
+    console.log(`context loss: lose ${recovery.lost} · restore ${recovery.restoredCall} · restored ${back} · gave up ${gaveUp} · picture ${recovery.size} B vs ${recovery.sizeBefore} B before · ${(recovery.ms / 1000).toFixed(1)} s · ${rebuilt} bitmaps rebuilt from bands · RECIBO sent ${receipts}`);
+    recoveryFail = [
+      recovery.lost !== 'ok' && `the context could not be lost (${recovery.lost})`,
+      !giveUp && !back && 'the viewer never logged the context restore',
+      !giveUp && gaveUp && 'the viewer gave up on WebGL',
+      giveUp && !gaveUp && 'the viewer did not fall back to Canvas2D',
+      recovery.size < BLANK_RATIO * recovery.sizeBefore && 'the picture did not come back after the restore',
+      receipts !== 0 && `${receipts} RECIBO sent during the recovery`,
+    ].filter(Boolean);
+  }
   const failures = [
+    ...(recoveryFail ?? []),
     exceptions.length && `page exceptions: ${exceptions.join(' | ')}`,
     consoleIssues.length && `${consoleIssues.length} console error/warning(s): ${consoleIssues.join(' | ')}`,
     s.in[ERROR] && `${s.in[ERROR]} ERROR frame(s) from the server`,
