@@ -20,7 +20,7 @@ const heapKeys = (): string[] => ((performance as HeapProbe).memory ? [HEAP_KEY]
  * Under the measured tab total (when the browser can give it), what the viewer holds for the open image, part by part, and their sum against the declared `mem_mib`.
  * With WebGL a decoded brush lives on the GPU only: its bitmap is closed once uploaded and rebuilt from its bands if
  * the pixels are needed again, so "Decoded bitmaps" is just what is held (the seed sketch; every tile on Canvas2D).
- * GPU textures count whole 64-layer arrays, and the worker caches are their upper bound.
+ * GPU textures count whole 16-layer arrays, and the worker caches are their upper bound.
  */
 export function memory({ sink, concession, gpuBytes, declaredMemMiB, tabMemory }: TelemetryInput): TelemetrySection {
   const tab = tabMemoryRows(tabMemory);
