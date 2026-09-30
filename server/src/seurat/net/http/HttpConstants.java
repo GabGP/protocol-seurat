@@ -33,6 +33,10 @@ public final class HttpConstants {
     public static final String COEP = "Cross-Origin-Embedder-Policy";
     /** Everything the viewer loads is same-origin (no CDN), so require-corp blocks nothing. */
     public static final String COEP_VALUE = "require-corp";
+    /** How long a finished connection waits for the browser to close first before the server closes it. */
+    public static final int CLOSE_LINGER_MS = 2_000;
+    /** Read chunk used to drain a closing connection. */
+    public static final int CLOSE_DRAIN_BYTES = 1024;
     public static final int OK = 200;
     public static final int CREATED = 201;
     public static final int NOT_MODIFIED = 304;

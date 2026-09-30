@@ -54,14 +54,30 @@ final class Listeners {
             out.write(response.body());
         }
         out.flush();
-        socket.close();
+        closeGracefully(socket);
     }
 
     /** An empty answer that ends the connection: a refused upgrade or an unparsable request. */
     static void refuse(Socket socket, int code) throws IOException {
         socket.getOutputStream().write(("HTTP/1.1 " + status(code) + CRLF + "Content-Length: 0" + CRLF + "Connection: close" + CRLF + CRLF)
                 .getBytes(StandardCharsets.US_ASCII));
-        socket.close();
+        closeGracefully(socket);
+    }
+
+    /**
+     * Waits (bounded) for the browser to close first, then closes. Every answer carries Content-Length, so the
+     * browser ends the exchange once it has the body; a server FIN sent while a large body is still in flight
+     * can strand its tail (seen on Windows loopback), leaving the page waiting on a script that never finishes.
+     */
+    static void closeGracefully(Socket socket) {
+        try (socket) {
+            socket.setSoTimeout(HttpConstants.CLOSE_LINGER_MS);
+            InputStream in = socket.getInputStream();
+            byte[] sink = new byte[HttpConstants.CLOSE_DRAIN_BYTES];
+            while (in.read(sink) >= 0) { /* discard until the browser closes */ }
+        } catch (IOException e) {
+            // Timed out or reset by the peer: the socket is closed anyway.
+        }
     }
 
     static String status(int code) {
