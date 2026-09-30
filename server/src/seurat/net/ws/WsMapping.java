@@ -9,12 +9,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import seurat.config.SeuratConstants;
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
-import seurat.session.Canvas;
-import seurat.session.Delivery;
+import seurat.session.Mapping;
 
 /** WebSocket mapping (spec 3.1): reader into the input queue, WsOutbound as the only writer. */
 public final class WsMapping implements Mapping {
@@ -67,7 +65,7 @@ public final class WsMapping implements Mapping {
     }
 
     @Override
-    public OutputStream openDelivery(Canvas canvas, Delivery e) {
+    public OutputStream openDelivery(long delivery) {
         return new ByteArrayOutputStream() {
             private boolean sent;
 
@@ -77,11 +75,11 @@ public final class WsMapping implements Mapping {
                     return;
                 }
                 sent = true;
-                var done = outbound.delivery(e.number(), WsChannels.wrap(WsChannels.DELIVERY, toByteArray()));
+                var done = outbound.delivery(delivery, WsChannels.wrap(WsChannels.DELIVERY, toByteArray()));
                 try {
                     done.get(SeuratConstants.STALL_S, TimeUnit.SECONDS);
                 } catch (TimeoutException stalled) {
-                    if (outbound.cancel(e.number())) {
+                    if (outbound.cancel(delivery)) {
                         throw new IOException("stalled " + SeuratConstants.STALL_S + " s"); // spec 6.1
                     }
                     await(done);

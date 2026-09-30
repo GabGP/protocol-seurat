@@ -10,7 +10,7 @@ import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.MsgGaze;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.session.Canvas;
 import seurat.concession.Concession;
 import seurat.session.Session;

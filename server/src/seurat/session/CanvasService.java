@@ -1,7 +1,6 @@
 package seurat.session;
 
 import java.nio.ByteBuffer;
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.Buf;

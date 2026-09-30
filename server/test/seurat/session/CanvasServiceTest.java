@@ -18,7 +18,6 @@ import seurat.proto.FrameType;
 import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
-import seurat.regulate.Regulator;
 import seurat.store.WorkMeta;
 
 /** SOLTAR CRC (spec 5.3, 8): the first one is resent, a second one on the brush alerts the operator. */

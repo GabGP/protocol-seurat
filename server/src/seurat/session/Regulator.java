@@ -1,8 +1,7 @@
-package seurat.regulate;
+package seurat.session;
 
 import java.util.Collection;
 import seurat.config.SeuratConstants;
-import seurat.session.Session;
 
 /** CoDel over the Painter queue + per-session DCTCP response. */
 public final class Regulator {

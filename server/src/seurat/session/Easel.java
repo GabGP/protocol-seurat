@@ -1,7 +1,6 @@
 package seurat.session;
 
 import java.util.concurrent.BlockingQueue;
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;

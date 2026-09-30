@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit;
 import seurat.concession.Concession;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.FatalProtocol;

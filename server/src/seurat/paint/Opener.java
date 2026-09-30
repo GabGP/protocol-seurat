@@ -9,7 +9,7 @@ import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.plan.PlanEntry;
 import seurat.proto.ProtoCodes;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.session.Canvas;
 import seurat.concession.Concession;
 import seurat.session.Delivery;

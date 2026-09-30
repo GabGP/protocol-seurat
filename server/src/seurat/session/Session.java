@@ -3,7 +3,6 @@ package seurat.session;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import seurat.net.Mapping;
 
 /** Per-connection state. Its Easel writes the protocol state; the Painter reads the gates. */
 public final class Session {

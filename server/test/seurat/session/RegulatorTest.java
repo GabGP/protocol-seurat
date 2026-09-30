@@ -1,8 +1,7 @@
-package seurat.regulate;
+package seurat.session;
 
 import java.util.List;
 import seurat.kit.TestKit;
-import seurat.session.Session;
 
 /** CoDel dwell signal + DCTCP AIMD response smoke. */
 public final class RegulatorTest {

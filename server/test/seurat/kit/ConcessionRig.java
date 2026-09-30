@@ -14,7 +14,7 @@ import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.ProtoCodes;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.session.Canvas;
 import seurat.concession.Concession;
 import seurat.session.Session;

@@ -24,7 +24,7 @@ import seurat.observe.LogUnits;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.ProtoCodes;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.server.Broadcast;
 import seurat.server.DiskReaper;
 import seurat.server.MasterIntake;

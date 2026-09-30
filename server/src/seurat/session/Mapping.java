@@ -1,14 +1,12 @@
-package seurat.net;
+package seurat.session;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import seurat.session.Canvas;
-import seurat.session.Delivery;
 
 /** One semantic, two mappings (spec 3.1); this server serves the WebSocket one, complete on its own. */
 public interface Mapping {
     /** Opens one delivery flow (WT: server uni stream; WS: channel-1 message). */
-    OutputStream openDelivery(Canvas canvas, Delivery e) throws IOException;
+    OutputStream openDelivery(long delivery) throws IOException;
 
     /** Queues one control frame, in order, without blocking the caller (WT: client bidi; WS: channel 0). */
     void sendControl(byte[] frame) throws IOException;

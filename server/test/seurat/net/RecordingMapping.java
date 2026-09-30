@@ -4,8 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import seurat.session.Canvas;
-import seurat.session.Delivery;
+import seurat.session.Mapping;
 
 /** Mapping that records control frames and delivery bytes for tests. */
 public final class RecordingMapping implements Mapping {
@@ -20,7 +19,7 @@ public final class RecordingMapping implements Mapping {
     }
 
     @Override
-    public OutputStream openDelivery(Canvas canvas, Delivery delivery) {
+    public OutputStream openDelivery(long delivery) {
         return new ByteArrayOutputStream() {
             @Override
             public void close() {

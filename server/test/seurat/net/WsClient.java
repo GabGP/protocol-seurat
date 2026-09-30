@@ -27,7 +27,7 @@ import seurat.paint.Painter;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.Headers;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.grant.GazeGate;
 import seurat.session.Easel;
 import seurat.session.EaselContext;

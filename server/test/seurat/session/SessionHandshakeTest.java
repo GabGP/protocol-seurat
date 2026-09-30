@@ -23,7 +23,6 @@ import seurat.proto.MsgGaze;
 import seurat.proto.MsgHello;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
-import seurat.regulate.Regulator;
 import seurat.store.WorkMeta;
 
 /** SALUDO (spec 3.4.1) and REANUDAR (spec 3.4.4, 8): token, caps, claims, idempotency. */

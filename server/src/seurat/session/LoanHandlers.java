@@ -2,7 +2,6 @@ package seurat.session;
 
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
-import seurat.net.Mapping;
 import seurat.observe.AuditLog;
 import seurat.proto.Frame;
 import seurat.proto.MsgAudit;

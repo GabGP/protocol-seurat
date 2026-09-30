@@ -1,6 +1,5 @@
 package seurat.session;
 
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.FrameType;

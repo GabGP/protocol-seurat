@@ -11,7 +11,7 @@ import seurat.kit.TestKit;
 import seurat.net.RecordingMapping;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
-import seurat.regulate.Regulator;
+import seurat.session.Regulator;
 import seurat.session.Canvas;
 import seurat.concession.Concession;
 import seurat.session.Session;

@@ -2,7 +2,6 @@ package seurat.session;
 
 import seurat.catalog.WorkRecord;
 import seurat.concession.Concessions;
-import seurat.net.Mapping;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.proto.Frame;

@@ -63,7 +63,7 @@ final class DeliveryWriter {
                     delivery.from(), delivery.through(), delivery.epoch(), Quant.qy(table, stratum),
                     Quant.qc(table, stratum), delivery.edition(), crcs, lengths);
             onWire = true;
-            try (OutputStream out = session.mapping().openDelivery(canvas, delivery)) {
+            try (OutputStream out = session.mapping().openDelivery(delivery.number())) {
                 out.write(head.encode());
                 for (byte[] band : bands) {
                     out.write(band);
