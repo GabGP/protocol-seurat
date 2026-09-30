@@ -32,16 +32,14 @@ public final class HttpSurface {
         }
     }
 
-    private static final byte[] EMPTY_BODY = new byte[0];
-
-    private final StaticFiles files;
+    private final StaticRoute statics;
     private final SessionRoute session;
     private final WorkRoutes routes;
 
     public HttpSurface(Path staticRoot, Sessions sessions, Catalog catalog,
             SeuratConfig config, BiConsumer<String, Path> onMaster,
             Consumer<String> onPolicy, Consumer<String> onWithdraw) {
-        this.files = new StaticFiles(staticRoot);
+        this.statics = new StaticRoute(staticRoot);
         this.session = new SessionRoute(sessions, config);
         this.routes = new WorkRoutes(catalog, config, onMaster, onPolicy, onWithdraw);
     }
@@ -54,7 +52,7 @@ public final class HttpSurface {
     public Response route(Request req) {
         try {
             if (req.method().equals("GET") || req.method().equals("HEAD")) {
-                return staticGet(req);
+                return statics.get(req);
             }
             if (req.method().equals("POST") && req.path().equals("/seurat/v1/sesion")) {
                 return session.issue(req);
@@ -67,31 +65,6 @@ public final class HttpSurface {
             Log.error(LogTags.HTTP, req.method() + " " + req.path() + " failed: " + LogUnits.cause(ex), ex);
             return json(HttpConstants.INTERNAL, HttpConstants.INTERNAL_BODY);
         }
-    }
-
-    private Response staticGet(Request req) throws Exception {
-        int query = req.path().indexOf('?');
-        String path = query < 0 ? req.path() : req.path().substring(0, query); // `?` names no file
-        StaticFiles.Entry file = files.get(path);
-        if (file == null) {
-            return json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-        }
-        Map<String, String> headers = staticHeaders(file.etag());
-        if (ETags.matches(req.headers(), file.etag())) {
-            return new Response(HttpConstants.NOT_MODIFIED, "", EMPTY_BODY, headers);
-        }
-        String type = (!path.contains(".") || path.equals("/"))
-                ? HttpConstants.HTML
-                : StaticFiles.contentType(path);
-        return new Response(HttpConstants.OK, type, file.body(), headers);
-    }
-
-    private static Map<String, String> staticHeaders(String etag) {
-        return Map.of(
-                HttpConstants.CACHE_CONTROL, HttpConstants.NO_CACHE,
-                HttpConstants.ETAG, etag,
-                HttpConstants.COOP, HttpConstants.COOP_VALUE,
-                HttpConstants.COEP, HttpConstants.COEP_VALUE);
     }
 
     static long number(String json, String key, long dflt) {

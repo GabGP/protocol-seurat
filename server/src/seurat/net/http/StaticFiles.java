@@ -5,9 +5,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Static root: client/dist. No CDN. */
+/** Static root: client/dist. No CDN. Each file is read, hashed and gzipped once per mtime. */
 final class StaticFiles {
-    record Entry(byte[] body, String etag) {}
+    /** One file version: the identity body and, for compressible text, its gzip (null otherwise), each with its ETag. */
+    record Entry(byte[] body, String etag, byte[] gzip, String gzipEtag) {
+        Entry(byte[] body, String etag) {
+            this(body, etag, null, null);
+        }
+
+        static Entry of(byte[] body, String type) {
+            String etag = ETags.of(body);
+            byte[] gzip = StaticGzip.encode(body, type);
+            return new Entry(body, etag, gzip, gzip == null ? null : StaticGzip.etag(etag));
+        }
+    }
     private record CacheRecord(long mtime, Entry entry) {}
 
     private static final Entry FAVICON_ICO = new Entry(DefaultFavicon.ICO, ETags.of(DefaultFavicon.ICO));
@@ -46,7 +57,7 @@ final class StaticFiles {
             return rec.entry;
         }
         byte[] body = Files.readAllBytes(file);
-        Entry entry = new Entry(body, ETags.of(body));
+        Entry entry = Entry.of(body, contentType(file.getFileName().toString()));
         cache.put(file, new CacheRecord(mtime, entry));
         return entry;
     }
@@ -80,20 +91,23 @@ final class StaticFiles {
         if (path.endsWith(".html")) {
             return HttpConstants.HTML;
         }
-        if (path.endsWith(".js")) {
+        if (path.endsWith(".js") || path.endsWith(".mjs")) {
             return HttpConstants.JAVASCRIPT;
         }
         if (path.endsWith(".css")) {
             return HttpConstants.CSS;
         }
-        if (path.endsWith(".json")) {
+        if (path.endsWith(".json") || path.endsWith(".map")) {
             return HttpConstants.JSON;
         }
         if (path.endsWith(".png")) {
             return "image/png";
         }
         if (path.endsWith(".svg")) {
-            return "image/svg+xml";
+            return HttpConstants.SVG;
+        }
+        if (path.endsWith(".txt")) {
+            return HttpConstants.TEXT;
         }
         if (path.endsWith(".ico")) {
             return "image/x-icon";
