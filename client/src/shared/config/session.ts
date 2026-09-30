@@ -2,6 +2,8 @@ export const WT_READY_TIMEOUT_MS = 3000;
 export const GAZE_PER_S = 20;
 export const GAZE_BURST = 40;
 export const GAZE_QUIET_IDLE_MS = 300;
+/** A still, visible view repeats its MIRADA well inside the server's 60 s inactivity floor (spec 2.3). */
+export const GAZE_KEEPALIVE_MS = 30_000;
 export const RECEIPT_EVERY_MS = 100;
 export const RECEIPT_EVERY_N = 8;
 export const LEASE_S = 120;

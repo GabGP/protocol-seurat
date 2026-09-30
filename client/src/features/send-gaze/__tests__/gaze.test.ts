@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GazeSender } from '@/features/send-gaze';
+import { GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
 import type { SeuratTransport } from '@/shared/api/transport';
 
 function fakeTransport(supportsDatagrams: boolean) {
@@ -101,6 +102,24 @@ describe('send-gaze', () => {
     s.motion({ ...base, handle: 2 });
     vi.advanceTimersByTime(16);
     expect(t.datagrams.length).toBe(1);
+    s.dispose();
+  });
+
+  it('a still, visible view repeats its MIRADA inside the inactivity floor, and stops once hidden', () => {
+    const t = fakeTransport(true);
+    const s = new GazeSender(() => t as unknown as SeuratTransport);
+    s.still(base);
+    expect(t.control.length).toBe(1);
+    vi.advanceTimersByTime(GAZE_KEEPALIVE_MS - 1);
+    expect(t.control.length).toBe(1);
+    vi.advanceTimersByTime(1);
+    expect(t.control.length).toBe(2);
+    expect(s.lastSeq).toBe(2);
+    vi.advanceTimersByTime(GAZE_KEEPALIVE_MS);
+    expect(t.control.length).toBe(3);
+    s.hidden(1);
+    vi.advanceTimersByTime(GAZE_KEEPALIVE_MS * 3);
+    expect(t.control.length).toBe(4);
     s.dispose();
   });
 });

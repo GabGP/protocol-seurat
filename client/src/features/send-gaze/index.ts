@@ -1,4 +1,4 @@
-import { GAZE_QUIET_IDLE_MS } from '@/shared/config/constants';
+import { GAZE_KEEPALIVE_MS, GAZE_QUIET_IDLE_MS } from '@/shared/config/constants';
 import { gazeCore, MFLAGS_HIDDEN, MFLAGS_STILL, T, type Gaze } from '@/shared/proto/messages';
 import { concat, viEncode } from '@/shared/proto/varint';
 import type { SeuratTransport } from '@/shared/api/transport';
@@ -9,6 +9,7 @@ export class GazeSender {
   private last: Gaze | null = null;
   private raf = 0;
   private idleTimer = 0;
+  private keepTimer = 0;
   private lastSentAt = 0;
   /** Handles only rise: a view at or below the highest closed one describes a canvas the server has forgotten. */
   private closedThrough = 0;
@@ -66,6 +67,7 @@ export class GazeSender {
 
   hidden(handle: number): void {
     if (handle <= this.closedThrough) return;
+    clearTimeout(this.keepTimer);
     this.seq += 1;
     const t = this.transport();
     if (!t) return;
@@ -83,6 +85,10 @@ export class GazeSender {
     if (still) {
       const core = gazeCore({ ...m, flags: m.flags | MFLAGS_STILL });
       t.sendControl(concat(viEncode(T.MIRADA), viEncode(core.length), core));
+      // A visible view that stays still is still being looked at: repeat it inside the server's
+      // 60 s inactivity floor (spec 2.3), or a slow link loses the detail it is still painting.
+      clearTimeout(this.keepTimer);
+      this.keepTimer = setTimeout(() => this.again(), GAZE_KEEPALIVE_MS) as unknown as number;
     } else {
       // Datagram form, vi tipo · payload (spec 3.2): a WT datagram, or the WS channel-2 message.
       t.sendGazeDatagram(concat(viEncode(T.MIRADA), gazeCore(m)));
@@ -109,6 +115,7 @@ export class GazeSender {
     const g = globalThis as { cancelAnimationFrame?: (h: number) => void };
     if (typeof g.cancelAnimationFrame === 'function' && this.raf !== 0) g.cancelAnimationFrame(this.raf);
     clearTimeout(this.idleTimer);
+    clearTimeout(this.keepTimer);
     this.raf = 0;
     this.pending = null;
   }
