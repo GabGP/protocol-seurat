@@ -1,4 +1,4 @@
-package seurat.session;
+package seurat.concession;
 
 import seurat.codec.BrushId;
 import seurat.kit.TestKit;

@@ -12,7 +12,7 @@ import seurat.proto.FrameType;
 import seurat.proto.MsgGaze;
 import seurat.regulate.Regulator;
 import seurat.session.Canvas;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 import seurat.session.Session;
 import seurat.session.Sessions;
 import seurat.store.WorkMeta;

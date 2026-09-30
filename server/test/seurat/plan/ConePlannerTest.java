@@ -7,7 +7,7 @@ import java.util.Set;
 import seurat.codec.BrushId;
 import seurat.kit.TestKit;
 import seurat.proto.MsgGaze;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 
 /** §2.3 golden: 153 brushes / 212 deliveries + monotone ancestor-closed. */
 public final class ConePlannerTest {

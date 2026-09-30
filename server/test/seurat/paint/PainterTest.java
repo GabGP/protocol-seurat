@@ -8,7 +8,7 @@ import seurat.plan.PlanEntry;
 import seurat.proto.Frame;
 import seurat.proto.FrameType;
 import seurat.proto.Headers;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 
 /** Painter: checks a-e order, annotate-before-bytes, PLAN FIN. */
 public final class PainterTest {

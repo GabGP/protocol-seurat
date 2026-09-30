@@ -103,10 +103,6 @@ public final class IngestJob implements Runnable {
         return level;
     }
 
-    public static int padTo(int v, int top) {
-        return ((v + (1 << top) - 1) >> top) << top;
-    }
-
     private Path dir(int edition) {
         return edition == 1 ? worksDir.resolve(id).resolve(StoreFiles.SKETCH_DIR) : worksDir.resolve(id);
     }
@@ -117,8 +113,8 @@ public final class IngestJob implements Runnable {
         int[] nx = new int[levels];
         int[] ny = new int[levels];
         for (int stratum = 0; stratum < levels; stratum++) {
-            nx[stratum] = Geometry.tiles(padTo(w, top) >> stratum);
-            ny[stratum] = Geometry.tiles(padTo(h, top) >> stratum);
+            nx[stratum] = Geometry.tiles(Geometry.padTo(w, top) >> stratum);
+            ny[stratum] = Geometry.tiles(Geometry.padTo(h, top) >> stratum);
         }
         Files.createDirectories(dir);
         Files.writeString(dir.resolve(StoreFiles.QUANT), Integer.toString(Quant.TABLE)); // FileBrushStore reads it

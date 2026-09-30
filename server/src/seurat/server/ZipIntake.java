@@ -3,11 +3,11 @@ package seurat.server;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Predicate;
-import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
+import seurat.store.MasterNames;
 
 /** An inbox zip: unpack its masters, then ingest them one after another, the rest "queued" on the bar. */
 final class ZipIntake {
@@ -43,6 +43,6 @@ final class ZipIntake {
     }
 
     private static String id(Path img) {
-        return MasterFormats.stem(img.getFileName().toString());
+        return MasterNames.stem(img.getFileName().toString());
     }
 }

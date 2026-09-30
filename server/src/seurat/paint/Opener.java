@@ -11,7 +11,7 @@ import seurat.plan.PlanEntry;
 import seurat.proto.ProtoCodes;
 import seurat.regulate.Regulator;
 import seurat.session.Canvas;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 import seurat.session.Delivery;
 import seurat.session.Session;
 

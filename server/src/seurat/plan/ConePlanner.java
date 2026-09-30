@@ -9,7 +9,7 @@ import seurat.codec.Geometry;
 import seurat.config.SeuratConstants;
 import seurat.proto.MsgGaze;
 import seurat.proto.ProtoCodes;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 
 /** Stateless cone: MIRADA + concession + book -> 3-pass delivery list. */
 public final class ConePlanner {

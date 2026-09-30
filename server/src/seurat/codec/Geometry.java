@@ -27,4 +27,8 @@ public final class Geometry {
     public static int tiles(int pixels) {
         return ceilDiv(pixels, SIDE);
     }
+
+    public static int padTo(int v, int top) {
+        return ((v + (1 << top) - 1) >> top) << top;
+    }
 }

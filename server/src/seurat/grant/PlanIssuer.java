@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.ArrayList;
 import java.util.HashSet;

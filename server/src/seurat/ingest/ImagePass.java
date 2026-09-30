@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import seurat.catalog.Catalog;
+import seurat.codec.Geometry;
 import seurat.codec.SeedCodec;
 import seurat.codec.YCoCgR;
 import seurat.config.Units;
@@ -43,8 +44,8 @@ final class ImagePass {
             runTopZero(reader);
             return;
         }
-        int paddedW = IngestJob.padTo(width, top);
-        int paddedH = IngestJob.padTo(height, top);
+        int paddedW = Geometry.padTo(width, top);
+        int paddedH = Geometry.padTo(height, top);
         Accumulator[] acc = new Accumulator[top];
         for (int stratum = 0; stratum < top; stratum++) {
             acc[stratum] = new Accumulator(paddedW >> stratum);

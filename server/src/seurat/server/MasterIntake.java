@@ -4,12 +4,12 @@ import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import seurat.catalog.Catalog;
-import seurat.concession.GrantController;
+import seurat.grant.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.ingest.FormatMarkers;
 import seurat.ingest.IngestJob;
-import seurat.ingest.MasterFormats;
 import seurat.ingest.MasterHome;
+import seurat.store.MasterNames;
 import seurat.observe.AuditLog;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
@@ -48,7 +48,7 @@ public final class MasterIntake implements Closeable {
                         this::ingest);
                 return;
             }
-            ingest(id, MasterFormats.stem(file.getFileName().toString()), file);
+            ingest(id, MasterNames.stem(file.getFileName().toString()), file);
         } catch (Throwable ex) {
             AuditLog.alert(LogTags.work(id) + " ingest failed: " + LogUnits.cause(ex), ex);
         }

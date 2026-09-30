@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
-import seurat.concession.GrantController;
+import seurat.grant.GrantController;
 import seurat.config.SeuratConfig;
 import seurat.kit.TestKit;
 import seurat.net.RecordingMapping;

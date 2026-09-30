@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.List;
 import java.util.function.Predicate;

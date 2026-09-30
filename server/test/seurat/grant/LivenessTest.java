@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.nio.ByteBuffer;
 import seurat.codec.BrushId;
@@ -13,7 +13,7 @@ import seurat.proto.MsgGaze;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 import seurat.session.Session;
 import seurat.session.Sessions;
 import seurat.store.WorkMeta;
@@ -46,7 +46,7 @@ public final class LivenessTest {
         var s = ConcessionRig.create();
         s.canvas.book().log(new BrushId(0, 0, 0), 0, 2, 100, 1); // 257, stratum 0
         s.grants.narrow(s.canvas, new Concession(2, 1, 4, 2, 768, 36864, 120),
-                Concessions.cuts(s.canvas.concession(), new int[]{1, 4}, 1, 2), null);
+                Reductions.cuts(s.canvas.concession(), new int[]{1, 4}, 1, 2), null);
         s.mapping.control.clear();
         s.canvas.renewNs = System.nanoTime() - 65_000_000_000L;
         new Liveness(s.grants, s.sessions).tick();

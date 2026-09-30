@@ -1,6 +1,7 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.function.Predicate;
+import seurat.concession.Concessions;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.observe.Log;

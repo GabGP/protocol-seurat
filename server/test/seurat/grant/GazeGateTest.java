@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;

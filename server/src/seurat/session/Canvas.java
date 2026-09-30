@@ -3,6 +3,7 @@ package seurat.session;
 import java.util.HashSet;
 import java.util.Set;
 import seurat.codec.BrushId;
+import seurat.concession.Concession;
 import seurat.config.SeuratConstants;
 import seurat.proto.MsgGaze;
 import seurat.store.BrushStore;

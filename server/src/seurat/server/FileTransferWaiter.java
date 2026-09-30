@@ -8,6 +8,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.zip.ZipFile;
 import seurat.ingest.FormatMarkers;
 import seurat.ingest.MasterFormats;
+import seurat.store.MasterNames;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
@@ -78,7 +79,7 @@ final class FileTransferWaiter {
     }
 
     static boolean isComplete(Path file, long size) {
-        String lower = MasterFormats.lowerName(file);
+        String lower = MasterNames.lowerName(file);
         if (FormatMarkers.isZip(lower)) return isZipComplete(file, size);
         if (lower.endsWith(".png")) return isPngComplete(file, size);
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return isJpgComplete(file, size);

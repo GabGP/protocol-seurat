@@ -6,7 +6,7 @@ import seurat.codec.BrushId;
 import seurat.kit.PainterRig;
 import seurat.kit.TestKit;
 import seurat.plan.PlanEntry;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 import seurat.proto.Headers;
 import seurat.proto.Ranges;
 import seurat.store.WorkMeta;

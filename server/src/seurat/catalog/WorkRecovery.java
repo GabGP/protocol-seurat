@@ -6,10 +6,9 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import seurat.codec.Geometry;
-import seurat.ingest.IngestJob;
-import seurat.ingest.MasterFormats;
 import seurat.proto.ProtoCodes;
 import seurat.store.FileBrushStore;
+import seurat.store.MasterNames;
 import seurat.store.SeedFile;
 import seurat.store.StoreFiles;
 import seurat.store.Trees;
@@ -61,7 +60,7 @@ final class WorkRecovery {
     }
 
     private static String normalize(String id) {
-        return MasterFormats.stem(id);
+        return MasterNames.stem(id);
     }
 
     private static void attachStore(Path dir, seurat.store.WorkMeta info, WorkRecord work)
@@ -70,8 +69,8 @@ final class WorkRecovery {
         int[] nx = new int[top];
         int[] ny = new int[top];
         for (int stratum = 0; stratum < top; stratum++) {
-            nx[stratum] = Geometry.tiles(IngestJob.padTo(info.width(), top) >> stratum);
-            ny[stratum] = Geometry.tiles(IngestJob.padTo(info.height(), top) >> stratum);
+            nx[stratum] = Geometry.tiles(Geometry.padTo(info.width(), top) >> stratum);
+            ny[stratum] = Geometry.tiles(Geometry.padTo(info.height(), top) >> stratum);
         }
         Path storeDir = info.edition() == 1 && Files.exists(dir.resolve(StoreFiles.SKETCH_DIR))
                 ? dir.resolve(StoreFiles.SKETCH_DIR)

@@ -4,6 +4,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import seurat.concession.Concession;
 import seurat.config.SeuratConstants;
 import seurat.config.Units;
 import seurat.net.Mapping;

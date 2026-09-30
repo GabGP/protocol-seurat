@@ -1,5 +1,6 @@
-package seurat.concession;
+package seurat.grant;
 
+import seurat.concession.Concessions;
 import seurat.proto.ProtoCodes;
 import seurat.session.Canvas;
 

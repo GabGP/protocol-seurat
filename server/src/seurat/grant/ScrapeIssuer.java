@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.List;
 import seurat.config.SeuratConstants;
@@ -13,7 +13,7 @@ import seurat.session.CanvasOrders;
 /** Sends CANCELADAS and one RASPAR per cut, and registers each order until its RASPADO (spec 4.2.2). */
 final class ScrapeIssuer {
     void issue(Canvas canvas, long n, long epoch, Ranges cancelled,
-            List<Concessions.Cut> cuts, Runnable then) {
+            List<Reductions.Cut> cuts, Runnable then) {
         if (!cancelled.isEmpty()) {
             GrantController.send(canvas.session(), FrameType.PLAN,
                     MsgGaze.Plan.cancelled(canvas.handle(), canvas.plan().seq(), cancelled).encode());

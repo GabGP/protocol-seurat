@@ -1,7 +1,9 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.List;
 import seurat.catalog.WorkRecord;
+import seurat.concession.Concession;
+import seurat.concession.Concessions;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.paint.Painter;
@@ -13,7 +15,6 @@ import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Concession;
 import seurat.session.Session;
 
 /** A work changing under open canvases: edition swap (spec 7.3) and withdrawal (spec 7.4). */
@@ -37,10 +38,10 @@ final class WorkLifecycle {
             canvas.floored = !seen;
             int[] target = Concessions.target(grants.policy.ceiling(canvas), canvas.floored, work.meta.strata() - 1);
             Concession next = Concessions.next(canvas.concession(), target, ProtoCodes.MOT_POLITICA);
-            List<Concessions.Cut> cuts = Concessions.cuts(canvas.concession(), target, canvas.handle(), next.epoch());
+            List<Reductions.Cut> cuts = Reductions.cuts(canvas.concession(), target, canvas.handle(), next.epoch());
             if (cuts.isEmpty()) {
                 canvas.setConcession(next); // the new plan below replaces every queued ed1 entry
-                GrantController.send(canvas.session(), FrameType.CONCESION, Concessions.message(canvas).encode());
+                GrantController.send(canvas.session(), FrameType.CONCESION, Reductions.message(canvas).encode());
             } else {
                 grants.narrow(canvas, next, cuts, null);
             }
@@ -63,7 +64,7 @@ final class WorkLifecycle {
             long n = canvas.book().lastNumber();
             Ranges cancelled = painter.purgeAll(canvas);
             long epoch = canvas.concession().epoch();
-            grants.scrapes.issue(canvas, n, epoch, cancelled, List.of(new Concessions.Cut(Concessions.all(),
+            grants.scrapes.issue(canvas, n, epoch, cancelled, List.of(new Reductions.Cut(Reductions.all(),
                     MsgLoans.Scrape.all(canvas.handle(), 0, epoch, 0))), () -> retire(session, canvas));
         }
     }

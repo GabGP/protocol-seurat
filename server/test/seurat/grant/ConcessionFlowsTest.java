@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.nio.ByteBuffer;
 import seurat.codec.BrushId;
@@ -27,7 +27,7 @@ public final class ConcessionFlowsTest {
     private static void policyLowersBandsScrapes() throws Exception {
         var s = ConcessionRig.create();
         s.canvas.floored = false;
-        s.canvas.setConcession(new seurat.session.Concession(3, 0, 4, 1, 768, 36864, 120));
+        s.canvas.setConcession(new seurat.concession.Concession(3, 0, 4, 1, 768, 36864, 120));
         s.work.ceilings.put("autenticado", new long[]{0, 2});
         new PolicySync(s.grants).apply(s.canvas);
         TestKit.check(s.canvas.concession().maxBands() == 2 && s.canvas.concession().epoch() == 4, "narrowed");
@@ -51,7 +51,7 @@ public final class ConcessionFlowsTest {
     /** BOCETO / PINTANDO: a MIRADA does not lift the floor until LISTA. */
     private static void gazeKeepsFloorWhilePainting() throws Exception {
         var s = ConcessionRig.create(ProtoCodes.ST_PINTANDO);
-        s.canvas.setConcession(new seurat.session.Concession(1, 0, 4, 0, 768, 36864, 120));
+        s.canvas.setConcession(new seurat.concession.Concession(1, 0, 4, 0, 768, 36864, 120));
         s.grants.open(s.session, s.canvas);
         int floor = s.canvas.concession().minStratum();
         s.grants.gaze(s.session, s.canvas, gaze(1, 0));

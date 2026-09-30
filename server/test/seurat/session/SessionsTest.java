@@ -1,5 +1,6 @@
 package seurat.session;
 
+import seurat.concession.Concession;
 import seurat.kit.TestKit;
 
 /** Sessions: single-use tokens, live registry, resumable books (spec 8). */

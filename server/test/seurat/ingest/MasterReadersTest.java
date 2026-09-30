@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import javax.imageio.ImageIO;
 import seurat.kit.TestKit;
+import seurat.store.MasterNames;
 
 /**
  * The reader each master gets, by content and not by name (every fixture here has the wrong
@@ -36,8 +37,8 @@ public final class MasterReadersTest {
         whole(TiffFixture.write(dir.resolve("g.tif"), true, ByteOrder.LITTLE_ENDIAN, W, H, 3, TiffLayout.RGB,
                 8, true, false, TiffFixture.samples(W, H, 3, 2)));
         whole(PsbFixture.write(dir.resolve("h.psb"), true, 3, 8, PsbFixture.RLE, W, H, new byte[3][W * H]));
-        TestKit.check(MasterFormats.isMaster("x.PSD") && !MasterFormats.isMaster("x.gif"), "master names");
-        TestKit.check(MasterFormats.stem("a.b.TIFF").equals("a.b"), "stem drops the master extension only");
+        TestKit.check(MasterNames.isMaster("x.PSD") && !MasterNames.isMaster("x.gif"), "master names");
+        TestKit.check(MasterNames.stem("a.b.TIFF").equals("a.b"), "stem drops the master extension only");
         System.out.println("MasterReadersTest OK");
     }
 

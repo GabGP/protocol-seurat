@@ -2,7 +2,7 @@ package seurat.server;
 
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
-import seurat.concession.GrantController;
+import seurat.grant.GrantController;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.session.Canvas;

@@ -15,11 +15,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import seurat.config.Units;
 import seurat.ingest.FormatMarkers;
-import seurat.ingest.MasterFormats;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 import seurat.observe.Progress;
+import seurat.store.MasterNames;
 
 /** Unpacks image files from a zip archive into an inbox directory. */
 final class ZipUnpacker {
@@ -48,10 +48,10 @@ final class ZipUnpacker {
                     continue;
                 }
                 String base = Path.of(entry.getName()).getFileName().toString();
-                if (!MasterFormats.isMaster(base)) {
+                if (!MasterNames.isMaster(base)) {
                     continue;
                 }
-                String workId = MasterFormats.stem(base);
+                String workId = MasterNames.stem(base);
                 if (skip != null && skip.test(workId)) {
                     Log.info(LogTags.INGEST, subject + " entry skipped work=" + workId + ": already ready");
                     skipped++;

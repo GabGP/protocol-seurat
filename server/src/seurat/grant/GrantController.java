@@ -1,8 +1,10 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.List;
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
+import seurat.concession.Concession;
+import seurat.concession.Concessions;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.paint.Painter;
@@ -15,7 +17,6 @@ import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.Canvas;
-import seurat.session.Concession;
 import seurat.session.Easel;
 import seurat.session.Session;
 import seurat.session.Sessions;
@@ -44,7 +45,7 @@ public final class GrantController {
             Concession c = canvas.concession();
             canvas.setConcession(new Concession(c.epoch(), target[0], target[1], c.reason(),
                     c.maxBrushes(), c.maxKiB(), c.leaseS()));
-            send(session, FrameType.CONCESION, Concessions.message(canvas).encode());
+            send(session, FrameType.CONCESION, Reductions.message(canvas).encode());
             plans.issue(canvas, 0, sketch(canvas), 0);
         }
     }
@@ -82,24 +83,24 @@ public final class GrantController {
                 return;
             }
             Concession next = Concessions.next(cur, target, motive);
-            List<Concessions.Cut> cuts = Concessions.cuts(cur, target, canvas.handle(), next.epoch());
+            List<Reductions.Cut> cuts = Reductions.cuts(cur, target, canvas.handle(), next.epoch());
             if (!cuts.isEmpty()) {
                 narrow(canvas, next, cuts, null);
             } else if (widen) {
                 canvas.setConcession(next);
-                send(canvas.session(), FrameType.CONCESION, Concessions.message(canvas).encode());
+                send(canvas.session(), FrameType.CONCESION, Reductions.message(canvas).encode());
             }
         }
     }
 
     /** Barrier-free reduction (spec 4.2.2): epoch+1, N, purge; CONCESION -> CANCELADAS -> RASPAR. */
-    public void narrow(Canvas canvas, Concession next, List<Concessions.Cut> cuts, Runnable then) {
+    public void narrow(Canvas canvas, Concession next, List<Reductions.Cut> cuts, Runnable then) {
         Session session = canvas.session();
         synchronized (canvas) {
             canvas.setConcession(next);
             long n = canvas.book().lastNumber();
             Ranges cancelled = painter.purge(canvas, next);
-            send(session, FrameType.CONCESION, Concessions.message(canvas).encode());
+            send(session, FrameType.CONCESION, Reductions.message(canvas).encode());
             scrapes.issue(canvas, n, next.epoch(), cancelled, cuts, then);
             Log.info(LogTags.CONCESSION, canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
                     + " epoch=" + next.epoch() + " minStratum=" + next.minStratum() + " maxBands=" + next.maxBands());

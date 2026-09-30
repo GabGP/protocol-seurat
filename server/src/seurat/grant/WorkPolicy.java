@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;

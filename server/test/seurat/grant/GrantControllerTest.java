@@ -1,4 +1,4 @@
-package seurat.concession;
+package seurat.grant;
 
 import java.util.List;
 import seurat.codec.BrushId;
@@ -11,7 +11,7 @@ import seurat.proto.MsgLoans;
 import seurat.proto.ProtoCodes;
 import seurat.proto.Ranges;
 import seurat.session.CanvasOrders;
-import seurat.session.Concession;
+import seurat.concession.Concession;
 
 /** Rights (spec 4.2): narrow ordering, exact confirm, cumulative orders, audits of issued orders. */
 public final class GrantControllerTest {
@@ -26,7 +26,7 @@ public final class GrantControllerTest {
     private static void narrowToStratum1(ConcessionRig s) {
         Concession c = s.canvas.concession();
         Concession next = new Concession(2, 1, 4, 2, c.maxBrushes(), c.maxKiB(), 120);
-        s.grants.narrow(s.canvas, next, Concessions.cuts(c, new int[]{1, 4}, 1, 2), null);
+        s.grants.narrow(s.canvas, next, Reductions.cuts(c, new int[]{1, 4}, 1, 2), null);
     }
 
     private static void happyPath() throws Exception {
@@ -64,10 +64,10 @@ public final class GrantControllerTest {
         s.canvas.book().log(new BrushId(0, 0, 0), 0, 4, 10, 1); // 257
         Concession cur = s.canvas.concession();
         s.grants.narrow(s.canvas, new Concession(2, 0, 2, 2, c.maxBrushes(), c.maxKiB(), 120),
-                Concessions.cuts(cur, new int[]{0, 2}, 1, 2), null);
+                Reductions.cuts(cur, new int[]{0, 2}, 1, 2), null);
         Concession mid = s.canvas.concession();
         s.grants.narrow(s.canvas, new Concession(3, 2, 4, 2, c.maxBrushes(), c.maxKiB(), 120),
-                Concessions.cuts(mid, new int[]{2, 4}, 1, 3), null);
+                Reductions.cuts(mid, new int[]{2, 4}, 1, 3), null);
         List<CanvasOrders.ScrapeOrder> pending = s.canvas.orders().pendingScrapes();
         TestKit.check(pending.size() == 2, "two orders pending");
         CanvasOrders.ScrapeOrder last = pending.get(1);
