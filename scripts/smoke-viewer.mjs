@@ -6,7 +6,13 @@
 //                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
 //                                [--max-tab-mib N] [--lose-context restore|giveup] [--sample S] [--breakdown 1]
+//                                [--throttle off|3g] [--settle-cap S] [--quiet S]
 //
+// --throttle 3g applies DevTools' 3G (400 kbps down/up, 2000 ms latency; scripts/smoke/throttle.mjs) before the page loads,
+// waits for the seed before the first input, settles for up to 180 s with 10 s of quiet (--settle-cap / --quiet override
+// both, in either mode) and passes with the seed plus one sketch stratum. Every run reports the static load (HTTP bytes,
+// encoding, DOMContentLoaded / load), the Telemetry link rows and first brush, the WebSocket rate over the delivery (a
+// throttled run says loudly when DevTools did not throttle the socket) and the finest stratum at 30 / 60 / 120 s.
 // --dpr N sets the emulated device pixel ratio (default 1). --scale sets the render scale through the viewer's own
 // `?render=scale:X` override (default: the viewer's setting, auto); the run also switches the frame meter on and prints
 // the canvas backing size, the effective scale and the fps / p95 it read.
@@ -36,6 +42,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { linkLog } from './smoke/link.mjs';
+import { applyThrottle, throttlePreset, timeline, waitForSeed } from './smoke/throttle.mjs';
 
 const args = {};
 for (let i = 2; i < process.argv.length; i++) {
@@ -57,12 +65,13 @@ const [W, H] = (args.size ?? '1600x900').split('x').map(Number);
 const dpr = Number(args.dpr ?? 1);
 const sampleEvery = Number(args.sample ?? 0);
 const loseContext = args['lose-context'] !== undefined;
+const throttle = throttlePreset(args.throttle);
+const tl = timeline(throttle, args);
 const RECOVER_MS = 60000; // the software renderer is slow: the rebuild of every released bitmap may take a while
 const BLANK_RATIO = 0.5; // a recovered screenshot must weigh at least this share of the one before the loss
 const RECIBO = `0:${0x26}`;
 const renderSwitches = ['fps', args.scale && `scale:${args.scale}`].filter(Boolean).join(',');
 const SETTLE_MS = 4000;
-const QUIET_MS = 3000; // no delivery for this long = settled
 const PORT = 9333;
 const ERROR = 0x05;
 const SOLTAR = 0x27;
@@ -90,7 +99,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hook = `(() => {
   const vi = (b, o) => { const n = 1 << (b[o] >> 6); let v = b[o] & 0x3f;
     for (let i = 1; i < n; i++) v = v * 256 + b[o + i]; return [v, o + n]; };
-  const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0, flowBytes: 0 };
+  const S = window.__smoke = { in: {}, out: {}, strata: {}, s0bands: {}, soltar: {}, synthFail: 0, flowBytes: 0, wsBytes: 0 };
   const bump = (m, k) => { m[k] = (m[k] || 0) + 1; };
   S.synth = {}; // by kind: count, worker ms, round trip ms (queue + work)
   const sent = new Map();
@@ -101,7 +110,8 @@ const hook = `(() => {
     s.addEventListener('message', (e) => {
       if (!(e.data instanceof ArrayBuffer)) return;
       const b = new Uint8Array(e.data);
-      if (b[0] === 1) { S.flowBytes += b.length; let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]);
+      S.wsBytes += b.length;
+      if (b[0] === 1) { S.flowBytes += b.length; S.lastFlow = performance.now(); S.firstFlow ??= S.lastFlow; let o = 1; for (let i = 0; i < 3; i++) o = vi(b, o)[1]; bump(S.strata, b[o]);
         if (b[o] === 0) bump(S.s0bands, b[o + 8] & 0x0f); }
       else bump(S.in, b[1]);
     });
@@ -167,6 +177,7 @@ try {
   const refusals = {}; // the viewer's own spec 5.4 verdicts, by reason
   const contextLog = []; // the viewer's expected lines while --lose-context is on
   const consoleIssues = []; // the page's own console.error / console.warn (refusal verdicts are counted apart)
+  const link = linkLog();
   const [cx, cy] = [W / 2, H / 2];
   const drag = async (dx, dy) => {
     await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx, y: cy, button: 'left', clickCount: 1 });
@@ -182,6 +193,7 @@ try {
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
     if (m.id) pending.get(m.id)?.(m.result ?? m.error);
+    else if (m.method.startsWith('Network.')) link.observe(m, ev.data.length);
     else if (m.method === 'Runtime.exceptionThrown') {
       exceptions.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
     } else if (m.method === 'Runtime.consoleAPICalled') {
@@ -207,9 +219,13 @@ try {
     await cdp('Page.addScriptToEvaluateOnNewDocument',
       { source: `localStorage.setItem('seurat.brushCap', ${JSON.stringify(String(Number(args.cap)))})` });
   }
+  await applyThrottle(cdp, throttle); // before the only navigation (the --key sign-in rides on it): everything is throttled
+  const navAt = Date.now();
   await cdp('Page.navigate', { url: `${base}/?render=${renderSwitches}#/visor/${encodeURIComponent(args.work)}` });
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',
     { expression: 'JSON.stringify(window.__smoke)', returnByValue: true })).result.value);
+  link.start(read, navAt);
+  const seedWait = throttle ? await waitForSeed(read, tl.settleCapMs) : 0;
   // --lose-context: lose the context, restore it, wait until the picture is back; what the recovery cost.
   async function loseAndRestore() {
     const shotSize = async () => Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64').length;
@@ -273,7 +289,7 @@ try {
   const before = await totalNow();
   let seen = before;
   let changedAt = lastInput;
-  for (let quiet = Date.now(); Date.now() - quiet < QUIET_MS && Date.now() - lastInput < 40000; await sleep(250)) {
+  for (let quiet = Date.now(); Date.now() - quiet < tl.quietMs && Date.now() - lastInput < tl.settleCapMs; await sleep(250)) {
     const n = await totalNow();
     if (n !== seen) { seen = n; quiet = Date.now(); changedAt = quiet; }
   }
@@ -297,10 +313,15 @@ try {
       .find((e) => e.textContent === ${JSON.stringify(label)})?.nextElementSibling?.textContent ?? 'n/a'`,
   })).result.value;
   const plan = await memRow('Plan');
+  const linkRows = { first: await memRow('First brush after'), transport: await memRow('Transport'), peak: await memRow('Peak (10 s)'),
+    total: await memRow('Session total'), received: await memRow('Received'), rate: await memRow('Average rate'),
+    allowed: await memRow('Finest allowed') };
   const resent = { evicted: await memRow('Evicted since open'), again: await memRow('Re-sent within 60 s'),
     median: await memRow('Median time to refetch') };
   const memory = `planes ${await memRow('Parent planes')} · bitmaps ${await memRow('Decoded bitmaps')} · estimate ${await memRow('Estimate (sum)')}`;
   const probeText = (expression) => cdp('Runtime.evaluate', { returnByValue: true, expression }).then((r) => r.result.value);
+  const nav = await probeText(`(() => { const n = performance.getEntriesByType('navigation')[0];
+    return n ? { dcl: n.domContentLoadedEventEnd, load: n.loadEventEnd } : null; })()`);
   const canvas = await probeText(`(() => { const c = document.querySelector('canvas'); const r = c.getBoundingClientRect();
     return { bw: c.width, bh: c.height, cw: r.width, ch: r.height, dpr: window.devicePixelRatio }; })()`);
   const meter = await probeText(`document.querySelector('[data-meter] [aria-live=off]')?.textContent ?? 'n/a'`);
@@ -318,6 +339,7 @@ try {
     for (const k of ['Compressed bands', 'GPU textures', 'Worker caches (max)', 'JS heap']) extra.rows[k] = await memRow(k);
     extra.canvases = await probeText(`JSON.stringify([...document.querySelectorAll('canvas')].map((c) => c.width + 'x' + c.height))`);
   }
+  link.stop();
   ws.close();
 
   const strata = Object.keys(s.strata).map(Number).filter((k) => k !== 10).sort((a, b) => a - b);
@@ -339,6 +361,8 @@ try {
     console.log(`viewer rows ${JSON.stringify(extra.rows)}`);
     console.log(`canvases ${extra.canvases}`);
   }
+  for (const l of link.lines(throttle, nav, linkRows, s)) console.log(l);
+  if (throttle) console.log(`throttle ${args.throttle}: seed after ${seedWait === null ? 'never' : (seedWait / 1000).toFixed(1) + ' s'} · settle cap ${tl.settleCapMs / 1000} s · quiet ${tl.quietMs / 1000} s`);
   console.log(`settle ${settleSec} s after the last input (+${afterInput} deliveries) · last plan "${plan}"`);
   const mib = (t) => { const m = /([\d.]+)\s*(B|KiB|MiB|GiB)/.exec(t ?? ''); return m ? Number(m[1]) * 1024 ** ['B', 'KiB', 'MiB', 'GiB'].indexOf(m[2]) / 2 ** 20 : 0; };
   const flowMiB = s.flowBytes / 2 ** 20;
@@ -373,7 +397,8 @@ try {
     consoleIssues.length && `${consoleIssues.length} console error/warning(s): ${consoleIssues.join(' | ')}`,
     s.in[ERROR] && `${s.in[ERROR]} ERROR frame(s) from the server`,
     (s.soltar[RELEASE.decode] || s.soltar[RELEASE.crc] || s.synthFail) && 'decode/CRC failures (SOLTAR 2/6)',
-    strata.length < 3 && `no refinement: only strata ${strata.join(',') || 'none'} besides the seed`,
+    !throttle && strata.length < 3 && `no refinement: only strata ${strata.join(',') || 'none'} besides the seed`,
+    throttle && Object.keys(s.strata).length < 2 && `no sketch: only strata ${Object.keys(s.strata).join(',') || 'none'} (seed + one sketch stratum needed)`,
     resentPct > maxResentPct && `re-sent ${resentPct.toFixed(1)} % of the bytes received > ${maxResentPct} %`,
     tabMiB > maxTabMiB && `tab memory ${tabMiB.toFixed(0)} MiB > ${maxTabMiB} MiB`,
     refusedPct > maxRefusedPct && `refused ${refusedPct.toFixed(1)} % > ${maxRefusedPct} %`,
