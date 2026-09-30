@@ -2,6 +2,7 @@ import { brushKey, parentBrushId, splitBrushId } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthRequest, type SynthResult } from '@/workers/protocol';
 import type { InflightSynth, SinkState } from './state';
 import { brushBands, linkParent, parentFor } from './brush-graph';
+import { settlePlanes } from './plane-keep';
 import { rebuildPlanes } from './rebuild-planes';
 import { failSynthesis } from './removal';
 import { endRestore } from './restore-queue';
@@ -46,7 +47,7 @@ export function retryWithBytes(s: SinkState, req: SynthRequest, brushId: bigint,
   req.parentRef = undefined;
   req.bands = brushBands(s.book, rec); // the first post transferred (detached) the old copies
   if (!parent.planes) {
-    s.pending.set(req.delivery, { req, parentId: parentBrushId(stratum, bx, by, s.top), edition: req.edition });
+    s.pending.set(req.delivery, { req, parentId: parentBrushId(stratum, bx, by, s.top), edition: req.edition, bytes: true });
     rebuildPlanes(s, parent);
     return;
   }
@@ -70,4 +71,5 @@ export function onRebuilt(s: SinkState, out: SynthResult, index: number, ctx: In
   s.origin.set(brushKey(rec.brushId, rec.edition), index);
   s.revision++; // the paint caches hold the planes they read
   flushPending(s);
+  settlePlanes(s, rec); // the children that waited took their copy
 }

@@ -1,9 +1,10 @@
 import { SEED_STRATUM } from '@/shared/config/constants';
+import { PLANES_READOUT_KEEP } from '@/shared/config/memory';
 import { brushKey } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
 import { nextImageId } from '../store';
 import { retryWithBytes } from './parent-recovery';
-import { keepsPlanes } from './plane-keep';
+import { keepsPlanes, settlePlanes } from './plane-keep';
 import { rebuildPlanes } from './rebuild-planes';
 import { endRestore, pumpRestores } from './restore-queue';
 import { bitmapOf } from './synth-bitmap';
@@ -26,10 +27,16 @@ export function releasePixels(s: SinkState, delivery: number, image: number): vo
   s.revision++;
 }
 
-/** Planes for a readout of a released brush (the ordinary planes-only rebuild). */
+/** Planes for a readout of a released brush (the ordinary planes-only rebuild), held for the readout: a few, oldest out. */
 export function wantPlanes(s: SinkState, delivery: number): void {
   const rec = s.book.byDelivery.get(delivery);
-  if (rec && !s.restoring.has(delivery)) rebuildPlanes(s, rec);
+  if (!rec || s.restoring.has(delivery)) return;
+  if (!s.readout.includes(delivery)) s.readout.push(delivery);
+  for (const gone of s.readout.splice(0, Math.max(0, s.readout.length - PLANES_READOUT_KEEP))) {
+    const old = s.book.byDelivery.get(gone);
+    if (old) settlePlanes(s, old);
+  }
+  rebuildPlanes(s, rec);
 }
 
 /** A restore's answer: the image only. A cache miss retries with bytes; any other failure just ends it. */

@@ -82,7 +82,7 @@ describe('planes are kept only where a child can come', () => {
 });
 
 describe('dropColdPlanes', () => {
-  it('keeps the ancestors above the focus in a cone, the seed and the sketch, and drops the focus leaves and far brushes', () => {
+  it('keeps the ancestors above the focus in a cone and the roots, and drops the focus leaves and far brushes', () => {
     const held: Array<[number, bigint]> = [
       [1, makeBrushId(0, 0, 0)], [2, makeBrushId(0, 40, 40)], [3, makeBrushId(5, 0, 0)],
       [4, makeBrushId(5, 20, 20)], [5, makeBrushId(7, 50, 50)], [6, SEED],
@@ -95,7 +95,7 @@ describe('dropColdPlanes', () => {
     }
     sink.setView(0, 0, 512, 512, 512, 512);
     const kept = held.filter(([d]) => sink.book.byDelivery.get(d)?.planes).map(([d]) => d);
-    expect(kept).toEqual([3, 5, 6]); // 1 is at the focus, 2 and 4 are far from every cone
+    expect(kept).toEqual([3, 6]); // 1 is at the focus, 2, 4 and 5 are far from the cone, 6 is a root
   });
 
   it('bumps the revision the paint caches key on only when it dropped something', () => {
@@ -188,8 +188,9 @@ describe('a child whose parent lost its planes', () => {
     await landPlanes(rebuild);
     const retry = lastSent();
     expect(retry.delivery).toBe(2);
-    // the rebuild retained the planes in the worker, so the child goes by reference to them
-    expect(retry.parentRef).toBe(retry.parentKey);
+    // a reference to this parent already missed: the child goes with the bytes of the rebuilt planes
+    expect(retry.parentRef).toBeUndefined();
+    expect(retry.parentPlanes).toHaveLength(THREE);
     expect(retry.bands.every((b) => b.byteLength > 0)).toBe(true);
   });
 });

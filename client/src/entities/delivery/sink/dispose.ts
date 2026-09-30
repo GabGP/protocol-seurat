@@ -16,6 +16,7 @@ export function disposeSink(s: SinkState): void {
   s.rebuilding.clear();
   s.wanted.clear();
   s.restoring.clear();
+  s.readout.length = 0;
   for (const rec of s.book.byDelivery.values()) rec.rgba?.close();
   s.book = emptyLedger();
   s.revision++;

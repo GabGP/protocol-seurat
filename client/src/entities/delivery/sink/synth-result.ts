@@ -5,7 +5,7 @@ import { nextImageId } from '../store';
 import { sameBrush } from './brush-graph';
 import { onRebuilt, retryWithBytes } from './parent-recovery';
 import { onPixelsRestored } from './pixel-residency';
-import { keepsPlanes } from './plane-keep';
+import { settlePlanes } from './plane-keep';
 import { flushReceipt, maybeFlushReceipt } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
 import { endRestore } from './restore-queue';
@@ -54,8 +54,7 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   rec.rgba = bmp;
   rec.image = nextImageId();
   endRestore(s, out.delivery); // a rebuild of the old image is moot now
-  // Planes only seed children: a brush that cannot have any soon keeps none, and a later one is rebuilt from bands.
-  rec.planes = keepsPlanes(s, rec) ? out.planes : null;
+  rec.planes = out.planes; // they seed what hangs on this brush below, then `settlePlanes` gives back what nobody needs
   s.rebuilding.delete(out.delivery);
   s.revision++;
   rec.pending = false;
@@ -65,9 +64,10 @@ function land(s: SinkState, out: SynthResult, bmp: ImageBitmap): void {
   }
   replaceOlderEditions(s, rec);
   freeSuperseded(s, rec);
-  s.repaint();
   resynthesizeChildren(s, out.delivery);
   flushPending(s);
+  settlePlanes(s, rec); // only seeds children: a later child has them rebuilt from bands
+  s.repaint();
   maybeFlushReceipt(s);
 }
 

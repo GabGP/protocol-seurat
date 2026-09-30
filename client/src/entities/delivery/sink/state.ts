@@ -19,6 +19,8 @@ export interface PendingSynth {
   req: SynthRequest;
   parentId: bigint;
   edition: number;
+  /** The worker already missed this parent: send the bytes, never a reference again. */
+  bytes?: boolean;
 }
 
 /** Sent to a worker and unanswered: kept for the byte retry after a cache miss. */
@@ -89,6 +91,8 @@ export class SinkState {
   /** Released bitmaps asked for again (waiting for a window slot) and those being rebuilt: see `restore-queue`. */
   wanted = new Set<number>();
   restoring = new Set<number>();
+  /** Deliveries a pixel readout asked planes for, oldest first (bounded by `PLANES_READOUT_KEEP`): they are held for it. */
+  readout: number[] = [];
   nextSynthesisId = 1;
   activeSynthesis = new Map<number, number>();
   /** brushKey -> worker index holding its planes (ref routing + stickiness). */

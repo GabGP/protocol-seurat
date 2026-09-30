@@ -1,24 +1,31 @@
-import { inCone } from '../evict-candidate';
-import { coneViews } from './cone-views';
-import { hasChildWork, sketchStratum } from './plane-keep';
+import { PLANES_HELD_MAX } from '@/shared/config/memory';
+import type { DeliveryRecord } from '../store';
+import { isWaitedOn, keepsPlanes, rootStratum } from './plane-keep';
+import { distTiles } from './synth-request';
 import type { SinkState } from './state';
 
 /**
- * Planes seed children, and a child comes only from a brush strictly above the focus of a cone the
- * server may still be painting (the current view included: its planned children sit at focus + j).
- * A brush at or below every such focus, or in none of them, gives its planes back (the sketch strata
- * seed every cone and stay); a child that arrives later, after a zoom-in, has them rebuilt from the
- * brush's bands one level up (`rebuildPlanes`).
+ * A brush gives its planes back unless a child of it can be planned soon (`keepsPlanes`): the
+ * current cone above the focus, the roots, a pixel readout. What is held above `PLANES_HELD_MAX`
+ * (a very wide view) goes farthest from the view first. A child that arrives later has them
+ * rebuilt from the brush's bands one level up (`rebuildPlanes`).
  */
 export function dropColdPlanes(s: SinkState): void {
   if (!s.view) return;
-  const sketch = sketchStratum(s);
-  const cones = coneViews(s);
+  const root = rootStratum(s);
+  const spare: Array<{ rec: DeliveryRecord; dist: number }> = [];
   let dropped = false;
   for (const rec of s.book.byDelivery.values()) {
-    if (!rec.planes || rec.stratum >= sketch) continue;
-    if (rec.stratum > s.view.focus && cones.some((v) => rec.stratum > v.focus && inCone(v, rec.brushId))) continue;
-    if (hasChildWork(s, rec)) continue;
+    if (!rec.planes) continue;
+    if (!keepsPlanes(s, rec)) {
+      rec.planes = null;
+      dropped = true;
+    } else if (rec.stratum < root && !s.readout.includes(rec.delivery) && !isWaitedOn(s, rec)) {
+      spare.push({ rec, dist: distTiles(s, rec.brushId) });
+    }
+  }
+  spare.sort((a, b) => a.dist - b.dist);
+  for (const { rec } of spare.slice(PLANES_HELD_MAX)) {
     rec.planes = null;
     dropped = true;
   }

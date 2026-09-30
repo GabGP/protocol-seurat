@@ -33,6 +33,6 @@ export function flushPending(s: SinkState): void {
     linkParent(s.book, delivery, parent.delivery);
     withParent(s, item.req, parent, bx, by);
     s.pending.delete(delivery);
-    enqueue(s, item.req, rec.brushId, rec.epoch);
+    enqueue(s, item.req, rec.brushId, rec.epoch, !item.bytes);
   }
 }
