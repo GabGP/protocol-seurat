@@ -1,10 +1,12 @@
 package seurat.net.ws;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.CompletableFuture;
+import seurat.config.SeuratConstants;
 import seurat.observe.Log;
 import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
@@ -12,7 +14,8 @@ import seurat.observe.LogUnits;
 /**
  * The one writer of a WebSocket (spec 3.1): control messages first, in order, then
  * deliveries one at a time ("un mensaje pendiente por sesion"). Callers never block
- * on the socket, so a stalled client cannot stall the Painter or the timers.
+ * on the socket, so a stalled client cannot stall the Painter or the timers. Each message
+ * goes through one buffer (header + payload together) and is flushed once.
  */
 final class WsOutbound implements Runnable {
     record Message(long delivery, byte[] bytes, CompletableFuture<Void> done) {}
@@ -26,7 +29,7 @@ final class WsOutbound implements Runnable {
     private boolean stopped;
 
     WsOutbound(OutputStream out) {
-        this.out = out;
+        this.out = new BufferedOutputStream(out, SeuratConstants.WS_WRITE_BUFFER);
     }
 
     synchronized void control(byte[] message) throws IOException {

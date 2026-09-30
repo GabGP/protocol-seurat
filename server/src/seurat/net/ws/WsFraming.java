@@ -17,6 +17,8 @@ public final class WsFraming {
     private static final int LEN_16 = 126;
     private static final int LEN_64 = 127;
     private static final int MAX_16 = 65536;
+    /** Opcode byte + length byte, before any extended length. */
+    private static final int HEADER_BASE = 2;
     public static final int CONTINUATION = 0x0;
     public static final int BINARY = 0x2;
     public static final int CLOSE = 0x8;
@@ -97,22 +99,23 @@ public final class WsFraming {
         }
     }
 
+    /** One whole message: its header and payload handed to `out` back to back, then one flush. */
     public static void write(OutputStream out, int opcode, byte[] data) throws IOException {
-        out.write(FIN_BIT | opcode);
-        if (data.length < LEN_16) {
-            out.write(data.length);
-        } else if (data.length < MAX_16) {
-            out.write(LEN_16);
-            out.write(data.length >> 8);
-            out.write(data.length);
-        } else {
-            out.write(LEN_64);
-            for (int i = 7; i >= 0; i--) {
-                out.write((int) ((long) data.length >> (8 * i)));
-            }
-        }
+        out.write(header(opcode, data.length));
         out.write(data);
         out.flush();
+    }
+
+    /** Server header (FIN, unmasked): 7-bit length, or 126 + u16, or 127 + u64, big-endian. */
+    static byte[] header(int opcode, int length) {
+        int ext = length < LEN_16 ? 0 : length < MAX_16 ? Short.BYTES : Long.BYTES;
+        byte[] h = new byte[HEADER_BASE + ext];
+        h[0] = (byte) (FIN_BIT | opcode);
+        h[1] = (byte) (ext == 0 ? length : ext == Short.BYTES ? LEN_16 : LEN_64);
+        for (int i = 0; i < ext; i++) {
+            h[h.length - 1 - i] = (byte) ((long) length >> (Byte.SIZE * i));
+        }
+        return h;
     }
 
     /** Close frame with a status code (1000 normal, 1002 protocol error). */

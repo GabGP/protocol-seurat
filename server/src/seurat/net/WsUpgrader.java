@@ -31,6 +31,7 @@ final class WsUpgrader {
             Listeners.refuse(socket, 403);
             return;
         }
+        socket.setTcpNoDelay(true); // each WS message is one flushed write: never hold it for Nagle
         String accept = WsHandshake.acceptKey(headers.get("sec-websocket-key"));
         out.write(("HTTP/1.1 101 Switching Protocols" + CRLF + "Upgrade: websocket" + CRLF + "Connection: Upgrade" + CRLF
                 + "Sec-WebSocket-Accept: " + accept + CRLF + "Sec-WebSocket-Protocol: " + WsHandshake.SUBPROTOCOL

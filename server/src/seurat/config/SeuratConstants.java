@@ -29,6 +29,8 @@ public final class SeuratConstants {
     public static final long HANDSHAKE_S = 10;
     /** Control frames (ping, pong, close) carry at most this many payload bytes (RFC 6455 5.5). */
     public static final int WS_CONTROL_MAX = 125;
+    /** WS writer buffer: a typical delivery and its header leave in one socket write, one flush per message. */
+    public static final int WS_WRITE_BUFFER = 2 * FRAME_MAX;
     public static final int BRUSH_SIDE = 256;
     public static final long SCRAPE_TIMEOUT_S = 10;
     public static final long RENEW_S = 60;
