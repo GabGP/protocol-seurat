@@ -37,7 +37,9 @@ export class WsTransport implements SeuratTransport {
     const bytes = new Uint8Array(data);
     if (bytes.length < 1) return;
     const channel = bytes[0];
-    const rest = bytes.slice(1);
+    // A view past the channel byte, not a copy: every consumer reads by index and copies the bands it keeps
+    // (sliceBands, splitAll), and none hands `.buffer` on, so byteOffset 1 is safe (no ~100 KB copy per delivery).
+    const rest = bytes.subarray(1);
     if (channel === CONTROL_CHANNEL) this.onControl?.(rest);
     else if (channel === DELIVERY_CHANNEL) this.onDelivery?.(rest);
   }
