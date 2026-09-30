@@ -4,6 +4,8 @@ import { TILE } from '@/shared/config/constants';
 export type AtlasGL = Pick<WebGL2RenderingContext,
   'createTexture' | 'deleteTexture' | 'bindTexture' | 'texStorage3D' | 'texSubImage3D' | 'texImage2D'
   | 'texParameteri' | 'pixelStorei' | 'getError'
+  | 'createFramebuffer' | 'deleteFramebuffer' | 'bindFramebuffer' | 'framebufferTextureLayer' | 'clearBufferfv'
+  | 'FRAMEBUFFER' | 'COLOR_ATTACHMENT0' | 'COLOR'
   | 'TEXTURE_2D' | 'TEXTURE_2D_ARRAY' | 'RGBA8' | 'RGBA' | 'UNSIGNED_BYTE' | 'OUT_OF_MEMORY' | 'NO_ERROR'
   | 'TEXTURE_WRAP_S' | 'TEXTURE_WRAP_T' | 'CLAMP_TO_EDGE' | 'TEXTURE_MIN_FILTER' | 'TEXTURE_MAG_FILTER' | 'LINEAR'
   | 'UNPACK_FLIP_Y_WEBGL' | 'UNPACK_PREMULTIPLY_ALPHA_WEBGL' | 'UNPACK_COLORSPACE_CONVERSION_WEBGL' | 'NONE'>;
@@ -39,7 +41,26 @@ export function allocLayerArray(gl: AtlasGL, layers: number, onVramFailure: () =
     return null;
   }
   textureParams(gl, gl.TEXTURE_2D_ARRAY);
+  clearLayers(gl, tex, layers);
   return tex;
+}
+
+const TRANSPARENT = new Float32Array(4);
+
+/**
+ * Zeroes every layer on the GPU once, so no draw ever samples an array with unwritten layers:
+ * Firefox would otherwise zero them lazily, from the CPU, inside that draw (and warn about it).
+ */
+function clearLayers(gl: AtlasGL, tex: WebGLTexture, layers: number): void {
+  const fb = gl.createFramebuffer();
+  if (!fb) return;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  for (let layer = 0; layer < layers; layer++) {
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, tex, 0, layer);
+    gl.clearBufferfv(gl.COLOR, 0, TRANSPARENT);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.deleteFramebuffer(fb);
 }
 
 /** Copies one tile bitmap into a layer of the bound-by-this-call array. */

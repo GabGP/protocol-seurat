@@ -8,15 +8,22 @@ interface Log {
   uploads: Array<{ layer: number; bmp: unknown }>;
   sketches: number;
   deleted: number;
+  cleared: number;
 }
 
 function fakeGL(opts: { oomAfter?: number } = {}): { gl: AtlasGL; log: Log } {
-  const log: Log = { storage: 0, uploads: [], sketches: 0, deleted: 0 };
+  const log: Log = { storage: 0, uploads: [], sketches: 0, deleted: 0, cleared: 0 };
   let error = 0;
   const gl = {
     TEXTURE_2D: 1, TEXTURE_2D_ARRAY: 2, RGBA8: 3, RGBA: 4, UNSIGNED_BYTE: 5, OUT_OF_MEMORY: 6, NO_ERROR: 0,
     TEXTURE_WRAP_S: 7, TEXTURE_WRAP_T: 8, CLAMP_TO_EDGE: 9, TEXTURE_MIN_FILTER: 10, TEXTURE_MAG_FILTER: 11, LINEAR: 12,
     UNPACK_FLIP_Y_WEBGL: 13, UNPACK_PREMULTIPLY_ALPHA_WEBGL: 14, UNPACK_COLORSPACE_CONVERSION_WEBGL: 15, NONE: 16,
+    FRAMEBUFFER: 17, COLOR_ATTACHMENT0: 18, COLOR: 19,
+    createFramebuffer: () => ({}),
+    deleteFramebuffer: () => undefined,
+    bindFramebuffer: () => undefined,
+    framebufferTextureLayer: () => undefined,
+    clearBufferfv: () => { log.cleared++; },
     createTexture: () => ({}),
     deleteTexture: () => { log.deleted++; },
     bindTexture: () => undefined,
@@ -80,6 +87,15 @@ describe('TileAtlas', () => {
     atlas.upload(Infinity);
     expect(atlas.slotOf(c.image)?.layer).toBe(layerOfA);
     expect(log.storage).toBe(1);
+  });
+
+  it('clears every layer of a new array once, so no draw finds an unwritten one', () => {
+    const { gl, log } = fakeGL();
+    const atlas = new TileAtlas(gl, () => undefined, 4);
+    atlas.reconcile([0, 1, 2, 3, 4].map((i) => brush(0, bmp(), i)));
+    atlas.upload(Infinity);
+    expect(log.storage).toBe(2);
+    expect(log.cleared).toBe(8);
   });
 
   it('respects the time budget but always makes progress', () => {
