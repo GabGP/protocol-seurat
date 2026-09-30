@@ -235,4 +235,22 @@ describe('DeliverySink', () => {
     sink.dispose();
     vi.useRealTimers();
   });
+
+  it('measures RTT through setView and planned, expanding the free credit window', () => {
+    vi.useFakeTimers();
+    const client = fakeClient();
+    const sink = makeSink({ client });
+    const s = (sink as unknown as { s: { linkBps: number; avgDelivery: number } }).s;
+    s.linkBps = 50_000;
+    s.avgDelivery = 46_000;
+    expect(sink.free()).toBe(2);
+
+    sink.setView(0, 0, 100, 100, 100, 100, 1);
+    vi.advanceTimersByTime(2000);
+    sink.planned(1);
+    expect(sink.free()).toBe(4);
+
+    sink.dispose();
+    vi.useRealTimers();
+  });
 });

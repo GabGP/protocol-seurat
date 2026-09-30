@@ -19,6 +19,18 @@ describe('receiverWindow (RECIBO.libre)', () => {
     expect(receiverWindow(768, 0, 26_000)).toBe(768);
     expect(receiverWindow(1, 64_000, 26_000)).toBe(1);
   });
+
+  it('sizes window with RTT via Little’s law (spec §6.1)', () => {
+    // 50 kB/s, 46 kB avg, rtt 2 s -> ceil(50000 * 3 / 46000) = 4
+    expect(receiverWindow(768, 50_000, 46_000, 2)).toBe(4);
+    // rtt 0 produces the same result as default
+    expect(receiverWindow(768, 50_000, 46_000, 0)).toBe(2);
+    expect(receiverWindow(768, 50_000, 46_000)).toBe(2);
+    // Still capped by memory when Little's law exceeds it
+    expect(receiverWindow(3, 50_000, 46_000, 2)).toBe(3);
+    // Unmeasured links return memory even if rtt is provided
+    expect(receiverWindow(10, 0, 46_000, 2)).toBe(10);
+  });
 });
 
 describe('byte window (max_kib)', () => {

@@ -20,6 +20,7 @@ export function bookEvents(rt: Runtime): BookEvents {
     onPlan: (p) => {
       if (rt.telemetry?.handle === p.handle) rt.telemetry.onPlan(p, now());
       if (rt.sink?.handle === p.handle) {
+        rt.sink.planned(p.gazeSeq);
         if (p.event === 0) rt.sink.planStart(p.first, p.gazeSeq);
         if (rt.alive) rt.ui.setPlan(p);
         if (p.event === 2) rt.sink?.applyPlanCanceladas(p.cancelled);

@@ -13,7 +13,9 @@ import type { SinkState } from './state';
  * the server the window reopened.
  */
 export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: number, vw: number, vh: number, seq: number): void {
-  const nowS = performance.now() / MS_PER_S;
+  const nowMs = performance.now();
+  const nowS = nowMs / MS_PER_S;
+  if (seq > 0) s.rtt.sent(seq, nowMs);
   const zoom = Math.log2(Math.max((x1 - x0) / Math.max(1, vw), (y1 - y0) / Math.max(1, vh)));
   const ideal = Number.isFinite(zoom) ? zoom : 0;
   // The server's focus (ConePlanner): never finer than the concession's min_estrato.

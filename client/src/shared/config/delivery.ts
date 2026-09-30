@@ -2,6 +2,12 @@
 export const CREDIT_WINDOW_S = 1;
 /** Never advertise fewer: one delivery arriving while the next is confirmed keeps the link busy. */
 export const CREDIT_MIN = 2;
+/** Bounded number of pending MIRADA seqs remembered for RTT measurement. */
+export const RTT_PENDING_MAX = 32;
+/** Window over which the minimum RTT sample is tracked (ms). */
+export const CREDIT_RTT_WINDOW_MS = 30_000;
+/** Ceiling on the RTT addition to the receiver window (seconds). */
+export const CREDIT_RTT_MAX_S = 4;
 /** Spec 2.3: max_kib = 48 × max_pinceladas, the per-brush share before any delivery is measured. */
 export const KIB_PER_BRUSH = 48;
 export const RELEASE_BATCH_MS = 100;

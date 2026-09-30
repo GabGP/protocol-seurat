@@ -1,12 +1,12 @@
 import { BYTES_PER_KIB, CREDIT_MIN, CREDIT_WINDOW_S, KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
 
 /**
- * RECIBO.libre: the memory window, capped to about CREDIT_WINDOW_S of deliveries at the
- * measured link rate. Unmeasured links get the memory window (the server starts at 8).
+ * RECIBO.libre: the memory window, sized via Little's law (spec §6.1: in flight = rate × (RTT + transmission))
+ * to rate × (CREDIT_WINDOW_S + rttS) / avgDelivery. Unmeasured links get the memory window (the server starts at 8).
  */
-export function receiverWindow(memory: number, linkBps: number, avgDelivery: number): number {
+export function receiverWindow(memory: number, linkBps: number, avgDelivery: number, rttS = 0): number {
   if (linkBps <= 0 || avgDelivery <= 0) return memory;
-  return Math.min(memory, Math.max(CREDIT_MIN, Math.ceil((linkBps * CREDIT_WINDOW_S) / avgDelivery)));
+  return Math.min(memory, Math.max(CREDIT_MIN, Math.ceil((linkBps * (CREDIT_WINDOW_S + rttS)) / avgDelivery)));
 }
 
 /**

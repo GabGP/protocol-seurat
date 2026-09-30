@@ -11,8 +11,8 @@ export function byteWindow(s: SinkState): number {
 }
 
 /**
- * RECIBO.libre: the memory window (brushes and max_kib), capped to ~CREDIT_WINDOW_S of deliveries at the link's
- * recent rate, so a slow link never queues more than that ahead of a new MIRADA.
+ * RECIBO.libre: the memory window (brushes and max_kib), sized by link rate and min RTT (spec §6.1)
+ * so high-latency links stay full without queuing excessive deliveries ahead of a new MIRADA.
  */
 export function free(s: SinkState): number {
   const memory = clamp(holdLimit(s) - heldBrushes(s.book), 0, byteWindow(s));
@@ -20,5 +20,5 @@ export function free(s: SinkState): number {
   // Only a second that carried at least one brush measures the link; idle keeps the last rate,
   // so the next view starts with a full window instead of re-ramping from CREDIT_MIN.
   if (s.avgDelivery > 0 && peak >= s.avgDelivery) s.linkBps = peak;
-  return receiverWindow(memory, s.linkBps, s.avgDelivery);
+  return receiverWindow(memory, s.linkBps, s.avgDelivery, s.rtt.seconds(performance.now()));
 }

@@ -80,6 +80,9 @@ export class DeliverySink {
 
   applyScrape(r: Scrape, now: () => number): void { applyScrape(this.s, r, now); }
 
+  /** A PLAN arrived for gazeSeq: samples RTT for receiverWindow. */
+  planned(gazeSeq: number): void { this.s.rtt.answered(gazeSeq, performance.now()); }
+
   /**
    * PLAN INICIO for MIRADA `gazeSeq`: after a resume, numbers below `first` that never came are
    * gone; views before that MIRADA stop being painted once every number below `first` settles.
@@ -100,9 +103,7 @@ export class DeliverySink {
     applyRenew(this.s, ranges, order, leaseS, now);
   }
 
-  inventory(through: number): { brushCount: number; kib: number; ranges: number[] } {
-    return inventory(this.s, through);
-  }
+  inventory(through: number): { brushCount: number; kib: number; ranges: number[] } { return inventory(this.s, through); }
 
   checkExpiry(now: number): void { checkExpiry(this.s, now); }
   sweepExpiry(now: () => number): void { sweepExpiry(this.s, now); }

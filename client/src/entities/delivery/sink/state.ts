@@ -13,6 +13,7 @@ import { SynthQueue } from '../synth-queue';
 import type { WorkerFactory, WorkerPool } from '../worker-pool';
 import type { SynthRequest } from '@/workers/protocol';
 import type { DeliveryPort, Grant, PendingScrape } from './port';
+import { MinRtt } from './min-rtt';
 
 /** A delivery waiting for its parent's planes before it can be synthesized. */
 export interface PendingSynth {
@@ -67,6 +68,7 @@ export class SinkState {
   readonly evictions = new EvictionStats();
   readonly gaze = new GazeMotion();
   readonly heat = new AttentionHeat();
+  readonly rtt = new MinRtt();
   receiptTimer = 0;
   releaseTimer = 0;
   expiredQueue: number[] = [];
