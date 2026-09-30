@@ -2,10 +2,13 @@ import { TILE } from '@/shared/config/constants';
 import { addGpuBytes } from '@/shared/lib/gpu-meter';
 import { allocLayerArray, type AtlasGL, type Slot } from './atlas-gl';
 
+const lower = (a: Slot, b: Slot): boolean => a.array < b.array || (a.array === b.array && a.layer < b.layer);
+
 /**
  * The texture arrays behind the atlas and their free layers. An array grows when every layer is
  * taken and is deleted when every layer of it is free again (a work switch or a scrape gives its
- * VRAM back); a deleted array leaves a hole so the other slots keep their array index.
+ * VRAM back); a deleted array leaves a hole so the other slots keep their array index. A brush
+ * takes the lowest free layer, so the held ones pack into the first arrays and the last ones empty out.
  */
 export class LayerArrays {
   private readonly arrays: Array<WebGLTexture | null> = [];
@@ -32,7 +35,11 @@ export class LayerArrays {
 
   /** A free layer, from a new array when none is left; null when VRAM ran out (§5.2.3's pressure signal). */
   take(): Slot | null {
-    return this.free.pop() ?? this.grow();
+    let at = -1;
+    for (const [i, s] of this.free.entries()) if (at < 0 || lower(s, this.free[at]!)) at = i;
+    if (at < 0) return this.grow();
+    const last = this.free.pop()!;
+    return at === this.free.length ? last : this.free.splice(at, 1, last)[0]!;
   }
 
   give(slot: Slot): void {

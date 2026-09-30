@@ -195,6 +195,24 @@ describe('TileAtlas', () => {
     expect(atlas.arrayCount).toBe(1);
   });
 
+  it('packs brushes into the lowest free layers, so a half-empty array can be given back', () => {
+    const { gl, log } = fakeGL();
+    const atlas = new TileAtlas(gl, () => undefined, 2);
+    const list = [0, 1, 2, 3, 4, 5].map((i) => brush(0, bmp(), i));
+    atlas.reconcile(list);
+    atlas.upload(Infinity);
+    expect(atlas.arrayCount).toBe(3);
+    atlas.reconcile([list[1]!, list[3]!, list[5]!]); // one brush left in each array
+    expect(atlas.arrayCount).toBe(3);
+    const fresh = [10, 11].map((i) => brush(0, bmp(), i));
+    atlas.reconcile([list[1]!, list[3]!, list[5]!, ...fresh]);
+    atlas.upload(Infinity);
+    expect(atlas.arrayCount).toBe(3);
+    atlas.reconcile([list[1]!, ...fresh]); // the two in the top arrays go: they were the only ones there
+    expect(atlas.arrayCount).toBe(2);
+    expect(log.deleted).toBe(1);
+  });
+
   it('forgets the textures of a lost context without a GL call and hands the VRAM count back', () => {
     const { gl, log } = fakeGL();
     const before = gpuBytes();
