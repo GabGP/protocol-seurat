@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.app;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

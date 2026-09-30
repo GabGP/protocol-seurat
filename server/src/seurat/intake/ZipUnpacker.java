@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.intake;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;

@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.intake;
 
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
@@ -16,19 +16,19 @@ import seurat.observe.LogTags;
 import seurat.observe.LogUnits;
 
 /** Watches inbox directory and scans for incoming master images and archives. */
-final class InboxWatcher {
+public final class InboxWatcher {
     private final Path inbox;
     private final BiConsumer<String, Path> onMaster;
     private final Set<Path> seen = ConcurrentHashMap.newKeySet();
     private volatile WatchService watch;
     private volatile boolean closed;
 
-    InboxWatcher(Path inbox, BiConsumer<String, Path> onMaster) {
+    public InboxWatcher(Path inbox, BiConsumer<String, Path> onMaster) {
         this.inbox = inbox;
         this.onMaster = onMaster;
     }
 
-    void start() {
+    public void start() {
         Thread.ofVirtual().start(() -> {
             if (closed) return;
             try {
@@ -66,7 +66,7 @@ final class InboxWatcher {
     }
 
     /** Stops the watcher thread; in-flight ingest drains on its pool. */
-    void close() {
+    public void close() {
         closed = true;
         try {
             if (watch != null) watch.close();

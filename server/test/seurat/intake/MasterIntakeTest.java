@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.intake;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

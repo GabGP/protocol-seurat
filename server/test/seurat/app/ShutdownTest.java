@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.app;
 
 import java.io.Closeable;
 import java.nio.file.Files;
@@ -13,6 +13,8 @@ import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
 import seurat.grant.GrantController;
 import seurat.config.SeuratConfig;
+import seurat.intake.InboxWatcher;
+import seurat.intake.MasterIntake;
 import seurat.kit.TestKit;
 import seurat.net.RecordingMapping;
 import seurat.net.SocketServer;

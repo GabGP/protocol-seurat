@@ -5,31 +5,29 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import seurat.app.Broadcast;
+import seurat.app.DiskReaper;
+import seurat.app.Shutdown;
+import seurat.app.Timers;
 import seurat.budget.BrushBudget;
 import seurat.catalog.Catalog;
 import seurat.config.SeuratConfig;
-import seurat.config.SeuratConstants;
 import seurat.easel.Easel;
 import seurat.easel.EaselContext;
 import seurat.grant.GazeGate;
 import seurat.grant.GrantController;
 import seurat.grant.Liveness;
 import seurat.grant.PolicySync;
+import seurat.intake.MasterIntake;
 import seurat.net.SocketServer;
 import seurat.net.http.HttpSurface;
 import seurat.net.ws.WsMapping;
 import seurat.observe.Log;
 import seurat.observe.LogLevel;
 import seurat.observe.LogTags;
-import seurat.observe.LogUnits;
 import seurat.observe.Metrics;
 import seurat.paint.Painter;
 import seurat.proto.ProtoCodes;
-import seurat.server.Broadcast;
-import seurat.server.DiskReaper;
-import seurat.server.MasterIntake;
-import seurat.server.Shutdown;
 import seurat.session.Canvas;
 import seurat.session.Regulator;
 import seurat.session.Session;
@@ -75,15 +73,7 @@ public final class SeuratServer {
                     reaper.retired(id); // files go after the last canvas and book (spec 7.4)
                 });
         intake.watch();
-        ScheduledExecutorService clock = Executors.newSingleThreadScheduledExecutor();
-        clock.scheduleAtFixedRate(() -> regulator.tick(sessions.all()), SeuratConstants.CODEL_TICK_MS,
-                SeuratConstants.CODEL_TICK_MS, TimeUnit.MILLISECONDS);
-        clock.scheduleAtFixedRate(guarded(liveness::tick), 1, 1, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(guarded(reaper::sweep), 1, 1, TimeUnit.SECONDS);
-        clock.scheduleAtFixedRate(guarded(gazes::tick), SeuratConstants.GAZE_TICK_MS,
-                SeuratConstants.GAZE_TICK_MS, TimeUnit.MILLISECONDS);
-        clock.scheduleAtFixedRate(guarded(() -> Broadcast.heartbeat(sessions)), SeuratConstants.HEARTBEAT_S,
-                SeuratConstants.HEARTBEAT_S, TimeUnit.SECONDS);
+        ScheduledExecutorService clock = Timers.start(regulator, sessions, liveness, reaper, gazes);
         EaselContext ctx = new EaselContext(sessions, catalog, grants, gazes, config.sessionMaxBrushes,
                 config.rateBytesPerSec);
         SocketServer listener = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
@@ -102,16 +92,5 @@ public final class SeuratServer {
                 }
             }
         }
-    }
-
-    /** A failing tick must not cancel its schedule. */
-    private static Runnable guarded(Runnable tick) {
-        return () -> {
-            try {
-                tick.run();
-            } catch (Throwable ex) {
-                Log.error(LogTags.SERVER, "timer tick failed: " + LogUnits.cause(ex), ex);
-            }
-        };
     }
 }

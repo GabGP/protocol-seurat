@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.intake;
 
 import java.io.Closeable;
 import java.nio.file.Path;

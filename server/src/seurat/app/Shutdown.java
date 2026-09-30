@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.app;
 
 import java.io.Closeable;
 import java.util.concurrent.ExecutorService;

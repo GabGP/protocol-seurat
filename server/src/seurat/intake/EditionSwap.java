@@ -1,4 +1,4 @@
-package seurat.server;
+package seurat.intake;
 
 import seurat.catalog.Catalog;
 import seurat.catalog.WorkRecord;
