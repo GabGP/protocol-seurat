@@ -11,8 +11,11 @@ describe('tab memory rows', () => {
     expect(tabMemoryRows(undefined)).toEqual([]);
   });
 
-  it('holds its place with a placeholder until the first measurement arrives', () => {
-    expect(tabMemoryRows(null)).toEqual([{ k: TAB_KEY, v: PENDING }]);
+  it('holds both rows in place with placeholders until the first measurement arrives', () => {
+    expect(tabMemoryRows(null)).toEqual([
+      { k: TAB_KEY, v: PENDING },
+      { k: TAB_SPLIT_KEY, v: PENDING },
+    ]);
   });
 
   it('shows the measured total, then the page and worker share', () => {
