@@ -1,10 +1,11 @@
-import { useMemo, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { GalleryGrid, GalleryHero } from '@/widgets/gallery';
-import { filterWorks } from '@/entities/work';
-import { workTitle } from '@/entities/work';
+import { filterWorks, workTitle } from '@/entities/work';
 import { galleryScroll, goViewer } from '@/app/router';
 import { patchUi, useUi } from '@/app/store';
 import { useSeurat } from '@/app/providers/SeuratProvider';
+import { paginate } from '@/shared/lib/pagination';
+import { GALLERY_PAGE_SIZE } from '@/shared/config/layout';
 import styles from './GalleryPage.module.css';
 
 function DotMark(): JSX.Element {
@@ -21,8 +22,17 @@ function DotMark(): JSX.Element {
 
 export function GalleryPage(): JSX.Element {
   const ui = useUi();
-  const { works } = useSeurat();
+  const { works, showPreviews } = useSeurat();
   const items = useMemo(() => filterWorks(works, ui.filter), [works, ui.filter]);
+  const slice = useMemo(() => paginate(items, ui.page, GALLERY_PAGE_SIZE), [items, ui.page]);
+  const shown = useMemo(
+    () => [...new Set([items[0]?.id, ...slice.items.map((w) => w.id)].filter((id): id is string => id !== undefined))],
+    [items, slice],
+  );
+  const shownKey = shown.join('\n');
+  // Only the hero and the cards on this page hold a thumbnail.
+  useEffect(() => showPreviews(shown), [shownKey]);
+
   const tags = useMemo(() => {
     const s = new Set<string>();
     for (const w of works) {
@@ -52,10 +62,15 @@ export function GalleryPage(): JSX.Element {
           }}
         />
         <GalleryGrid
-          items={items}
+          items={slice.items}
+          total={items.length}
+          offset={slice.offset}
+          page={slice.page}
+          count={slice.count}
+          onPage={(p) => patchUi({ page: p })}
           tags={tags}
           filter={ui.filter}
-          onFilter={(f) => patchUi({ filter: f })}
+          onFilter={(f) => patchUi({ filter: f, page: 0 })}
           onOpen={(id) => goViewer(id)}
         />
       </main>

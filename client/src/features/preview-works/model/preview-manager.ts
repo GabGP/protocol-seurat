@@ -1,12 +1,12 @@
 import { splitBrushId } from '@/shared/proto/brush';
 import { dropWorkPreview, previewWidth } from '@/entities/work';
 import type { WorkerFactory } from '@/entities/delivery';
-import { PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
+import { PREVIEW_OPENS, ReleaseReason } from '@/shared/config/constants';
 import type { Audit, Renew, Scrape, WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/entities/session';
 import type { PreviewLoan } from './preview-loan';
 import { bandsIntact, readDelivery, type PreviewPiece } from './preview-piece';
-import { gazeLevel } from './preview-gaze';
+import { gazeLevel, keepGazing } from './preview-gaze';
 import { PreviewReplies, leaseExpiry } from './preview-replies';
 import { PreviewDecoder } from './preview-decoder';
 import { PreviewOpens } from './preview-opens';
@@ -18,7 +18,7 @@ import { PreviewPainter } from './preview-painter';
  * (spec 2.2). Its pieces are loans like any other; anything finer than the card needs is released
  * at once. RENOVAR / RASPAR / AUDITAR are answered, the MIRADA is repeated inside the inactivity
  * floor, and CERRAR (leaving the gallery) or an unrenewed seed drops the thumbnail. A few works
- * are opened and composed at once (PREVIEW_OPENS), in the gallery's order.
+ * are opened and composed at once (PREVIEW_OPENS), only for the cards the gallery shows.
  */
 export class PreviewManager {
   private readonly opens = new PreviewOpens((loan) => this.giveUp(loan));
@@ -33,7 +33,10 @@ export class PreviewManager {
     this.replies = new PreviewReplies(client, this.painter);
   }
 
-  enqueue(ids: string[]): void {
+  /** The cards the gallery shows: only these hold a thumbnail, any other canvas is closed (CERRAR). */
+  show(ids: string[]): void {
+    const keep = new Set(ids);
+    for (const loan of [...this.held.values(), ...this.opens.loans()]) if (!keep.has(loan.id)) this.close(loan);
     this.opens.enqueue(ids);
     this.pump();
   }
@@ -59,7 +62,8 @@ export class PreviewManager {
 
   onWorkOpened(id: string, a: WorkOpened): void {
     const opening = this.opens.byId(id);
-    if (!opening) {
+    // Not shown any more, or shown again after its page was left: this ABIERTA answers a closed request.
+    if (!opening || opening.handle > 0) {
       this.client()?.closeHandle(a.handle);
       return;
     }
@@ -98,14 +102,9 @@ export class PreviewManager {
     return this.replies.audit(this.held.get(a.handle), a);
   }
 
-  /**
-   * Spec 5.2.2: pieces whose lease ran out are released (SOLTAR CADUCADA); without its seed the
-   * canvas closes. Each card still showing looks at its work again before the server floors it.
-   */
+  /** Spec 5.2.2: pieces whose lease ran out are released (SOLTAR CADUCADA); without its seed the canvas closes. */
   sweep(now: number): void {
-    for (const loan of this.held.values()) {
-      if (loan.top > 0 && now - loan.gazedAt >= PREVIEW_GAZE_KEEPALIVE_MS) this.replies.gaze(loan, now);
-    }
+    keepGazing(this.held.values(), this.replies, now);
     for (const loan of [...this.held.values()]) {
       const gone = loan.expired(now);
       if (gone.length === 0) continue;

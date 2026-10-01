@@ -1,42 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PreviewManager } from '../model/preview-manager';
 import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work';
-import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum, type WorkOpened } from '@/shared/proto/messages';
+import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum } from '@/shared/proto/messages';
 import {
   LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, PREVIEW_OPEN_TIMEOUT_MS,
 } from '@/shared/config/constants';
-import type { SessionClient } from '@/entities/session';
 import type { WorkerFactory } from '@/entities/delivery';
-import { brushDelivery, inlineWorkers, seedDelivery, settle } from './preview-fixtures';
+import { brushDelivery, inlineWorkers, opened, recorder, seedDelivery, settle } from './preview-fixtures';
 
-/** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
-const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): WorkOpened => ({
-  handle, width: 76_800, height: 1024, strata, edition: 1, ceilingStratum: 10, ceilingBands: 4, seedWidth, seedHeight,
-});
 const FLAT = [120, 140, 200, 255];
-
-function recorder(workers = inlineWorkers) {
-  const log = {
-    opened: [] as string[], closed: [] as number[], receipts: [] as Array<{ completed: number[]; free: number }>,
-    released: [] as Array<{ reason: number; ranges: number[] }>, scraped: [] as Array<{ count: number; kept: number[] }>,
-    inventory: [] as number[][], gazes: [] as Array<Record<string, number>>,
-  };
-  const client = {
-    openPreview: (id: string) => log.opened.push(id),
-    closeHandle: (h: number) => log.closed.push(h),
-    sendGazeReliable: (g: Record<string, number>) => log.gazes.push(g),
-    sendReceipt: (_h: number, completed: number[], _q: number, free: number) => log.receipts.push({ completed, free }),
-    sendRelease: (_h: number, reason: number, ranges: number[]) => log.released.push({ reason, ranges }),
-    sendScraped: (...a: unknown[]) => log.scraped.push({ count: a[4] as number, kept: a[6] as number[] }),
-    sendInventory: (...a: unknown[]) => log.inventory.push(a[5] as number[]),
-  } as unknown as SessionClient;
-  return { log, manager: new PreviewManager(() => client, workers) };
-}
 
 /** Opens work-a as handle 101 and delivers its seed and three stratum-9 brushes. */
 async function fullPreview(workers = inlineWorkers) {
   const r = recorder(workers);
-  r.manager.enqueue(['work-a', 'work-b']);
+  r.manager.show(['work-a', 'work-b']);
   r.manager.onWorkOpened('work-a', opened(101));
   r.manager.onDelivery(seedDelivery(101, 1, 300, 4));
   await settle();
@@ -55,7 +31,7 @@ describe('PreviewManager', () => {
   it('asks for the card resolution with a MIRADA and shows each stratum the cone brings', async () => {
     notePreviewWidth(600);
     const { log, manager } = recorder();
-    manager.enqueue(['work-a', 'work-b']);
+    manager.show(['work-a', 'work-b']);
     manager.onWorkOpened('work-a', opened(101));
     expect(log.gazes).toEqual([
       { handle: 101, seq: 1, x0: 0, y0: 0, x1: 76_800, y1: 1024, vw: 600, vh: 8, flags: MFLAGS_STILL },
@@ -123,7 +99,7 @@ describe('PreviewManager', () => {
 
   it('keeps only the seed, without a MIRADA, when the work has no stratum under it', async () => {
     const { log, manager } = recorder();
-    manager.enqueue(['tiny']);
+    manager.show(['tiny']);
     manager.onWorkOpened('tiny', opened(7, 200, 100, 1));
     manager.onDelivery(seedDelivery(7, 1, 200, 100));
     await settle();
@@ -184,14 +160,14 @@ describe('PreviewManager', () => {
     manager.dispose();
   });
 
-  it('opens a few works at once, in the order of the latest sorted ids list', () => {
+  it('opens a few works at once, in the order of the latest shown ids list', () => {
     const { log, manager } = recorder();
     const ids = Array.from({ length: PREVIEW_OPENS + 2 }, (_, i) => `work-${i}`);
     const last = ids.at(-1) ?? '';
-    manager.enqueue([last]);
+    manager.show([last]);
     expect(log.opened).toEqual([last]);
     // `last` is being opened; the rest queue in the new order and fill the free slots
-    manager.enqueue(ids);
+    manager.show(ids);
     expect(log.opened).toEqual([last, ...ids.slice(0, PREVIEW_OPENS - 1)]);
     manager.onError(last);
     expect(log.opened.at(-1)).toBe(ids[PREVIEW_OPENS - 1]);
@@ -202,7 +178,7 @@ describe('PreviewManager', () => {
     vi.useFakeTimers();
     const { log, manager } = recorder();
     const ids = Array.from({ length: PREVIEW_OPENS + 1 }, (_, i) => `work-${i}`);
-    manager.enqueue(ids);
+    manager.show(ids);
     manager.onWorkOpened('work-0', opened(101));
     vi.advanceTimersByTime(PREVIEW_OPEN_TIMEOUT_MS);
     expect(log.closed).toContain(101);

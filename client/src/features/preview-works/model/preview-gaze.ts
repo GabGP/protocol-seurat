@@ -1,5 +1,7 @@
 import { MFLAGS_STILL } from '@/shared/proto/messages';
+import { PREVIEW_GAZE_KEEPALIVE_MS } from '@/shared/config/constants';
 import type { PreviewLoan } from './preview-loan';
+import type { PreviewReplies } from './preview-replies';
 import { clamp } from '@/shared/lib/clamp';
 
 /** The MIRADA a card sends: the whole work, seen at the card's device pixels, not moving. */
@@ -27,4 +29,11 @@ export function previewGaze(loan: PreviewLoan, workW: number, workH: number, seq
 export function gazeLevel(g: PreviewGaze, top: number): number {
   const ideal = Math.floor(Math.log2(Math.max((g.x1 - g.x0) / g.vw, (g.y1 - g.y0) / g.vh)));
   return clamp(ideal, 0, top - 1);
+}
+
+/** Each card still showing looks at its work again before the server floors it (inactivity). */
+export function keepGazing(loans: Iterable<PreviewLoan>, replies: PreviewReplies, now: number): void {
+  for (const loan of loans) {
+    if (loan.top > 0 && now - loan.gazedAt >= PREVIEW_GAZE_KEEPALIVE_MS) replies.gaze(loan, now);
+  }
 }

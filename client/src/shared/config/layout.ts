@@ -23,3 +23,8 @@ export const PREVIEW_DPR_MAX = 2;
 /** Long and minimum side of a gallery card's noise placeholder (the seed itself draws at card size). */
 export const GALLERY_PLACEHOLDER_PX = 144;
 export const GALLERY_PLACEHOLDER_MIN_PX = 32;
+
+/** Cards per gallery page: only these hold a thumbnail. */
+export const GALLERY_PAGE_SIZE = 8;
+/** Pages shown on each side of the current one before a gap. */
+export const PAGINATION_SIBLINGS = 1;

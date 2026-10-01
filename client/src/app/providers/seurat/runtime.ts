@@ -32,6 +32,8 @@ export interface Runtime {
   preview: PreviewManager | null;
   concession: Concession | null;
   works: Map<string, Work>;
+  /** The works whose cards the gallery shows: the only ones that hold a thumbnail. */
+  previewIds: string[];
   readonly ledgers: HandleLedgers;
   /** Handle whose book a REANUDAR is claiming, until BIENVENIDA says whether it was adopted. */
   resuming: number | null;
@@ -43,6 +45,6 @@ export interface Runtime {
 export function createRuntime(ui: Ui, bumpPaint: ReturnType<typeof frameBatch>): Runtime {
   return {
     alive: true, ui, client: null, sink: null, telemetry: null, gaze: null, preview: null, concession: null,
-    works: new Map(), ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, offBrushCap: null, bumpPaint,
+    works: new Map(), previewIds: [], ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, offBrushCap: null, bumpPaint,
   };
 }

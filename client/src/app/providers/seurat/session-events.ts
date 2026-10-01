@@ -1,7 +1,8 @@
 import { clearResume, type SessionEvents } from '@/entities/session';
-import { applyWork, isOpenable, sortWorks } from '@/entities/work';
+import { applyWork, sortWorks } from '@/entities/work';
 import { ErrorCode } from '@/shared/config/constants';
 import { T } from '@/shared/proto/messages';
+import { showPreviews } from './preview-cards';
 import type { Reconnect } from './reconnect';
 import { bookEvents } from './route-book-messages';
 import { deliveryEvents } from './route-delivery';
@@ -43,7 +44,7 @@ export function createEvents(rt: Runtime, reconnect: Reconnect): SessionEvents {
       const list = sortWorks([...rt.works.values()]);
       if (!rt.alive) return;
       rt.ui.setWorks(list);
-      rt.preview?.enqueue(list.filter(isOpenable).map((w) => w.id));
+      showPreviews(rt);
     },
     onWorkOpened: (a) => {
       if (rt.alive) openSink(rt, a);

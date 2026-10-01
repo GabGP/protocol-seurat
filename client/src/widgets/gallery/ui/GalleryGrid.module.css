@@ -95,6 +95,12 @@
   flex-shrink: 0;
 }
 
+.pager {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+
 @media (max-width: 640px) {
   .filterBar {
     gap: 12px;
@@ -144,4 +150,3 @@
     font-size: 12px;
   }
 }
-

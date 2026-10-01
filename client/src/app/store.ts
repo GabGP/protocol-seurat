@@ -28,6 +28,8 @@ function createStore<T>(initial: T) {
 
 export interface UiState {
   route: { name: 'gallery' } | { name: 'viewer'; id: string };
+  /** The gallery page shown, from 0; kept while the viewer is open. */
+  page: number;
   filter: string;
   loupe: boolean;
   info: boolean;
@@ -38,6 +40,7 @@ export interface UiState {
 
 const store = createStore<UiState>({
   route: { name: 'gallery' },
+  page: 0,
   filter: 'all',
   loupe: false,
   info: false,

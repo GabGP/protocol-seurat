@@ -7,6 +7,7 @@ import type { GazeSender } from '@/features/send-gaze';
 import type { Concession, PlanMsg, ProtocolError, Welcome, WorkOpened } from '@/shared/proto/messages';
 import { frameBatch } from '@/shared/lib/frame-batch';
 import { createRuntime, type Runtime } from './seurat/runtime';
+import { showPreviews } from './seurat/preview-cards';
 import { closeWork } from './seurat/sink-lifecycle';
 import { startSession } from './seurat/start-session';
 
@@ -27,6 +28,8 @@ export interface SeuratState {
   gazeService: GazeSender | null;
   retryConnect(): void;
   closeWork(): void;
+  /** The cards the gallery shows: only these hold a thumbnail. */
+  showPreviews(ids: string[]): void;
 }
 
 const Ctx = createContext<SeuratState | null>(null);
@@ -74,7 +77,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
     () => ({
       status, account, works, welcome, opened, concession, plan, lastError, paintTick,
       client: rt.client, sink: rt.sink, telemetry: rt.telemetry, gazeService: rt.gaze,
-      retryConnect, closeWork: () => closeWork(rt),
+      retryConnect, closeWork: () => closeWork(rt), showPreviews: (ids) => showPreviews(rt, ids),
     }),
     [status, account, works, welcome, opened, concession, plan, lastError, paintTick],
   );

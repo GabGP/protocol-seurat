@@ -6,6 +6,9 @@ import { rgbToYCoCg } from '@/shared/codec/ycocgr';
 import type { SynthWorker, WorkerFactory } from '@/entities/delivery';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
 import { PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
+import type { WorkOpened } from '@/shared/proto/messages';
+import type { SessionClient } from '@/entities/session';
+import { PreviewManager } from '../model/preview-manager';
 
 /** A PINCELADA flow carrying one band: 0 by default (bandas 0x01), or `(from << 4) | through`. */
 function flow(handle: number, delivery: number, brushId: bigint, band: Uint8Array, bands = 0x01): Uint8Array {
@@ -60,3 +63,26 @@ export const inlineWorkers: WorkerFactory = () => {
 
 /** Lets queued decodes and a waiting recompose finish (the inline worker answers on later ticks). */
 export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, PREVIEW_RECOMPOSE_GAP_MS + 50));
+
+/** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
+export const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): WorkOpened => ({
+  handle, width: 76_800, height: 1024, strata, edition: 1, ceilingStratum: 10, ceilingBands: 4, seedWidth, seedHeight,
+});
+
+export function recorder(workers = inlineWorkers) {
+  const log = {
+    opened: [] as string[], closed: [] as number[], receipts: [] as Array<{ completed: number[]; free: number }>,
+    released: [] as Array<{ reason: number; ranges: number[] }>, scraped: [] as Array<{ count: number; kept: number[] }>,
+    inventory: [] as number[][], gazes: [] as Array<Record<string, number>>,
+  };
+  const client = {
+    openPreview: (id: string) => log.opened.push(id),
+    closeHandle: (h: number) => log.closed.push(h),
+    sendGazeReliable: (g: Record<string, number>) => log.gazes.push(g),
+    sendReceipt: (_h: number, completed: number[], _q: number, free: number) => log.receipts.push({ completed, free }),
+    sendRelease: (_h: number, reason: number, ranges: number[]) => log.released.push({ reason, ranges }),
+    sendScraped: (...a: unknown[]) => log.scraped.push({ count: a[4] as number, kept: a[6] as number[] }),
+    sendInventory: (...a: unknown[]) => log.inventory.push(a[5] as number[]),
+  } as unknown as SessionClient;
+  return { log, manager: new PreviewManager(() => client, workers) };
+}

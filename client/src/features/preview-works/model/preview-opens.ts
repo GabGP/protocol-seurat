@@ -12,13 +12,14 @@ export class PreviewOpens {
 
   constructor(private readonly onTimeout: (loan: PreviewLoan) => void) {}
 
-  /** Queues every id not shown, queued or being opened, and orders the queue as `ids`. */
+  /** The loans being opened. */
+  loans(): PreviewLoan[] {
+    return [...this.opening.keys()];
+  }
+
+  /** Replaces the queue with the ids in `ids` not shown or being opened, in that order. */
   enqueue(ids: string[]): void {
-    for (const id of ids) {
-      if (!hasWorkPreview(id) && !this.queue.includes(id) && !this.byId(id)) this.queue.push(id);
-    }
-    const order = new Map(ids.map((id, i) => [id, i]));
-    this.queue.sort((a, b) => (order.get(a) ?? ids.length) - (order.get(b) ?? ids.length));
+    this.queue = ids.filter((id) => !hasWorkPreview(id) && !this.byId(id));
   }
 
   /** Takes queued works until `limit` are being opened; returns the new ones. */
@@ -36,11 +37,11 @@ export class PreviewOpens {
   }
 
   byId(id: string): PreviewLoan | undefined {
-    return [...this.opening.keys()].find((l) => l.id === id);
+    return this.loans().find((l) => l.id === id);
   }
 
   byHandle(handle: number): PreviewLoan | undefined {
-    return [...this.opening.keys()].find((l) => l.handle === handle);
+    return this.loans().find((l) => l.handle === handle);
   }
 
   /** The loan's seed arrived, or it was given up: it is no longer being opened. */
