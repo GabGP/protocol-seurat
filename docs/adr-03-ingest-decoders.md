@@ -10,7 +10,7 @@ library (TwelveMonkeys, Bio-Formats, libvips), or readers of our own?
 
 ## Decision
 
-`MasterReaders.open` picks the reader **by content, never by extension**, and falls through in this
+`Decoders.open` picks the reader **by content, never by extension**, and falls through in this
 order:
 
 | Order | Reader | Takes | Notes |
@@ -21,7 +21,7 @@ order:
 | 4 | `PsbReader` | PSB and PSD merged image, 8-bit RGB or gray | **new:** raw or RLE (PackBits) data, rows decode in parallel |
 | 5 | `ImageIoReader` | everything else | progressive JPEG, interlaced PNG, 16-bit/palette/JPEG-compressed TIFF, GIF, BMP |
 
-Intake admits `.png .jpg .jpeg .tif .tiff .psb .psd` and `.zip` (`MasterFormats`). A TIFF or
+Intake admits `.png .jpg .jpeg .tif .tiff .psb .psd` and `.zip` (`MasterNames`, `ZipNames`). A TIFF or
 Photoshop file counts as fully transferred once every byte its reader needs is on disk.
 
 **ICC profiles are ignored everywhere.** Samples are used as stored and treated as sRGB. This
@@ -63,7 +63,7 @@ buys nothing, but any decoder below it slows the whole ingest down.
 ## Results (Mpx/s)
 
 "Before" is production before this change. "Now" is the production readers above, through
-`MasterReaders.open`.
+`Decoders.open`.
 
 | File | Before | **Now** | ImageIO | TwelveMonkeys | Bio-Formats | libvips 1/16 | Pillow |
 |---|---|---|---|---|---|---|---|
@@ -132,7 +132,7 @@ That conversion was the entire 2.3 Mpx/s bottleneck.
 
 ## Evidence
 
-- **Reader tests** in `server/test/seurat/core/works/ingest/` (per format under `decode/<format>/`):
+- **Reader tests** in `server/test/seurat/adapters/out/decode/` (per format under `<format>/`):
   - `TiffReaderTest`:
     - every compression, in strips and in tiles, including with the predictor
     - BigTIFF in both byte orders
@@ -140,7 +140,7 @@ That conversion was the entire 2.3 Mpx/s bottleneck.
     - the files it must reject
   - `PsbReaderTest`: PSD and PSB × raw and RLE × RGB(A) and gray, plus the files it must reject.
   - `JpegReaderTest`: each subsampling mode against ImageIO.
-  - `MasterReadersTest`:
+  - `DecodersTest`:
     - dispatch by content, with deliberately wrong extensions
     - the 16-bit linear-RGB fallback read as stored
     - transfer completeness

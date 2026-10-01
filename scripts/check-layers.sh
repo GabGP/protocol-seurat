@@ -2,6 +2,7 @@
 # Enforces the server package layering: a package may import only packages of a LOWER rank.
 # Two distinct packages of the same rank never import each other. Scans server/src (tests may reach anywhere).
 # core/works never imports core/viewing.
+# adapters/in and adapters/out never import each other.
 # Checks `import seurat.x.Y` lines and fully qualified `seurat.x.Y` uses in code.
 # Usage: bash check-layers.sh [--report] [root] — root defaults to the repo root.
 #   --report lists every violation and always exits 0 (for tracking a refactor in progress).
@@ -61,6 +62,11 @@ FNR == 1 { pkg = "" }
         if (ref == pkg || !(pkg in rank)) continue
         if (!(ref in rank)) { print "UNRANKED " ref " (" FILENAME ")"; bad = 1; continue }
         if (index(pkg, "seurat.core.works") == 1 && index(ref, "seurat.core.viewing") == 1) {
+            ckey = "ctx:" pkg " -> " ref " (" FILENAME ")"
+            if (!(ckey in seen)) { seen[ckey] = 1; print "CONTEXT " pkg " -> " ref " " FILENAME; bad = 1 }
+        }
+        if ((index(pkg, "seurat.adapters.in") == 1 && index(ref, "seurat.adapters.out") == 1) || \
+            (index(pkg, "seurat.adapters.out") == 1 && index(ref, "seurat.adapters.in") == 1)) {
             ckey = "ctx:" pkg " -> " ref " (" FILENAME ")"
             if (!(ckey in seen)) { seen[ckey] = 1; print "CONTEXT " pkg " -> " ref " " FILENAME; bad = 1 }
         }
