@@ -4,22 +4,22 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
-import seurat.budget.BrushBudget;
-import seurat.catalog.Catalog;
-import seurat.catalog.WorkRecord;
-import seurat.codec.BrushId;
-import seurat.grant.GrantController;
-import seurat.net.RecordingMapping;
-import seurat.observe.Metrics;
-import seurat.paint.Painter;
-import seurat.proto.Frame;
-import seurat.proto.ProtoCodes;
-import seurat.session.Regulator;
-import seurat.session.Canvas;
-import seurat.concession.Concession;
-import seurat.session.Session;
-import seurat.session.Sessions;
-import seurat.store.WorkMeta;
+import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.core.shared.codec.BrushId;
+import seurat.core.shared.observe.Metrics;
+import seurat.core.shared.proto.Frame;
+import seurat.core.shared.proto.ProtoCodes;
+import seurat.core.viewing.budget.BrushBudget;
+import seurat.core.viewing.concession.Concession;
+import seurat.core.viewing.grant.GrantController;
+import seurat.core.viewing.paint.Painter;
+import seurat.core.viewing.session.Canvas;
+import seurat.core.viewing.session.Regulator;
+import seurat.core.viewing.session.Session;
+import seurat.core.viewing.session.Sessions;
+import seurat.core.works.catalog.Catalog;
+import seurat.core.works.catalog.WorkRecord;
+import seurat.core.works.store.WorkMeta;
 
 /**
  * One work "w" (2x2 stratum-0 brushes, 256 loans logged at stratum 1), one session and one canvas with

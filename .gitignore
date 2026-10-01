@@ -6,7 +6,7 @@
 .seurat/
 
 # legacy / IDE outputs
-inbox/
+/inbox/
 obras/
 cobertura/
 client/dist/

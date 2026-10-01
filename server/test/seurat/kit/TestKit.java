@@ -8,9 +8,9 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
-import seurat.codec.BrushId;
-import seurat.store.BrushStore;
-import seurat.store.WorkMeta;
+import seurat.core.shared.codec.BrushId;
+import seurat.core.works.store.BrushStore;
+import seurat.core.works.store.WorkMeta;
 
 /** In-memory store, recording mapping, synthetic masters. For tests only. */
 public final class TestKit {

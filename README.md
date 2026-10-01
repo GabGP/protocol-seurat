@@ -9,7 +9,7 @@ An asynchronous, server-authoritative protocol and viewer for streaming gigapixe
 - **Points Over Bitmaps**: Resolution is measured in points/brushes across adaptive pyramid strata. As the user zooms in, only missing detail bands are transferred; zooming out requires zero network transfer.
 - **Server Authority**: The server grants bounded density leases (`CONCESION`), tracks active loans (`LoanBook`), orders revocations (`RASPAR`), and regulates egress bandwidth based on viewer priority.
 - **Bounded Client Memory**: The client maintains a strict cache budget, voluntarily evicting with the client-side **Horizon** policy (predicted time-to-need from gaze motion, attention heat, lease horizon; see `docs/adr-02-horizon-evict.md`) and acknowledging purged leases (`SOLTAR`).
-- **Single Egress**: All outgoing brush tiles pass through a central chooser thread and virtual workers in `paint/Painter.java`, guaranteeing strict prioritization and rate regulation.
+- **Single Egress**: All outgoing brush tiles pass through a central chooser thread and virtual workers in `core/viewing/paint/Painter.java`, guaranteeing strict prioritization and rate regulation.
 
 ---
 

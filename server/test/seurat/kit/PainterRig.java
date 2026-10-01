@@ -2,20 +2,20 @@ package seurat.kit;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import seurat.budget.BrushBudget;
-import seurat.codec.BrushId;
-import seurat.net.RecordingMapping;
-import seurat.observe.Metrics;
-import seurat.paint.Painter;
-import seurat.proto.Frame;
-import seurat.proto.FrameType;
-import seurat.proto.msg.MsgGaze;
-import seurat.session.Regulator;
-import seurat.session.Canvas;
-import seurat.concession.Concession;
-import seurat.session.Session;
-import seurat.session.Sessions;
-import seurat.store.WorkMeta;
+import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.core.shared.codec.BrushId;
+import seurat.core.shared.observe.Metrics;
+import seurat.core.shared.proto.Frame;
+import seurat.core.shared.proto.FrameType;
+import seurat.core.shared.proto.msg.MsgGaze;
+import seurat.core.viewing.budget.BrushBudget;
+import seurat.core.viewing.concession.Concession;
+import seurat.core.viewing.paint.Painter;
+import seurat.core.viewing.session.Canvas;
+import seurat.core.viewing.session.Regulator;
+import seurat.core.viewing.session.Session;
+import seurat.core.viewing.session.Sessions;
+import seurat.core.works.store.WorkMeta;
 
 /** One painter over one session and one canvas of a 2-band, 2-brush work, for the paint tests. */
 public final class PainterRig {
