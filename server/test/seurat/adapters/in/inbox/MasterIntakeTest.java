@@ -52,19 +52,29 @@ public final class MasterIntakeTest {
         canvas.session(session);
         session.canvases().put(1L, canvas);
 
-        Path master = TestKit.masterPng(inbox, "pic.png", 512, 384);
-        intake.offer("pic", master);
+        try {
+            Path master = TestKit.masterPng(inbox, "pic.png", 512, 384);
+            intake.offer("pic", master);
 
-        long deadline = System.currentTimeMillis() + 10000;
-        while ((canvas.meta() == null || canvas.meta().edition() != 2)
-                && System.currentTimeMillis() < deadline) {
-            Thread.sleep(50);
+            long deadline = System.currentTimeMillis() + 10000;
+            while (!swapped(canvas) && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+
+            TestKit.check(session.canvases().containsKey(1L), "canvas NOT withdrawn");
+            synchronized (canvas) {
+                TestKit.check(canvas.meta().edition() == 2, "canvas pointed to ed2 store");
+                TestKit.check(canvas.concession().epoch() == 2, "epoch bumped to 2");
+            }
+        } finally {
+            directExecutor.shutdown(); // a failed check must not leave the JVM running
         }
+    }
 
-        TestKit.check(session.canvases().containsKey(1L), "canvas NOT withdrawn");
-        TestKit.check(canvas.meta().edition() == 2, "canvas pointed to ed2 store");
-        TestKit.check(canvas.concession().epoch() == 2, "epoch bumped to 2");
-
-        directExecutor.shutdown();
+    /** The swap moves store and concession in one step under the canvas lock: read under it, never half of it. */
+    private static boolean swapped(Canvas canvas) {
+        synchronized (canvas) {
+            return canvas.meta() != null && canvas.meta().edition() == 2;
+        }
     }
 }
