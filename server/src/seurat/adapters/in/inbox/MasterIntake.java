@@ -3,34 +3,31 @@ package seurat.adapters.in.inbox;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.AuditLog;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
-import seurat.core.viewing.grant.GrantController;
-import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.ingest.IngestJob;
 import seurat.core.works.ingest.MasterHome;
 import seurat.core.works.ingest.decode.FormatMarkers;
 import seurat.core.works.store.MasterNames;
 
-/** Master intake: inbox watch, zip unpack, single ingest (queue in {@link IntakeQueue}, swap in {@link EditionSwap}). */
+/** Master intake: inbox watch, zip unpack, single ingest (queue in {@link IntakeQueue}, edition swap through onEdition). */
 public final class MasterIntake implements Closeable {
     private final Catalog catalog;
     private final SeuratConfig config;
     private final InboxWatcher watcher;
     private final IntakeQueue queue;
-    private final EditionSwap swap;
-    /** After the swap: ed1/ is deleted once no canvas uses it (DiskReaper). */
-    public volatile java.util.function.Consumer<String> onSwapped;
+    /** Called once a work's edition 2 is ready (LISTA): moves open canvases to it (spec 7.3). */
+    private final Consumer<String> onEdition;
 
-    public MasterIntake(Catalog catalog, Sessions sessions, GrantController grants,
-            SeuratConfig config, Executor ingest) {
+    public MasterIntake(Catalog catalog, SeuratConfig config, Executor ingest, Consumer<String> onEdition) {
         this.catalog = catalog;
         this.config = config;
-        this.swap = new EditionSwap(catalog, sessions, grants);
+        this.onEdition = onEdition;
         this.watcher = new InboxWatcher(config.inbox, this::offer);
         this.queue = new IntakeQueue(catalog::isCompleted, ingest, watcher, this::launch);
     }
@@ -65,9 +62,7 @@ public final class MasterIntake implements Closeable {
     }
 
     private void substitute(String id) {
-        if (swap.substitute(id) && onSwapped != null) {
-            onSwapped.accept(id);
-        }
+        onEdition.accept(id);
     }
 
     /** Boot: a pass cut short runs again from the master it left (spec 7.2), then the inbox. */

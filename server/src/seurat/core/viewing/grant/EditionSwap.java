@@ -1,8 +1,7 @@
-package seurat.adapters.in.inbox;
+package seurat.core.viewing.grant;
 
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
-import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
@@ -10,19 +9,19 @@ import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
 
 /** Edition swap (spec 7.1 [6], 7.3): every open canvas of the work moves to the new edition. */
-final class EditionSwap {
+public final class EditionSwap {
     private final Catalog catalog;
     private final Sessions sessions;
     private final GrantController grants;
 
-    EditionSwap(Catalog catalog, Sessions sessions, GrantController grants) {
+    public EditionSwap(Catalog catalog, Sessions sessions, GrantController grants) {
         this.catalog = catalog;
         this.sessions = sessions;
         this.grants = grants;
     }
 
     /** False when the work is gone (nothing swapped). */
-    boolean substitute(String id) {
+    public boolean substitute(String id) {
         WorkRecord work = catalog.get(id);
         if (work == null) {
             return false;

@@ -22,6 +22,7 @@ import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
+import seurat.core.viewing.grant.EditionSwap;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.grant.Liveness;
@@ -62,8 +63,12 @@ public final class SeuratServer {
         Thread painterThread = Thread.ofPlatform().name("painter").daemon(true).unstarted(painter);
         painterThread.start();
         ExecutorService ingest = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
-        MasterIntake intake = new MasterIntake(catalog, sessions, grants, config, ingest);
-        intake.onSwapped = reaper::swapped;
+        EditionSwap swap = new EditionSwap(catalog, sessions, grants);
+        MasterIntake intake = new MasterIntake(catalog, config, ingest, id -> {
+            if (swap.substitute(id)) {
+                reaper.swapped(id); // ed1/ goes once no canvas uses it
+            }
+        });
         HttpSurface http = new HttpSurface(base.resolve("client/dist"), sessions, catalog, config,
                 intake::offer,
                 id -> forEachCanvas(sessions, id, policies::apply),

@@ -3,6 +3,7 @@ package seurat.core.works.store;
 import java.io.IOException;
 import java.io.OutputStream;
 import seurat.core.shared.codec.BrushId;
+import seurat.core.shared.codec.Quant;
 
 /** Positional reads over immutable per-edition brush bytes. */
 public interface BrushStore {
@@ -24,6 +25,11 @@ public interface BrushStore {
 
     /** Total bytes of [b0,b1). */
     long bytes(BrushId p, int b0, int b1) throws IOException;
+
+    /** Quant table the bands were encoded with; the current table when the store does not say. */
+    default int quantTable() {
+        return Quant.TABLE;
+    }
 
     WorkMeta meta();
 }

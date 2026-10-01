@@ -17,7 +17,7 @@ public final class FileBrushStore implements BrushStore {
     private final StoreWriter writer;
     private final BandReader reader;
     /** Quant table the bands were encoded with: the "quant" marker, 1 for stores older than it. */
-    public final int quantTable;
+    private final int quantTable;
 
     public FileBrushStore(Path dir, WorkMeta meta, int[] nx, int[] ny) throws IOException {
         this.dir = dir;
@@ -74,6 +74,11 @@ public final class FileBrushStore implements BrushStore {
     @Override
     public long bytes(BrushId p, int b0, int b1) throws IOException {
         return reader.bytes(p, b0, b1);
+    }
+
+    @Override
+    public int quantTable() {
+        return quantTable;
     }
 
     @Override

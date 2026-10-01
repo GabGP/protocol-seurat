@@ -8,6 +8,7 @@ import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
+import seurat.core.viewing.grant.EditionSwap;
 import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.paint.Painter;
 import seurat.core.viewing.session.Canvas;
@@ -38,7 +39,8 @@ public final class MasterIntakeTest {
         GrantController grants = new GrantController(catalog, painter, sessions);
 
         var directExecutor = Executors.newSingleThreadExecutor();
-        MasterIntake intake = new MasterIntake(catalog, sessions, grants, config, directExecutor);
+        MasterIntake intake = new MasterIntake(catalog, config, directExecutor,
+                new EditionSwap(catalog, sessions, grants)::substitute);
 
         RecordingMapping mapping = new RecordingMapping();
         Session session = new Session(1, "alice", "autenticado", 256, 0, mapping, new byte[32]);

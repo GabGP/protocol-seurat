@@ -14,7 +14,6 @@ import seurat.core.shared.proto.Ranges;
 import seurat.core.viewing.loans.Delivery;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.works.store.BrushStore;
-import seurat.core.works.store.FileBrushStore;
 
 /**
  * One PINCELADA flow: header + bands + FIN on a virtual thread. A corrupt band on
@@ -57,7 +56,7 @@ final class DeliveryWriter {
                 lengths[i] = bands[i].length;
             }
             // The store's own table: works ingested before table 2 still decode right.
-            int table = flow.store() instanceof FileBrushStore s ? s.quantTable : Quant.TABLE;
+            int table = flow.store().quantTable();
             int stratum = delivery.brush().stratum();
             var head = new Headers.BrushHead(canvas.handle(), delivery.number(), delivery.brush().id(),
                     delivery.from(), delivery.through(), delivery.epoch(), Quant.qy(table, stratum),
