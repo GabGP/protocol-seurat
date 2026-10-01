@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.budget.BrushBudget;
@@ -39,7 +40,7 @@ public final class MasterIntakeTest {
         GrantController grants = new GrantController(catalog, painter, sessions);
 
         var directExecutor = Executors.newSingleThreadExecutor();
-        MasterIntake intake = new MasterIntake(catalog, config, directExecutor,
+        MasterIntake intake = new MasterIntake(catalog, config, directExecutor, new Decoders(),
                 new EditionSwap(catalog, sessions, grants)::substitute);
 
         RecordingMapping mapping = new RecordingMapping();

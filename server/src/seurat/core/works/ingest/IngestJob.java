@@ -12,7 +12,8 @@ import seurat.core.shared.observe.Progress;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
-import seurat.core.works.ingest.decode.MasterReader;
+import seurat.core.works.ingest.port.MasterReader;
+import seurat.core.works.ingest.port.MasterSource;
 import seurat.core.works.ingest.sketch.SketchPhase;
 import seurat.core.works.store.FileBrushStore;
 import seurat.core.works.store.StoreFiles;
@@ -30,22 +31,24 @@ public final class IngestJob implements Runnable {
     private final Path master;
     private final Path worksDir;
     private final Catalog catalog;
+    private final MasterSource source;
     private final Runnable onReady;
     private final boolean keepMaster;
 
     public IngestJob(String id, String name, Path master, Path worksDir,
-            Catalog catalog, Runnable onReady) {
-        this(id, name, master, worksDir, catalog, onReady, true);
+            Catalog catalog, MasterSource source, Runnable onReady) {
+        this(id, name, master, worksDir, catalog, source, onReady, true);
     }
 
     public IngestJob(String id, String name, Path master, Path worksDir,
-            Catalog catalog, Runnable onReady, boolean keepMaster) {
+            Catalog catalog, MasterSource source, Runnable onReady, boolean keepMaster) {
         this.keepMaster = keepMaster;
         this.id = id;
         this.name = name;
         this.master = master;
         this.worksDir = worksDir;
         this.catalog = catalog;
+        this.source = source;
         this.onReady = onReady;
     }
 
@@ -62,7 +65,7 @@ public final class IngestJob implements Runnable {
                     ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA));
             fresh.keepMaster = keepMaster;
             catalog.register(fresh);
-            try (MasterReader reader = new ReadAheadReader(MasterReaders.open(master))) {
+            try (MasterReader reader = new ReadAheadReader(source.open(master))) {
                 int w = reader.width();
                 int h = reader.height();
                 int top = topLevels(w, h);
@@ -71,7 +74,7 @@ public final class IngestJob implements Runnable {
                 work.meta = WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1,
                         ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA);
                 Progress.phase(LogTags.INGEST, LogTags.work(id), "sketching", "");
-                SketchPhase.run(id, master, dir(1), () -> store(top, w, h, 1), top, w, h, catalog);
+                SketchPhase.run(id, master, source, dir(1), () -> store(top, w, h, 1), top, w, h, catalog);
                 catalog.painting(id);
                 FileBrushStore ed2 = store(top, w, h, 2);
                 new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader);

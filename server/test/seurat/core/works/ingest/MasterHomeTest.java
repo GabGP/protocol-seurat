@@ -2,6 +2,7 @@ package seurat.core.works.ingest;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
@@ -27,12 +28,12 @@ public final class MasterHomeTest {
         TestKit.check(Files.exists(again) && !Files.exists(home), "a new master replaces the old one");
 
         Catalog catalog = new Catalog(works);
-        new IngestJob("kept", "Kept", again, works, catalog, () -> {}, true).run();
+        new IngestJob("kept", "Kept", again, works, catalog, new Decoders(), () -> {}, true).run();
         TestKit.check(Files.exists(again), "keepMaster=true: the master stays");
         TestKit.check(meta(works, "kept").contains("\"keepMaster\":true"), "meta.json says keepMaster true");
 
         Path gone = MasterHome.adopt(works, "gone", TestKit.masterPng(inbox, "gone.png", 512, 384));
-        new IngestJob("gone", "Gone", gone, works, catalog, () -> {}, false).run();
+        new IngestJob("gone", "Gone", gone, works, catalog, new Decoders(), () -> {}, false).run();
         TestKit.check(catalog.get("gone").meta.state() == ProtoCodes.ST_LISTA, "LISTA");
         TestKit.check(!Files.exists(gone.getParent()), "keepMaster=false: master/ deleted after the pass");
         TestKit.check(meta(works, "gone").contains("\"keepMaster\":false"), "meta.json says keepMaster false");

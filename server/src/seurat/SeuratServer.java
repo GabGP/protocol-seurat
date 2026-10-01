@@ -9,6 +9,7 @@ import seurat.adapters.in.inbox.MasterIntake;
 import seurat.adapters.in.net.http.HttpSurface;
 import seurat.adapters.in.net.socket.SocketServer;
 import seurat.adapters.in.net.ws.WsMapping;
+import seurat.adapters.out.decode.Decoders;
 import seurat.boot.Broadcast;
 import seurat.boot.DiskReaper;
 import seurat.boot.Shutdown;
@@ -64,7 +65,7 @@ public final class SeuratServer {
         painterThread.start();
         ExecutorService ingest = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
         EditionSwap swap = new EditionSwap(catalog, sessions, grants);
-        MasterIntake intake = new MasterIntake(catalog, config, ingest, id -> {
+        MasterIntake intake = new MasterIntake(catalog, config, ingest, new Decoders(), id -> {
             if (swap.substitute(id)) {
                 reaper.swapped(id); // ed1/ goes once no canvas uses it
             }

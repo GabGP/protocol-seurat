@@ -8,7 +8,6 @@ import java.util.Map;
 import seurat.core.shared.codec.Geometry;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.MasterNames;
 import seurat.core.works.store.SeedFile;
 import seurat.core.works.store.StoreFiles;
 import seurat.core.works.store.Trees;

@@ -6,6 +6,7 @@ import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
+import seurat.core.works.ingest.port.MasterSource;
 import seurat.core.works.store.FileBrushStore;
 import seurat.core.works.store.SeedFile;
 
@@ -22,10 +23,11 @@ public final class SketchPhase {
         FileBrushStore open() throws Exception;
     }
 
-    public static void run(String id, Path master, Path ed1Dir, Ed1 ed1, int top, int w, int h, Catalog catalog) {
+    public static void run(String id, Path master, MasterSource source, Path ed1Dir, Ed1 ed1, int top, int w, int h,
+            Catalog catalog) {
         try {
             boolean kept = SeedFile.present(ed1Dir);
-            Overview.Sampled overview = kept ? null : Overview.probe(master, w, h, SketchBuilder.sampling(top));
+            MasterSource.Sampled overview = kept ? null : source.overview(master, w, h, SketchBuilder.sampling(top));
             if (!kept && overview == null) {
                 Log.info(LogTags.INGEST, LogTags.work(id) + " sketch skipped: no overview");
                 return;

@@ -7,7 +7,7 @@ import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
-import seurat.core.works.store.MasterNames;
+import seurat.core.works.catalog.MasterNames;
 
 /** An inbox zip: unpack its masters, then ingest them one after another, the rest "queued" on the bar. */
 final class ZipIntake {

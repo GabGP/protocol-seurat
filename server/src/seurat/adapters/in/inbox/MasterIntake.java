@@ -10,26 +10,29 @@ import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
 import seurat.core.works.catalog.Catalog;
+import seurat.core.works.catalog.MasterNames;
 import seurat.core.works.ingest.IngestJob;
 import seurat.core.works.ingest.MasterHome;
-import seurat.core.works.ingest.decode.FormatMarkers;
-import seurat.core.works.store.MasterNames;
+import seurat.core.works.ingest.port.MasterSource;
 
 /** Master intake: inbox watch, zip unpack, single ingest (queue in {@link IntakeQueue}, edition swap through onEdition). */
 public final class MasterIntake implements Closeable {
     private final Catalog catalog;
     private final SeuratConfig config;
+    private final MasterSource source;
     private final InboxWatcher watcher;
     private final IntakeQueue queue;
     /** Called once a work's edition 2 is ready (LISTA): moves open canvases to it (spec 7.3). */
     private final Consumer<String> onEdition;
 
-    public MasterIntake(Catalog catalog, SeuratConfig config, Executor ingest, Consumer<String> onEdition) {
+    public MasterIntake(Catalog catalog, SeuratConfig config, Executor ingest, MasterSource source,
+            Consumer<String> onEdition) {
         this.catalog = catalog;
         this.config = config;
+        this.source = source;
         this.onEdition = onEdition;
         this.watcher = new InboxWatcher(config.inbox, this::offer);
-        this.queue = new IntakeQueue(catalog::isCompleted, ingest, watcher, this::launch);
+        this.queue = new IntakeQueue(catalog::isCompleted, ingest, source::isWhole, watcher, this::launch);
     }
 
     public void offer(String id, Path file) {
@@ -38,7 +41,7 @@ public final class MasterIntake implements Closeable {
 
     private void launch(String id, Path file) {
         try {
-            if (FormatMarkers.isZip(file.toString())) {
+            if (ZipNames.isZip(file.toString())) {
                 Progress.done(LogTags.work(id)); // the zip's own queued segment: its works take over
                 // a work whose master is already home is resumed from there (watch), not unpacked again
                 ZipIntake.run(file, w -> catalog.isCompleted(w) || MasterHome.find(config.works, w).isPresent(),
@@ -58,7 +61,8 @@ public final class MasterIntake implements Closeable {
             return;
         }
         Path master = MasterHome.adopt(config.works, id, file);
-        new IngestJob(id, name, master, config.works, catalog, () -> substitute(id), config.keepMaster).run();
+        new IngestJob(id, name, master, config.works, catalog, source,
+                () -> substitute(id), config.keepMaster).run();
     }
 
     private void substitute(String id) {

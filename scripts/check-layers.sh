@@ -22,11 +22,7 @@ seurat.core.viewing.concession 5
 seurat.core.viewing.loans 5
 seurat.core.works.catalog 6
 seurat.core.viewing.plan 7
-seurat.core.works.ingest.decode 7
-seurat.core.works.ingest.decode.jpeg 8
-seurat.core.works.ingest.decode.tiff 8
-seurat.core.works.ingest.decode.png 8
-seurat.core.works.ingest.decode.psb 8
+seurat.core.works.ingest.port 7
 seurat.core.works.ingest.sketch 8
 seurat.core.viewing.budget 8
 seurat.core.works.ingest 9
@@ -38,6 +34,13 @@ seurat.adapters.in.inbox 13
 seurat.adapters.in.net.http 14
 seurat.adapters.in.net.ws 14
 seurat.adapters.in.net.socket 15
+seurat.adapters.out.decode.raster 13
+seurat.adapters.out.decode.imageio 14
+seurat.adapters.out.decode.jpeg 14
+seurat.adapters.out.decode.tiff 14
+seurat.adapters.out.decode.png 14
+seurat.adapters.out.decode.psb 14
+seurat.adapters.out.decode 15
 seurat.boot 16
 seurat 17
 '

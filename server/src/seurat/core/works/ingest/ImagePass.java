@@ -14,7 +14,7 @@ import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
 import seurat.core.works.catalog.Catalog;
-import seurat.core.works.ingest.decode.MasterReader;
+import seurat.core.works.ingest.port.MasterReader;
 import seurat.core.works.store.FileBrushStore;
 import seurat.core.works.store.StoreFiles;
 

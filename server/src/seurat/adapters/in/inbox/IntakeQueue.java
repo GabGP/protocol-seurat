@@ -4,23 +4,26 @@ import java.nio.file.Path;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.Progress;
-import seurat.core.works.ingest.decode.FormatMarkers;
 
 /** Offers a master to the single ingest thread: skip a ready work, wait for the file, queue, run, release the inbox. */
 final class IntakeQueue {
     private final Predicate<String> ready;
     private final Executor ingest;
+    private final BiPredicate<Path, Long> whole;
     private final InboxWatcher watcher;
     private final BiConsumer<String, Path> launch;
     private volatile boolean closed;
 
-    IntakeQueue(Predicate<String> ready, Executor ingest, InboxWatcher watcher, BiConsumer<String, Path> launch) {
+    IntakeQueue(Predicate<String> ready, Executor ingest, BiPredicate<Path, Long> whole, InboxWatcher watcher,
+            BiConsumer<String, Path> launch) {
         this.ready = ready;
         this.ingest = ingest;
+        this.whole = whole;
         this.watcher = watcher;
         this.launch = launch;
     }
@@ -35,12 +38,12 @@ final class IntakeQueue {
             return;
         }
         Thread.ofVirtual().start(() -> {
-            if (!FormatMarkers.isZip(file.toString()) && ready.test(id)) {
+            if (!ZipNames.isZip(file.toString()) && ready.test(id)) {
                 skipped(id);
                 watcher.done(file);
                 return;
             }
-            if (!FileTransferWaiter.waitForReady(file)) {
+            if (!FileTransferWaiter.waitForReady(file, whole)) {
                 watcher.done(file);
                 return;
             }

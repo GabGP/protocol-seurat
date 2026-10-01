@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import seurat.adapters.out.decode.WholeFile;
 import seurat.kit.TestKit;
 
 public final class FileTransferWaiterTest {
@@ -21,7 +22,7 @@ public final class FileTransferWaiterTest {
         Path dir = Files.createTempDirectory("waiter-empty");
         Path empty = dir.resolve("empty.zip");
         Files.createFile(empty);
-        boolean ready = FileTransferWaiter.waitForReady(empty, 20, 100, 200);
+        boolean ready = FileTransferWaiter.waitForReady(empty, WholeFile::isWhole, 20, 100, 200);
         TestKit.check(!ready, "empty file should time out and return false");
     }
 
@@ -29,7 +30,7 @@ public final class FileTransferWaiterTest {
         Path dir = Files.createTempDirectory("waiter-corrupt");
         Path corrupt = dir.resolve("bad.zip");
         Files.write(corrupt, new byte[]{1, 2, 3, 4, 5, 6, 7, 8});
-        boolean ready = FileTransferWaiter.waitForReady(corrupt, 20, 500, 100);
+        boolean ready = FileTransferWaiter.waitForReady(corrupt, WholeFile::isWhole, 20, 500, 100);
         TestKit.check(!ready, "corrupt file should time out and return false");
     }
 
@@ -37,14 +38,14 @@ public final class FileTransferWaiterTest {
         Path dir = Files.createTempDirectory("waiter-zip");
         Path zip = dir.resolve("valid.zip");
         createZip(zip);
-        boolean ready = FileTransferWaiter.waitForReady(zip, 20, 500, 500);
+        boolean ready = FileTransferWaiter.waitForReady(zip, WholeFile::isWhole, 20, 500, 500);
         TestKit.check(ready, "valid zip should be recognized as ready");
     }
 
     private static void testCompletePng() throws Exception {
         Path dir = Files.createTempDirectory("waiter-png");
         Path png = TestKit.masterPng(dir, "image.png", 64, 64);
-        boolean ready = FileTransferWaiter.waitForReady(png, 20, 500, 500);
+        boolean ready = FileTransferWaiter.waitForReady(png, WholeFile::isWhole, 20, 500, 500);
         TestKit.check(ready, "valid png should be recognized as ready");
     }
 
@@ -60,7 +61,7 @@ public final class FileTransferWaiterTest {
             } catch (Exception ignored) {}
         });
 
-        boolean ready = FileTransferWaiter.waitForReady(zip, 20, 500, 500);
+        boolean ready = FileTransferWaiter.waitForReady(zip, WholeFile::isWhole, 20, 500, 500);
         TestKit.check(ready, "simulated file transfer should be detected and complete");
     }
 

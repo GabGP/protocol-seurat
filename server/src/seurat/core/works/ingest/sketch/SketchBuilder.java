@@ -6,6 +6,7 @@ import seurat.core.shared.codec.Geometry;
 import seurat.core.shared.codec.Quant;
 import seurat.core.shared.codec.SeedCodec;
 import seurat.core.shared.codec.TransformS;
+import seurat.core.works.ingest.port.MasterSource;
 import seurat.core.works.store.FileBrushStore;
 import seurat.core.works.store.StoreFiles;
 
@@ -21,7 +22,7 @@ final class SketchBuilder {
         return 1 << Math.max(0, top - 3);
     }
 
-    static void build(Overview.Sampled sub, FileBrushStore store, int top) throws Exception {
+    static void build(MasterSource.Sampled sub, FileBrushStore store, int top) throws Exception {
         int sw = sub.sw();
         int sh = sub.sh();
         int[][] e = sub.e();

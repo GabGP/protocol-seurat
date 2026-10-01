@@ -13,7 +13,6 @@ import seurat.core.shared.observe.AuditLog;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
-import seurat.core.works.ingest.MasterFormats;
 
 /** Watches inbox directory and scans for incoming master images and archives. */
 public final class InboxWatcher {
@@ -80,7 +79,7 @@ public final class InboxWatcher {
             for (Path file : walk.filter(Files::isRegularFile).toList()) {
                 String rel = root.relativize(file).toString().replace('\\', '/');
                 if (rel.contains(".d/") || rel.startsWith(".d/")) continue;
-                if (MasterFormats.isAdmitted(file.getFileName().toString())) {
+                if (ZipNames.isAdmitted(file.getFileName().toString())) {
                     submit(rel.replaceAll("\\.[^.]+$", ""), file);
                 }
             }
@@ -91,7 +90,7 @@ public final class InboxWatcher {
 
     private void offerIfMaster(String name) {
         if (name.endsWith(".d") || name.endsWith(".tmp") || name.contains(".d/")) return;
-        if (MasterFormats.isAdmitted(name)) {
+        if (ZipNames.isAdmitted(name)) {
             submit(name.replaceAll("\\.[^.]+$", ""), inbox.resolve(name));
         }
     }

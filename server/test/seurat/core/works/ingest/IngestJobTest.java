@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.codec.Quant;
 import seurat.core.shared.proto.ProtoCodes;
@@ -30,7 +31,7 @@ public final class IngestJobTest {
         java.io.PrintStream ps = new java.io.PrintStream(baos, true, StandardCharsets.UTF_8);
         seurat.core.shared.observe.Log.setOutput(ps);
         try {
-            new IngestJob("tiny", "Tiny", master, works, catalog, () -> ready[0] = true).run();
+            new IngestJob("tiny", "Tiny", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
         } finally {
             seurat.core.shared.observe.Log.setOutput(System.out);
         }
@@ -98,7 +99,7 @@ public final class IngestJobTest {
             writer.endWriteSequence();
         }
         writer.dispose();
-        new IngestJob("pyramid", "Pyramid", master, works, catalog, () -> {}).run();
+        new IngestJob("pyramid", "Pyramid", master, works, catalog, new Decoders(), () -> {}).run();
         TestKit.check(catalog.get("pyramid").meta.state() == ProtoCodes.ST_LISTA, "pyramid LISTA");
         TestKit.check(Files.exists(works.resolve("pyramid/ed1/semilla.bin")), "sketch from the overview");
         var entry = seurat.core.works.store.IndexEntry.read(works.resolve("pyramid/ed1/E3.idx"), 0);
@@ -109,7 +110,7 @@ public final class IngestJobTest {
     private static void jpegIngest(Path root, Path works, Catalog catalog) throws Exception {
         Path master = TestKit.masterJpg(root, "tall.jpg", 512, 2500);
         boolean[] ready = {false};
-        new IngestJob("tall", "Tall", master, works, catalog, () -> ready[0] = true).run();
+        new IngestJob("tall", "Tall", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
         TestKit.check(ready[0], "jpeg onReady fires");
         var work = catalog.get("tall");
         TestKit.check(work != null && work.meta.state() == ProtoCodes.ST_LISTA
@@ -127,7 +128,7 @@ public final class IngestJobTest {
                 .putInt(13).put("IHDR".getBytes(StandardCharsets.US_ASCII))
                 .putInt(Integer.MAX_VALUE).putInt(1).put(new byte[]{8, 0, 0, 0, 0}).putInt(0);
         Path master = Files.write(root.resolve("huge.png"), png.array());
-        new IngestJob("huge", "Huge", master, works, catalog, () -> {}).run();
+        new IngestJob("huge", "Huge", master, works, catalog, new Decoders(), () -> {}).run();
         TestKit.check(catalog.get("huge").meta.state() == ProtoCodes.ST_FALLIDA, "Error -> FALLIDA");
     }
 }

@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import seurat.core.shared.config.SeuratConstants;
-import seurat.core.works.ingest.decode.MasterReader;
+import seurat.core.works.ingest.port.MasterReader;
 
 /** Producer-consumer overlap: a virtual thread decodes ahead while workers encode. */
 public final class ReadAheadReader implements MasterReader {

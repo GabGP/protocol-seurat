@@ -11,7 +11,7 @@ obras/
 cobertura/
 client/dist/
 target/
-out/
+/out/
 img/
 /tmp/opencode/
 *.class

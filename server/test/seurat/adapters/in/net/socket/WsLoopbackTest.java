@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.Ranges;
@@ -24,7 +25,7 @@ public final class WsLoopbackTest {
         Catalog catalog = new Catalog(works);
         Path master = TestKit.masterPng(root, "loop.png", 2048, 1536);
         boolean[] ready = {false};
-        new IngestJob("loop", "Loop", master, works, catalog, () -> ready[0] = true).run();
+        new IngestJob("loop", "Loop", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
         TestKit.check(ready[0], "ingest ready");
 
         int port = WsClient.serve(root, catalog);

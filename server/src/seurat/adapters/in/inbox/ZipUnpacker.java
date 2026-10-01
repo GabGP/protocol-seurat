@@ -18,8 +18,7 @@ import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
-import seurat.core.works.ingest.decode.FormatMarkers;
-import seurat.core.works.store.MasterNames;
+import seurat.core.works.catalog.MasterNames;
 
 /** Unpacks image files from a zip archive into an inbox directory. */
 final class ZipUnpacker {
@@ -30,7 +29,7 @@ final class ZipUnpacker {
 
     static List<Path> unpack(Path zip, Predicate<String> skip) throws Exception {
         String subject = "zip=" + zip.getFileName();
-        if (!Files.exists(zip) || Files.size(zip) < FormatMarkers.ZIP_EOCD_BYTES) {
+        if (!Files.exists(zip) || Files.size(zip) < ZipNames.EOCD_BYTES) {
             Log.warn(LogTags.INGEST, subject + " skipped: empty or incomplete");
             return List.of();
         }

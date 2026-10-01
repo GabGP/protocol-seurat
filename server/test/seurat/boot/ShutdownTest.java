@@ -13,6 +13,7 @@ import seurat.adapters.in.inbox.InboxWatcher;
 import seurat.adapters.in.inbox.MasterIntake;
 import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.adapters.in.net.socket.SocketServer;
+import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.budget.BrushBudget;
@@ -127,7 +128,7 @@ public final class ShutdownTest {
         Catalog catalog = new Catalog(config.works);
         AtomicInteger submits = new AtomicInteger();
         Executor recording = cmd -> submits.incrementAndGet();
-        MasterIntake intake = new MasterIntake(catalog, config, recording, id -> {});
+        MasterIntake intake = new MasterIntake(catalog, config, recording, new Decoders(), id -> {});
         intake.close();
         Path master = root.resolve("late.png");
         Files.write(master, new byte[]{1, 2, 3});
