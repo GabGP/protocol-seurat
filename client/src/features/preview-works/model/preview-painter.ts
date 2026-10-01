@@ -1,5 +1,5 @@
 import { dropWorkPreview, setWorkPreview } from '@/entities/work';
-import { PREVIEW_LEVELS_KEEP_MS, PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
+import { PREVIEW_LEVELS_KEEP_MS } from '@/shared/config/constants';
 import type { PreviewLoan } from './preview-loan';
 import type { PreviewDecoder } from './preview-decoder';
 import { composePreview } from './preview-compose';
@@ -8,8 +8,9 @@ import { PreviewFinisher } from './preview-finisher';
 
 /**
  * Composes each held loan's thumbnail through the decoder and shows it. A loan that changes
- * while it is composed is composed once more, PREVIEW_RECOMPOSE_GAP_MS after (pieces come in
- * bursts; each compose is a full pass over the card); `live` says whether it is still held,
+ * while it is composed is composed once more as soon as that compose ends: whatever came in the
+ * meantime is one compose, and no timer delays it (a hidden tab or a phone stretches timers to
+ * seconds, and the card holds its open slot until it settles); `live` says whether it is still held,
  * and `idle` is told whenever a compose ends with nothing more to do for its loan. A loan's
  * decoded levels are kept while its pieces keep coming (PREVIEW_LEVELS_KEEP_MS after the last
  * compose), so each compose decodes and shows only what changed; a finished thumbnail keeps none.
@@ -69,7 +70,7 @@ export class PreviewPainter {
       })
       .finally(() => {
         if (!this.stale.delete(loan)) return this.settle(loan);
-        setTimeout(() => (this.live(loan) ? this.compose(loan) : this.settle(loan)), PREVIEW_RECOMPOSE_GAP_MS);
+        queueMicrotask(() => (this.live(loan) ? this.compose(loan) : this.settle(loan)));
       });
   }
 

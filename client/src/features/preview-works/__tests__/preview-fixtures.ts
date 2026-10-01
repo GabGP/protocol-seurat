@@ -5,7 +5,6 @@ import { ulebEncode, zigzagEncode } from '@/shared/codec/leb128';
 import { rgbToYCoCg } from '@/shared/codec/ycocgr';
 import type { SynthWorker, WorkerFactory } from '@/entities/delivery';
 import type { SynthRequest, SynthResult } from '@/workers/protocol';
-import { PREVIEW_RECOMPOSE_GAP_MS } from '@/shared/config/constants';
 import type { WorkOpened } from '@/shared/proto/messages';
 import type { SessionClient } from '@/entities/session';
 import { PreviewManager } from '../model/preview-manager';
@@ -61,8 +60,11 @@ export const inlineWorkers: WorkerFactory = () => {
   return w;
 };
 
+/** Long enough for the inline worker to answer queued decodes and the recompose that follows. */
+const SETTLE_MS = 200;
+
 /** Lets queued decodes and a waiting recompose finish (the inline worker answers on later ticks). */
-export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, PREVIEW_RECOMPOSE_GAP_MS + 50));
+export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, SETTLE_MS));
 
 /** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
 export const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): WorkOpened => ({
