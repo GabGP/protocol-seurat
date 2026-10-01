@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { autoBrushCap, capChoice, onBrushCap, setBrushCap } from '@/entities/delivery';
-import { ChoiceGroup } from '@/shared/ui/ChoiceGroup';
+import { GlideSelect } from '@/shared/ui/GlideSelect';
 import { capChoices } from '../model/cap-choices';
 import styles from './CapSection.module.css';
 
@@ -17,7 +17,7 @@ export function CapSection({ grant }: Props): JSX.Element {
   return (
     <section className={styles.section} aria-label="Max brushes">
       <span className={styles.sectionTitle}>Max brushes</span>
-      <ChoiceGroup label="Max brushes" choices={choices} value={chosen} onChange={setBrushCap} />
+      <GlideSelect label="Max brushes" choices={choices} value={chosen} onChange={setBrushCap} />
       <span className={styles.hint}>This browser allows up to {grant} brushes.</span>
     </section>
   );
