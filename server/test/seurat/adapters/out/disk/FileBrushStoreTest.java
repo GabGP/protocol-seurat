@@ -1,10 +1,11 @@
-package seurat.core.works.store;
+package seurat.adapters.out.disk;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.core.shared.codec.BrushEncoder;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.codec.Quant;
+import seurat.core.works.store.WorkMeta;
 import seurat.kit.TestKit;
 
 /** Prefix/retouch reads, absent/empty, truncate recovery, corrupt band. */

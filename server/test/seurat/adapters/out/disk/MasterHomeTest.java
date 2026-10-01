@@ -1,12 +1,13 @@
-package seurat.core.works.ingest;
+package seurat.adapters.out.disk;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import seurat.adapters.out.decode.Decoders;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
+import seurat.core.works.ingest.IngestJob;
 import seurat.core.works.store.WorkMeta;
+import seurat.kit.IngestKit;
 import seurat.kit.TestKit;
 
 /**
@@ -27,13 +28,13 @@ public final class MasterHomeTest {
         Path again = MasterHome.adopt(works, "kept", TestKit.masterPng(inbox, "kept.jpg", 512, 384));
         TestKit.check(Files.exists(again) && !Files.exists(home), "a new master replaces the old one");
 
-        Catalog catalog = new Catalog(works);
-        new IngestJob("kept", "Kept", again, works, catalog, new Decoders(), () -> {}, true).run();
+        Catalog catalog = new Catalog(new DiskArchive(works));
+        new IngestJob("kept", "Kept", again, catalog, IngestKit.ports(works), () -> {}, true).run();
         TestKit.check(Files.exists(again), "keepMaster=true: the master stays");
         TestKit.check(meta(works, "kept").contains("\"keepMaster\":true"), "meta.json says keepMaster true");
 
         Path gone = MasterHome.adopt(works, "gone", TestKit.masterPng(inbox, "gone.png", 512, 384));
-        new IngestJob("gone", "Gone", gone, works, catalog, new Decoders(), () -> {}, false).run();
+        new IngestJob("gone", "Gone", gone, catalog, IngestKit.ports(works), () -> {}, false).run();
         TestKit.check(catalog.get("gone").meta.state() == ProtoCodes.ST_LISTA, "LISTA");
         TestKit.check(!Files.exists(gone.getParent()), "keepMaster=false: master/ deleted after the pass");
         TestKit.check(meta(works, "gone").contains("\"keepMaster\":false"), "meta.json says keepMaster false");
@@ -43,11 +44,11 @@ public final class MasterHomeTest {
                 ProtoCodes.ST_PINTANDO, ProtoCodes.ED_NINGUNA, 0, 2));
         painting.keepMaster = false;
         catalog.register(painting);
-        var unfinished = MasterHome.unfinished(catalog, works);
+        var unfinished = new DiskMasters(works).unfinished(catalog);
         TestKit.check(unfinished.keySet().equals(java.util.Set.of("cut")) && unfinished.get("cut").equals(cut),
                 "only the pass cut short is ingested again: " + unfinished);
 
-        Catalog restarted = new Catalog(works);
+        Catalog restarted = new Catalog(new DiskArchive(works));
         restarted.load();
         TestKit.check(!restarted.get("cut").keepMaster && restarted.get("kept").keepMaster, "keepMaster survives a restart");
         System.out.println("MasterHomeTest OK");

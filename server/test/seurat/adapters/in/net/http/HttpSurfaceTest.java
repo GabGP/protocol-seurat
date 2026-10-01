@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
@@ -24,7 +25,7 @@ public final class HttpSurfaceTest {
                 + "auth.accounts=prof:k-prof:privilegiado, ana:k-ana:autenticado, bad:k-bad:root\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
-        Catalog catalog = new Catalog(root.resolve("obras"));
+        Catalog catalog = new Catalog(new DiskArchive(root.resolve("obras")));
         List<String> masters = new ArrayList<>();
         List<String> policies = new ArrayList<>();
         List<String> withdrawn = new ArrayList<>();

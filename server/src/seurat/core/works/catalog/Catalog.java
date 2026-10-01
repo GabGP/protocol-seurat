@@ -1,7 +1,6 @@
 package seurat.core.works.catalog;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,15 +11,15 @@ import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.msg.MsgCatalog;
 import seurat.core.works.store.BrushStore;
 
-/** id -> work map + meta.json. Every change is pushed as OBRA to its observers (spec 7.3). */
+/** id -> work map, persisted through a WorkArchive. Every change is pushed as OBRA to its observers (spec 7.3). */
 public final class Catalog {
-    private final CatalogStore disk;
+    private final WorkArchive archive;
     private final CatalogEvents events = new CatalogEvents();
     private final WorkProgress progress = new WorkProgress();
     private final Map<String, WorkRecord> records = new ConcurrentHashMap<>();
 
-    public Catalog(Path worksDir) throws IOException {
-        this.disk = new CatalogStore(worksDir);
+    public Catalog(WorkArchive archive) {
+        this.archive = archive;
     }
 
     public void observe(Consumer<MsgCatalog.WorkMessage> listener) {
@@ -33,7 +32,7 @@ public final class Catalog {
         if (previous != null) {
             work.ceilings.putAll(previous.ceilings); // a new master keeps the work's policy
         }
-        disk.persist(work);
+        archive.save(work);
         events.emit(work, ProtoCodes.OBRA_ALTA, 0);
     }
 
@@ -59,7 +58,7 @@ public final class Catalog {
             work.store = store;
             work.meta = work.meta.with(state, edition);
             try {
-                disk.persist(work);
+                archive.save(work);
             } catch (IOException ignored) {
             }
             if (state != ProtoCodes.ST_LISTA) { // LISTA is announced by OBRA(EDICION), see list()
@@ -82,7 +81,7 @@ public final class Catalog {
         if (work != null) {
             work.meta = work.meta.with(ProtoCodes.ST_RETIRADA, work.meta.edition());
             try {
-                disk.persist(work);
+                archive.save(work);
             } catch (IOException ignored) {
             }
             events.emit(work, ProtoCodes.OBRA_BAJA, 0);
@@ -101,7 +100,7 @@ public final class Catalog {
     /** PUT .../politica: the new ceilings (already valid, see RolePolicy) survive a restart. */
     public void policy(WorkRecord work, Map<String, long[]> ceilings) throws IOException {
         work.ceilings.putAll(ceilings);
-        disk.persist(work);
+        archive.save(work);
     }
 
     public WorkRecord get(String id) {
@@ -121,6 +120,6 @@ public final class Catalog {
 
     /** Restart recovery: rebuild LISTA stores, truncate to the index. */
     public void load() throws IOException {
-        records.putAll(WorkRecovery.readAll(disk.worksDir()));
+        records.putAll(archive.recover());
     }
 }

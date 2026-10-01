@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConstants;
 import seurat.core.works.catalog.Catalog;
 import seurat.kit.TestKit;
@@ -14,7 +15,7 @@ import static seurat.adapters.in.net.http.HttpConstants.CRLF;
 public final class HttpLimitsTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("http-limits");
-        int port = WsClient.serve(root, new Catalog(root.resolve("obras")));
+        int port = WsClient.serve(root, new Catalog(new DiskArchive(root.resolve("obras"))));
         TestKit.check(answer(port, "GET /").startsWith("HTTP/1.1 200"), "a plain request is served");
         String longLine = "GET /" + "a".repeat(SeuratConstants.HTTP_LINE_MAX + 100) + " HTTP/1.1" + CRLF + CRLF;
         TestKit.check(!answer(port, longLine).startsWith("HTTP/1.1 200"), "a line past the cap is dropped");

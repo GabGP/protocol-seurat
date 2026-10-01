@@ -3,6 +3,7 @@ package seurat.core.works.catalog;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.store.WorkMeta;
 import seurat.kit.TestKit;
@@ -37,12 +38,12 @@ public final class RolePolicyTest {
 
     private static void survivesRestart() throws Exception {
         Path root = Files.createTempDirectory("policy-test");
-        Catalog catalog = new Catalog(root);
+        Catalog catalog = new Catalog(new DiskArchive(root));
         WorkRecord work = new WorkRecord(meta("w"));
         catalog.register(work);
         catalog.policy(work, RolePolicy.merge(work.ceilings, Map.of(
                 WorkRecord.ANONYMOUS, new long[]{0, 1}, WorkRecord.AUTHENTICATED, new long[]{0, 3})));
-        Catalog loaded = new Catalog(root);
+        Catalog loaded = new Catalog(new DiskArchive(root));
         loaded.load();
         WorkRecord back = loaded.get("w");
         TestKit.check(back.ceiling(WorkRecord.ANONYMOUS)[0] == 0 && back.ceiling(WorkRecord.ANONYMOUS)[1] == 1
@@ -51,7 +52,7 @@ public final class RolePolicyTest {
         TestKit.check(catalog.get("w").ceiling(WorkRecord.AUTHENTICATED)[1] == 3, "a new master keeps the policy");
         Files.writeString(root.resolve("w/meta.json"), Files.readString(root.resolve("w/meta.json"))
                 .replace("\"techo.privilegiado\":\"0/4\"", "\"techo.privilegiado\":\"3/4\""));
-        Catalog broken = new Catalog(root);
+        Catalog broken = new Catalog(new DiskArchive(root));
         broken.load();
         TestKit.check(broken.get("w").ceiling(WorkRecord.ANONYMOUS)[0] == 1, "a broken policy falls back to defaults");
     }

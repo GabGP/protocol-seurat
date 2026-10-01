@@ -4,7 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import seurat.adapters.in.net.socket.RecordingMapping;
-import seurat.adapters.out.decode.Decoders;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.budget.BrushBudget;
@@ -18,6 +18,7 @@ import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.store.WorkMeta;
+import seurat.kit.IngestKit;
 import seurat.kit.TestKit;
 
 public final class MasterIntakeTest {
@@ -34,13 +35,13 @@ public final class MasterIntakeTest {
         Files.createDirectories(works);
 
         SeuratConfig config = SeuratConfig.load(root.resolve("seurat.conf"));
-        Catalog catalog = new Catalog(works);
+        Catalog catalog = new Catalog(new DiskArchive(works));
         Sessions sessions = new Sessions();
         Painter painter = new Painter(new Regulator(), new BrushBudget(config.coverage), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
 
         var directExecutor = Executors.newSingleThreadExecutor();
-        MasterIntake intake = new MasterIntake(catalog, config, directExecutor, new Decoders(),
+        MasterIntake intake = new MasterIntake(catalog, config, directExecutor, IngestKit.ports(config.works),
                 new EditionSwap(catalog, sessions, grants)::substitute);
 
         RecordingMapping mapping = new RecordingMapping();

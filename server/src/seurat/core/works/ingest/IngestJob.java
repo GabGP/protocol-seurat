@@ -1,9 +1,7 @@
 package seurat.core.works.ingest;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.core.shared.codec.Geometry;
-import seurat.core.shared.codec.Quant;
 import seurat.core.shared.observe.AuditLog;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
@@ -12,43 +10,39 @@ import seurat.core.shared.observe.Progress;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
+import seurat.core.works.ingest.port.IngestPorts;
 import seurat.core.works.ingest.port.MasterReader;
-import seurat.core.works.ingest.port.MasterSource;
 import seurat.core.works.ingest.sketch.SketchPhase;
-import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.StoreFiles;
+import seurat.core.works.store.BrushSink;
 import seurat.core.works.store.WorkMeta;
 
 /**
  * Spec 7.1: RECIBIENDO, the ed1 sketch when the master carries an overview (BOCETO), then the one
  * sequential 256-row-band ed2 pass (PINTANDO -> LISTA). Decode runs on a read-ahead thread while
- * the pool encodes brushes. The master is read where MasterHome keeps it and, with
+ * the pool encodes brushes. The master is read where the Masters port keeps it and, with
  * keepMaster=false, deleted once the work is LISTA (spec 1.2).
  */
 public final class IngestJob implements Runnable {
     private final String id;
     private final String name;
     private final Path master;
-    private final Path worksDir;
     private final Catalog catalog;
-    private final MasterSource source;
+    private final IngestPorts ports;
     private final Runnable onReady;
     private final boolean keepMaster;
 
-    public IngestJob(String id, String name, Path master, Path worksDir,
-            Catalog catalog, MasterSource source, Runnable onReady) {
-        this(id, name, master, worksDir, catalog, source, onReady, true);
+    public IngestJob(String id, String name, Path master, Catalog catalog, IngestPorts ports, Runnable onReady) {
+        this(id, name, master, catalog, ports, onReady, true);
     }
 
-    public IngestJob(String id, String name, Path master, Path worksDir,
-            Catalog catalog, MasterSource source, Runnable onReady, boolean keepMaster) {
+    public IngestJob(String id, String name, Path master, Catalog catalog, IngestPorts ports, Runnable onReady,
+            boolean keepMaster) {
         this.keepMaster = keepMaster;
         this.id = id;
         this.name = name;
         this.master = master;
-        this.worksDir = worksDir;
         this.catalog = catalog;
-        this.source = source;
+        this.ports = ports;
         this.onReady = onReady;
     }
 
@@ -65,7 +59,7 @@ public final class IngestJob implements Runnable {
                     ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA));
             fresh.keepMaster = keepMaster;
             catalog.register(fresh);
-            try (MasterReader reader = new ReadAheadReader(source.open(master))) {
+            try (MasterReader reader = new ReadAheadReader(ports.source().open(master))) {
                 int w = reader.width();
                 int h = reader.height();
                 int top = topLevels(w, h);
@@ -74,10 +68,11 @@ public final class IngestJob implements Runnable {
                 work.meta = WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1,
                         ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA);
                 Progress.phase(LogTags.INGEST, LogTags.work(id), "sketching", "");
-                SketchPhase.run(id, master, source, dir(1), () -> store(top, w, h, 1), top, w, h, catalog);
+                SketchPhase.run(id, master, ports.source(), ports.stores(), () -> store(top, w, h, 1),
+                        top, w, h, catalog);
                 catalog.painting(id);
-                FileBrushStore ed2 = store(top, w, h, 2);
-                new ImagePass(id, catalog, ed2, top, w, h, worksDir).run(reader);
+                BrushSink ed2 = store(top, w, h, 2);
+                new ImagePass(id, catalog, ed2, top, w, h).run(reader);
                 ed2.close();
                 catalog.sketch(id, ed2, ProtoCodes.ST_LISTA, 2);
                 catalog.list(id);
@@ -85,7 +80,7 @@ public final class IngestJob implements Runnable {
                         + LogUnits.duration(System.currentTimeMillis() - start));
             }
             if (!keepMaster) {
-                MasterHome.drop(worksDir, id); // after the reader closed it
+                ports.masters().drop(id); // after the reader closed it
             }
             onReady.run();
         } catch (Throwable ex) { // OutOfMemoryError included: never leave a work stuck mid-pass
@@ -108,12 +103,7 @@ public final class IngestJob implements Runnable {
         return level;
     }
 
-    private Path dir(int edition) {
-        return edition == 1 ? worksDir.resolve(id).resolve(StoreFiles.SKETCH_DIR) : worksDir.resolve(id);
-    }
-
-    private FileBrushStore store(int top, int w, int h, int edition) throws Exception {
-        Path dir = dir(edition);
+    private BrushSink store(int top, int w, int h, int edition) throws Exception {
         int levels = top + 1;
         int[] nx = new int[levels];
         int[] ny = new int[levels];
@@ -121,9 +111,6 @@ public final class IngestJob implements Runnable {
             nx[stratum] = Geometry.tiles(Geometry.padTo(w, top) >> stratum);
             ny[stratum] = Geometry.tiles(Geometry.padTo(h, top) >> stratum);
         }
-        Files.createDirectories(dir);
-        Files.writeString(dir.resolve(StoreFiles.QUANT), Integer.toString(Quant.TABLE)); // FileBrushStore reads it
-        return new FileBrushStore(dir,
-                WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1, 0, edition), nx, ny);
+        return ports.stores().create(WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1, 0, edition), nx, ny);
     }
 }

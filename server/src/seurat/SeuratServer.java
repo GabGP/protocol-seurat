@@ -10,6 +10,9 @@ import seurat.adapters.in.net.http.HttpSurface;
 import seurat.adapters.in.net.socket.SocketServer;
 import seurat.adapters.in.net.ws.WsMapping;
 import seurat.adapters.out.decode.Decoders;
+import seurat.adapters.out.disk.DiskArchive;
+import seurat.adapters.out.disk.DiskMasters;
+import seurat.adapters.out.disk.DiskStores;
 import seurat.boot.Broadcast;
 import seurat.boot.DiskReaper;
 import seurat.boot.Shutdown;
@@ -34,6 +37,7 @@ import seurat.core.viewing.session.Regulator;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
+import seurat.core.works.ingest.port.IngestPorts;
 
 /** Wiring only: config, catalog, painter, mappings, timers. */
 public final class SeuratServer {
@@ -42,7 +46,7 @@ public final class SeuratServer {
         SeuratConfig config = SeuratConfig.load(base.resolve("seurat.conf"));
         Log.setLevel(LogLevel.fromString(config.logLevel, LogLevel.INFO));
         Log.info(LogTags.SERVER, "server starting protocol=Seurat/1 port=" + config.httpPort);
-        Catalog catalog = new Catalog(config.works);
+        Catalog catalog = new Catalog(new DiskArchive(config.works));
         Sessions sessions = new Sessions();
         catalog.observe(new Broadcast(sessions));
         BrushBudget budget = new BrushBudget(config.coverage);
@@ -65,7 +69,9 @@ public final class SeuratServer {
         painterThread.start();
         ExecutorService ingest = Executors.newSingleThreadExecutor(Thread.ofVirtual().factory());
         EditionSwap swap = new EditionSwap(catalog, sessions, grants);
-        MasterIntake intake = new MasterIntake(catalog, config, ingest, new Decoders(), id -> {
+        MasterIntake intake = new MasterIntake(catalog, config, ingest,
+                new IngestPorts(new Decoders(), new DiskStores(config.works), new DiskMasters(config.works)),
+                id -> {
             if (swap.substitute(id)) {
                 reaper.swapped(id); // ed1/ goes once no canvas uses it
             }

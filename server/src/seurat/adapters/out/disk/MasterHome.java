@@ -1,20 +1,14 @@
-package seurat.core.works.ingest;
+package seurat.adapters.out.disk;
 
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
-import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.works.catalog.Catalog;
-import seurat.core.works.catalog.WorkRecord;
-import seurat.core.works.store.Trees;
 
 /**
  * Spec 1.2 and 7.2: the master lives at {@code obras/<id>/master/<original>}. Only IngestJob
@@ -55,18 +49,6 @@ public final class MasterHome {
         } catch (IOException ex) {
             return Optional.empty();
         }
-    }
-
-    /** Spec 7.2 "si meta.json no dice LISTA, se repite la pasada": the masters to ingest again. */
-    public static Map<String, Path> unfinished(Catalog catalog, Path works) {
-        Map<String, Path> out = new LinkedHashMap<>();
-        for (WorkRecord work : catalog.all()) {
-            String id = work.meta.id();
-            if (work.meta.state() != ProtoCodes.ST_LISTA) {
-                find(works, id).ifPresent(m -> out.put(id, m));
-            }
-        }
-        return out;
     }
 
     /** keepMaster=false: the ingest is over and the master goes. */

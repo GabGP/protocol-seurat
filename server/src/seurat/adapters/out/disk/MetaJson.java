@@ -1,12 +1,13 @@
-package seurat.core.works.catalog;
+package seurat.adapters.out.disk;
 
 import java.util.HashMap;
 import java.util.Map;
 import seurat.core.shared.codec.Geometry;
+import seurat.core.works.catalog.WorkRecord;
 import seurat.core.works.store.WorkMeta;
 
 /** Minimal meta.json reader/writer. No dependencies. Ids are filenames and may hold commas. */
-final class MetaJson {
+public final class MetaJson {
     private static final String CEILING = "techo.";
 
     private MetaJson() {}
@@ -47,7 +48,7 @@ final class MetaJson {
         return out;
     }
 
-    static WorkMeta read(String id, String json) {
+    public static WorkMeta read(String id, String json) {
         Map<String, String> m = parse(json);
         return WorkMeta.of(m.getOrDefault("id", id), m.getOrDefault("name", id),
                 Integer.parseInt(m.getOrDefault("width", "0")),

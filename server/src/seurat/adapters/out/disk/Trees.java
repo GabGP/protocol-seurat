@@ -1,4 +1,4 @@
-package seurat.core.works.store;
+package seurat.adapters.out.disk;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
@@ -39,7 +40,7 @@ public final class ConcessionRig {
 
     private ConcessionRig(int state) throws Exception {
         var root = Files.createTempDirectory("grants-test");
-        catalog = new Catalog(root.resolve("obras"));
+        catalog = new Catalog(new DiskArchive(root.resolve("obras")));
         var meta = new WorkMeta("w", "w", 512, 384, 256, 2, state, 2, 0, 2);
         work = new WorkRecord(meta);
         var store = new TestKit.FixedStore(meta);

@@ -1,6 +1,5 @@
 package seurat.core.works.ingest;
 
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -15,29 +14,25 @@ import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Progress;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.ingest.port.MasterReader;
-import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.StoreFiles;
+import seurat.core.works.store.BrushSink;
 
 /** The single full-resolution pass: bands in, brushes + seed out. */
 final class ImagePass {
     private final String id;
     private final Catalog catalog;
-    private final FileBrushStore store;
+    private final BrushSink store;
     private final int top;
     private final int width;
     private final int height;
-    private final java.nio.file.Path worksDir;
     private final long start = System.currentTimeMillis();
 
-    ImagePass(String id, Catalog catalog, FileBrushStore store, int top, int width,
-            int height, java.nio.file.Path worksDir) {
+    ImagePass(String id, Catalog catalog, BrushSink store, int top, int width, int height) {
         this.id = id;
         this.catalog = catalog;
         this.store = store;
         this.top = top;
         this.width = width;
         this.height = height;
-        this.worksDir = worksDir;
     }
 
     void run(MasterReader reader) throws Exception {
@@ -117,7 +112,6 @@ final class ImagePass {
                 }
             }
         }
-        Files.write(worksDir.resolve(id).resolve(StoreFiles.SEED),
-                SeedCodec.encode(planes, seedW, seedH));
+        store.writeSeed(SeedCodec.encode(planes, seedW, seedH));
     }
 }

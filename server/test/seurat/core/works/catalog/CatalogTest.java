@@ -3,6 +3,8 @@ package seurat.core.works.catalog;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import seurat.adapters.out.disk.DiskArchive;
+import seurat.adapters.out.disk.MetaJson;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.msg.MsgCatalog;
 import seurat.core.works.store.WorkMeta;
@@ -12,7 +14,7 @@ import seurat.kit.TestKit;
 public final class CatalogTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("catalog-test");
-        Catalog catalog = new Catalog(root);
+        Catalog catalog = new Catalog(new DiskArchive(root));
         var seen = new ArrayList<MsgCatalog.WorkMessage>();
         catalog.observe(seen::add);
         var meta = new WorkMeta("w1", "Work 1", 512, 512, 256, 2, 0, 1, 0, 2);
@@ -42,7 +44,7 @@ public final class CatalogTest {
 
     private static void testLoadRecovery() throws Exception {
         Path root = Files.createTempDirectory("catalog-load-test");
-        Catalog catalog = new Catalog(root);
+        Catalog catalog = new Catalog(new DiskArchive(root));
         WorkMeta m0 = new WorkMeta("r0", "R0", 0, 0, 256, 0, ProtoCodes.ST_RECIBIENDO, 1, 0, 2);
         catalog.register(new WorkRecord(m0));
         WorkMeta m1 = new WorkMeta("w1", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1, 0, 2);
@@ -50,7 +52,7 @@ public final class CatalogTest {
         WorkMeta m1dup = new WorkMeta("w1.png", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1, 0, 2);
         catalog.register(new WorkRecord(m1dup));
 
-        Catalog loaded = new Catalog(root);
+        Catalog loaded = new Catalog(new DiskArchive(root));
         loaded.load();
         TestKit.check(loaded.get("r0") != null, "loaded r0");
         TestKit.check(loaded.get("r0").store == null, "r0 has no store");
@@ -62,7 +64,7 @@ public final class CatalogTest {
     private static void testCommaIdRecovery() throws Exception {
         Path root = Files.createTempDirectory("catalog-comma-test");
         String id = "Declaration_of_victory_after_the_Battle_of_Leipzig,_by_Krafft";
-        Catalog catalog = new Catalog(root);
+        Catalog catalog = new Catalog(new DiskArchive(root));
         WorkMeta m = new WorkMeta(id, id, 1024, 768, 256, 3,
                 ProtoCodes.ST_LISTA, 2, 0, 2);
         catalog.register(new WorkRecord(m));
@@ -72,7 +74,7 @@ public final class CatalogTest {
         String json = Files.readString(dir.resolve("meta.json"));
         TestKit.check(MetaJson.read(id, json).id().equals(id), "comma id parses intact");
 
-        Catalog loaded = new Catalog(root);
+        Catalog loaded = new Catalog(new DiskArchive(root));
         loaded.load();
         TestKit.check(loaded.get(id) != null && loaded.get(id).meta.id().equals(id),
                 "comma work reloads under its full id");

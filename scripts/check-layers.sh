@@ -35,6 +35,7 @@ seurat.adapters.in.net.http 14
 seurat.adapters.in.net.ws 14
 seurat.adapters.in.net.socket 15
 seurat.adapters.out.decode.raster 13
+seurat.adapters.out.disk 13
 seurat.adapters.out.decode.imageio 14
 seurat.adapters.out.decode.jpeg 14
 seurat.adapters.out.decode.tiff 14

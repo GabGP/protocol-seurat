@@ -1,4 +1,4 @@
-package seurat.core.works.store;
+package seurat.adapters.out.disk;
 
 import java.nio.file.Path;
 

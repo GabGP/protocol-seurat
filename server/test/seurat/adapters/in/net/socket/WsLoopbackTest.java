@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import seurat.adapters.out.decode.Decoders;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.Ranges;
@@ -14,6 +14,7 @@ import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.shared.proto.msg.MsgLoans;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.ingest.IngestJob;
+import seurat.kit.IngestKit;
 import seurat.kit.TestKit;
 import static seurat.adapters.in.net.http.HttpConstants.CRLF;
 
@@ -22,10 +23,10 @@ public final class WsLoopbackTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("loopback-test");
         Path works = root.resolve("obras");
-        Catalog catalog = new Catalog(works);
+        Catalog catalog = new Catalog(new DiskArchive(works));
         Path master = TestKit.masterPng(root, "loop.png", 2048, 1536);
         boolean[] ready = {false};
-        new IngestJob("loop", "Loop", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
+        new IngestJob("loop", "Loop", master, catalog, IngestKit.ports(works), () -> ready[0] = true).run();
         TestKit.check(ready[0], "ingest ready");
 
         int port = WsClient.serve(root, catalog);

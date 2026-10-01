@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import seurat.adapters.out.disk.StoreFiles;
+import seurat.adapters.out.disk.Trees;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
@@ -13,8 +15,6 @@ import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
-import seurat.core.works.store.StoreFiles;
-import seurat.core.works.store.Trees;
 
 /**
  * Deferred deletes on disk. A withdrawn work's files go once its last canvas is closed

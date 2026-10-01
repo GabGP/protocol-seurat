@@ -13,7 +13,7 @@ import seurat.adapters.in.inbox.InboxWatcher;
 import seurat.adapters.in.inbox.MasterIntake;
 import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.adapters.in.net.socket.SocketServer;
-import seurat.adapters.out.decode.Decoders;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.budget.BrushBudget;
@@ -22,6 +22,7 @@ import seurat.core.viewing.session.Regulator;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
+import seurat.kit.IngestKit;
 import seurat.kit.TestKit;
 
 /** Shutdown: quiesce intake, drain paint, close sessions, stop pools. */
@@ -125,10 +126,10 @@ public final class ShutdownTest {
     private static void intakeStopsOffers() throws Exception {
         Path root = Files.createTempDirectory("shutdown-intake");
         SeuratConfig config = SeuratConfig.load(root.resolve("seurat.conf"));
-        Catalog catalog = new Catalog(config.works);
+        Catalog catalog = new Catalog(new DiskArchive(config.works));
         AtomicInteger submits = new AtomicInteger();
         Executor recording = cmd -> submits.incrementAndGet();
-        MasterIntake intake = new MasterIntake(catalog, config, recording, new Decoders(), id -> {});
+        MasterIntake intake = new MasterIntake(catalog, config, recording, IngestKit.ports(config.works), id -> {});
         intake.close();
         Path master = root.resolve("late.png");
         Files.write(master, new byte[]{1, 2, 3});

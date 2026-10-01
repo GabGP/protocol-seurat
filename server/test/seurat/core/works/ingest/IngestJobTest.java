@@ -6,12 +6,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import seurat.adapters.out.decode.Decoders;
+import seurat.adapters.out.disk.DiskArchive;
+import seurat.adapters.out.disk.FileBrushStore;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.codec.Quant;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
-import seurat.core.works.store.FileBrushStore;
+import seurat.kit.IngestKit;
 import seurat.kit.TestKit;
 
 /**
@@ -22,7 +23,7 @@ public final class IngestJobTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("ingest-test");
         Path works = root.resolve("obras");
-        Catalog catalog = new Catalog(works);
+        Catalog catalog = new Catalog(new DiskArchive(works));
         List<int[]> states = new ArrayList<>();
         catalog.observe(m -> states.add(new int[] {m.state(), m.progress(), (int) m.edition()}));
         Path master = TestKit.masterPng(root, "tiny.png", 512, 384);
@@ -31,7 +32,7 @@ public final class IngestJobTest {
         java.io.PrintStream ps = new java.io.PrintStream(baos, true, StandardCharsets.UTF_8);
         seurat.core.shared.observe.Log.setOutput(ps);
         try {
-            new IngestJob("tiny", "Tiny", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
+            new IngestJob("tiny", "Tiny", master, catalog, IngestKit.ports(works), () -> ready[0] = true).run();
         } finally {
             seurat.core.shared.observe.Log.setOutput(System.out);
         }
@@ -99,10 +100,10 @@ public final class IngestJobTest {
             writer.endWriteSequence();
         }
         writer.dispose();
-        new IngestJob("pyramid", "Pyramid", master, works, catalog, new Decoders(), () -> {}).run();
+        new IngestJob("pyramid", "Pyramid", master, catalog, IngestKit.ports(works), () -> {}).run();
         TestKit.check(catalog.get("pyramid").meta.state() == ProtoCodes.ST_LISTA, "pyramid LISTA");
         TestKit.check(Files.exists(works.resolve("pyramid/ed1/semilla.bin")), "sketch from the overview");
-        var entry = seurat.core.works.store.IndexEntry.read(works.resolve("pyramid/ed1/E3.idx"), 0);
+        var entry = seurat.adapters.out.disk.IndexEntry.read(works.resolve("pyramid/ed1/E3.idx"), 0);
         TestKit.check(!entry.isMissing(), "sketch brushes written");
     }
 
@@ -110,7 +111,7 @@ public final class IngestJobTest {
     private static void jpegIngest(Path root, Path works, Catalog catalog) throws Exception {
         Path master = TestKit.masterJpg(root, "tall.jpg", 512, 2500);
         boolean[] ready = {false};
-        new IngestJob("tall", "Tall", master, works, catalog, new Decoders(), () -> ready[0] = true).run();
+        new IngestJob("tall", "Tall", master, catalog, IngestKit.ports(works), () -> ready[0] = true).run();
         TestKit.check(ready[0], "jpeg onReady fires");
         var work = catalog.get("tall");
         TestKit.check(work != null && work.meta.state() == ProtoCodes.ST_LISTA
@@ -128,7 +129,7 @@ public final class IngestJobTest {
                 .putInt(13).put("IHDR".getBytes(StandardCharsets.US_ASCII))
                 .putInt(Integer.MAX_VALUE).putInt(1).put(new byte[]{8, 0, 0, 0, 0}).putInt(0);
         Path master = Files.write(root.resolve("huge.png"), png.array());
-        new IngestJob("huge", "Huge", master, works, catalog, new Decoders(), () -> {}).run();
+        new IngestJob("huge", "Huge", master, catalog, IngestKit.ports(works), () -> {}).run();
         TestKit.check(catalog.get("huge").meta.state() == ProtoCodes.ST_FALLIDA, "Error -> FALLIDA");
     }
 }

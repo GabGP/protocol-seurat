@@ -7,8 +7,8 @@ import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.ingest.port.MasterSource;
-import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.SeedFile;
+import seurat.core.works.store.BrushSink;
+import seurat.core.works.store.BrushStores;
 
 /**
  * Spec 7.1 steps 2-3, before the pass: when the master carries an overview (or an interrupted
@@ -20,19 +20,19 @@ public final class SketchPhase {
 
     /** The ed1 store to write into, created only when there is a sketch to write. */
     public interface Ed1 {
-        FileBrushStore open() throws Exception;
+        BrushSink open() throws Exception;
     }
 
-    public static void run(String id, Path master, MasterSource source, Path ed1Dir, Ed1 ed1, int top, int w, int h,
-            Catalog catalog) {
+    public static void run(String id, Path master, MasterSource source, BrushStores stores, Ed1 ed1,
+            int top, int w, int h, Catalog catalog) {
         try {
-            boolean kept = SeedFile.present(ed1Dir);
+            boolean kept = stores.sketchKept(id);
             MasterSource.Sampled overview = kept ? null : source.overview(master, w, h, SketchBuilder.sampling(top));
             if (!kept && overview == null) {
                 Log.info(LogTags.INGEST, LogTags.work(id) + " sketch skipped: no overview");
                 return;
             }
-            FileBrushStore store = ed1.open();
+            BrushSink store = ed1.open();
             if (!kept) {
                 SketchBuilder.build(overview, store, top);
             }

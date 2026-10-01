@@ -6,6 +6,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
@@ -45,7 +46,7 @@ public final class SessionHandshakeTest {
     }
 
     private static EaselContext ctx(Sessions sessions, boolean withWork) throws Exception {
-        Catalog catalog = new Catalog(Files.createTempDirectory("hs-works"));
+        Catalog catalog = new Catalog(new DiskArchive(Files.createTempDirectory("hs-works")));
         if (withWork) {
             catalog.register(new WorkRecord(META));
         }

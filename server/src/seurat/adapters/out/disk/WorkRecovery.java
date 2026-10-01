@@ -1,4 +1,4 @@
-package seurat.core.works.catalog;
+package seurat.adapters.out.disk;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -7,10 +7,9 @@ import java.util.HashMap;
 import java.util.Map;
 import seurat.core.shared.codec.Geometry;
 import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.SeedFile;
-import seurat.core.works.store.StoreFiles;
-import seurat.core.works.store.Trees;
+import seurat.core.works.catalog.MasterNames;
+import seurat.core.works.catalog.RolePolicy;
+import seurat.core.works.catalog.WorkRecord;
 
 /** Restart recovery: read meta.json per work and rebuild LISTA stores. */
 final class WorkRecovery {

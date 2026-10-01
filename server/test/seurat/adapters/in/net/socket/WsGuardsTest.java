@@ -4,6 +4,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.adapters.in.net.ws.WsFraming;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.works.catalog.Catalog;
@@ -14,7 +15,7 @@ import static seurat.adapters.in.net.http.HttpConstants.CRLF;
 public final class WsGuardsTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("ws-guards");
-        int port = WsClient.serve(root, new Catalog(root.resolve("obras")));
+        int port = WsClient.serve(root, new Catalog(new DiskArchive(root.resolve("obras"))));
         refusedUpgrade(port, "Origin: http://evil.example" + CRLF + "Sec-WebSocket-Protocol: seurat.1" + CRLF);
         refusedUpgrade(port, "Sec-WebSocket-Protocol: seurat.1" + CRLF);
         refusedUpgrade(port, "Origin: http://x" + CRLF);

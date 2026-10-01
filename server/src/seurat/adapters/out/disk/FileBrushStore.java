@@ -1,17 +1,19 @@
-package seurat.core.works.store;
+package seurat.adapters.out.disk;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import seurat.core.shared.codec.BrushId;
+import seurat.core.works.store.BrushSink;
+import seurat.core.works.store.WorkMeta;
 
 /**
  * E{stratum}.pinc (append-only) + E{stratum}.idx (40B). Bytes first, index = commit.
  * Writes use persistent channels; close() fsyncs. On open, .pinc is
  * truncated to the max indexed end (crash rule). Reads live in {@link BandReader}.
  */
-public final class FileBrushStore implements BrushStore {
+public final class FileBrushStore implements BrushSink {
     private final Path dir;
     private final WorkMeta meta;
     private final StoreWriter writer;
@@ -35,13 +37,20 @@ public final class FileBrushStore implements BrushStore {
     }
 
     /** Append path for ingest: bytes then index entry. */
+    @Override
     public void append(int stratum, int bx, int by, byte[][] bands,
             long[] crcs) throws IOException {
         writer.append(stratum, bx, by, bands, crcs);
     }
 
+    @Override
     public void close() throws IOException {
         writer.close();
+    }
+
+    @Override
+    public void writeSeed(byte[] file) throws IOException {
+        Files.write(dir.resolve(StoreFiles.SEED), file);
     }
 
     @Override

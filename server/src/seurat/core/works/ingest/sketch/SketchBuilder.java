@@ -1,14 +1,12 @@
 package seurat.core.works.ingest.sketch;
 
-import java.nio.file.Files;
 import seurat.core.shared.codec.BrushEncoder;
 import seurat.core.shared.codec.Geometry;
 import seurat.core.shared.codec.Quant;
 import seurat.core.shared.codec.SeedCodec;
 import seurat.core.shared.codec.TransformS;
 import seurat.core.works.ingest.port.MasterSource;
-import seurat.core.works.store.FileBrushStore;
-import seurat.core.works.store.StoreFiles;
+import seurat.core.works.store.BrushSink;
 
 /**
  * ed1 sketch (spec 7.1 step 3): the master's overview -> S-pyramid -> zero-detail brushes for the
@@ -22,7 +20,7 @@ final class SketchBuilder {
         return 1 << Math.max(0, top - 3);
     }
 
-    static void build(MasterSource.Sampled sub, FileBrushStore store, int top) throws Exception {
+    static void build(MasterSource.Sampled sub, BrushSink store, int top) throws Exception {
         int sw = sub.sw();
         int sh = sub.sh();
         int[][] e = sub.e();
@@ -45,8 +43,7 @@ final class SketchBuilder {
             sh /= 2;
             stratum++;
         }
-        Files.write(store.dir().resolve(StoreFiles.SEED),
-                SeedCodec.encode(e, sw, sh));
+        store.writeSeed(SeedCodec.encode(e, sw, sh));
     }
 
     private static int[][] means(int[][] e, int w, int h) {
@@ -59,7 +56,7 @@ final class SketchBuilder {
     }
 
     private static void paintLevel(int[][] padres, int w, int h, int stratum,
-            FileBrushStore store) throws Exception {
+            BrushSink store) throws Exception {
         int nx = Geometry.ceilDiv(w, Geometry.HALF);
         int ny = Geometry.ceilDiv(h, Geometry.HALF);
         int[][][] cero = new int[3][1][Geometry.PARENTS];

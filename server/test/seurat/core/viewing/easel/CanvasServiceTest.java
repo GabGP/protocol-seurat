@@ -3,6 +3,7 @@ package seurat.core.viewing.easel;
 import java.nio.file.Files;
 import java.util.Arrays;
 import seurat.adapters.in.net.socket.RecordingMapping;
+import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.observe.AuditLog;
 import seurat.core.shared.observe.Metrics;
@@ -30,7 +31,7 @@ public final class CanvasServiceTest {
 
     public static void main(String[] args) throws Exception {
         Sessions sessions = new Sessions();
-        Catalog catalog = new Catalog(Files.createTempDirectory("cs-works"));
+        Catalog catalog = new Catalog(new DiskArchive(Files.createTempDirectory("cs-works")));
         Painter painter = new Painter(new Regulator(), new BrushBudget(Files.createTempDirectory("cs-cov")), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         EaselContext ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
