@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { GalleryGrid, GalleryHero } from '@/widgets/gallery';
 import { filterWorks, workTitle } from '@/entities/work';
+import { AddWorkButton } from '@/features/add-work';
 import { galleryScroll, goViewer } from '@/app/router';
 import { patchUi, useUi } from '@/app/store';
 import { useSeurat } from '@/app/providers/SeuratProvider';
+import { importSource, uploadMaster } from '@/shared/api/intake';
 import { paginate } from '@/shared/lib/pagination';
 import { GALLERY_PAGE_SIZE } from '@/shared/config/layout';
 import styles from './GalleryPage.module.css';
@@ -22,7 +24,7 @@ function DotMark(): JSX.Element {
 
 export function GalleryPage(): JSX.Element {
   const ui = useUi();
-  const { works, showPreviews } = useSeurat();
+  const { works, account, showPreviews } = useSeurat();
   const items = useMemo(() => filterWorks(works, ui.filter), [works, ui.filter]);
   const slice = useMemo(() => paginate(items, ui.page, GALLERY_PAGE_SIZE), [items, ui.page]);
   const shown = useMemo(
@@ -41,6 +43,8 @@ export function GalleryPage(): JSX.Element {
     return [...s].sort();
   }, [works]);
 
+  const transfer = useMemo(() => ({ upload: uploadMaster, importSource }), []);
+
   useLayoutEffect(() => {
     const y = galleryScroll();
     if (y > 0) window.scrollTo(0, y);
@@ -51,6 +55,14 @@ export function GalleryPage(): JSX.Element {
       <header className={styles.header}>
         <DotMark />
         <span className={styles.brand}>asynchronous</span>
+        <div className={styles.headerRight}>
+          <AddWorkButton
+            works={works}
+            local={account?.local ?? false}
+            transfer={transfer}
+            onOpen={goViewer}
+          />
+        </div>
       </header>
       <main className={styles.main}>
         <GalleryHero
