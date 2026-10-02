@@ -1,4 +1,13 @@
-export type WorkState = 0 | 1 | 2 | 3 | 4 | 5;
+export const WORK_STATE = {
+  RECEIVING: 0,
+  SKETCH: 1,
+  PAINTING: 2,
+  READY: 3,
+  FAILED: 4,
+  WITHDRAWN: 5,
+} as const;
+
+export type WorkState = (typeof WORK_STATE)[keyof typeof WORK_STATE];
 export type Orient = 'landscape' | 'portrait';
 
 export interface Work {
@@ -47,4 +56,23 @@ export function workMp(w: Work): string {
 export function workTitle(w: Work, index: number): string {
   if (w.name && w.name.length > 0) return w.name;
   return 'Plate ' + String(index + 1).padStart(2, '0');
+}
+
+/** Ingest status badge for catalog items; null when ready for viewing or withdrawn. */
+export function ingestBadge(w: Work): string | null {
+  switch (w.state) {
+    case WORK_STATE.RECEIVING:
+      return 'Receiving';
+    case WORK_STATE.SKETCH:
+    case WORK_STATE.PAINTING: {
+      const n = Math.min(100, Math.max(0, Math.round(w.progress)));
+      return `Processing ${n}%`;
+    }
+    case WORK_STATE.FAILED:
+      return 'Failed';
+    case WORK_STATE.READY:
+    case WORK_STATE.WITHDRAWN:
+    default:
+      return null;
+  }
 }

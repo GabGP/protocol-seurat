@@ -6,12 +6,13 @@ const ACCESS_KEY = 'seurat.accessKey';
 export interface Account {
   name: string | null;
   role: string;
+  local: boolean;
 }
 
 const ANONYMOUS_ROLE = 'anonimo';
 
 export function accountOf(res: SessionResponse): Account {
-  return { name: res.cuenta ?? null, role: res.rol ?? ANONYMOUS_ROLE };
+  return { name: res.cuenta ?? null, role: res.rol ?? ANONYMOUS_ROLE, local: res.local === true };
 }
 
 /** The viewer account key POST /sesion sends as Bearer (spec 3.1); null = anonymous. */
