@@ -38,8 +38,9 @@ export function stateTextOf(item: IntakeItem): string {
     case 'waiting':
       return 'Waiting for the server';
     case 'ingesting': {
-      const pct = item.ingest !== undefined ? Math.round(item.ingest) : 0;
-      return `Processing ${pct}%`;
+      // The server ingests one work at a time: until its OBRA arrives, this one is in line.
+      if (item.ingest === undefined) return 'Queued on the server';
+      return `Processing ${Math.round(item.ingest)}%`;
     }
     case 'ready':
       return 'Ready';

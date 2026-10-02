@@ -79,7 +79,7 @@ export function IntakeRows({
           <Attachment
             key={item.key}
             icon={iconForSource(item.source)}
-            title={item.label}
+            title={item.source === 'path' ? item.label.split(/[\\/]/).pop() ?? item.label : item.label}
             description={descriptionOf(item)}
             state={state}
             progress={progress}

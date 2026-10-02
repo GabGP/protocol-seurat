@@ -193,6 +193,7 @@ describe('AddWork UI', () => {
     await new Promise((r) => setTimeout(r, 40));
     const bodyText = textOf(env.doc.body);
     expect(bodyText).not.toContain('Sending');
-    expect(bodyText).toContain('Processing');
+    // Accepted, but no OBRA for it yet: it waits in the server ingest line.
+    expect(bodyText).toContain('Queued on the server');
   });
 });
