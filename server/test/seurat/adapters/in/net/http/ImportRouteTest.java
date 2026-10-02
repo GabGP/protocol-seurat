@@ -1,9 +1,15 @@
 package seurat.adapters.in.net.http;
 
+import com.sun.net.httpserver.HttpServer;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import seurat.adapters.in.inbox.PathImport;
@@ -72,6 +78,64 @@ public final class ImportRouteTest {
         var ftp = http.route(new HttpSurface.Request("POST", "/seurat/v1/importar",
                 Map.of(), ftpBody, "localhost", null, ftpBody.length, true));
         TestKit.check(ftp.code() == 400, "ftp:// treated as path and refused with 400");
+
+        byte[] payload = new byte[300 * 1024];
+        Arrays.fill(payload, (byte) 42);
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/streamed.png", exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, payload.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(payload);
+            }
+        });
+        server.start();
+        try {
+            int port = server.getAddress().getPort();
+            byte[] streamBody = ("http://127.0.0.1:" + port + "/streamed.png").getBytes(StandardCharsets.UTF_8);
+            var streamed = http.route(new HttpSurface.Request("POST", "/seurat/v1/importar",
+                    Map.of("accept", "application/x-ndjson"), streamBody, "localhost", null, streamBody.length, false));
+            TestKit.check(streamed.code() == 200, "streamed code 200");
+            TestKit.check(streamed.stream() != null, "streamed stream not null");
+            ByteArrayOutputStream streamOut = new ByteArrayOutputStream();
+            streamed.stream().write(streamOut);
+            String outStr = streamOut.toString(StandardCharsets.UTF_8);
+            String[] lines = outStr.trim().split("\n");
+            TestKit.check(outStr.contains("\"fase\":\"descargando\""), "contains fase descargando");
+            TestKit.check(outStr.contains("\"total\":" + payload.length), "contains total equal to size");
+            String lastLine = lines[lines.length - 1].trim();
+            TestKit.check(lastLine.equals("{\"nombre\":\"streamed.png\",\"modo\":\"descarga\"}"), "last line on success");
+            TestKit.check(Files.exists(config.inbox.resolve("streamed.png")), "streamed.png in inbox");
+            TestKit.check(arrived.contains(config.inbox.resolve("streamed.png")), "arrived received streamed.png");
+
+            byte[] missingBody = ("http://127.0.0.1:" + port + "/missing.png").getBytes(StandardCharsets.UTF_8);
+            var missing = http.route(new HttpSurface.Request("POST", "/seurat/v1/importar",
+                    Map.of("accept", "application/x-ndjson"), missingBody, "localhost", null, missingBody.length, false));
+            TestKit.check(missing.code() == 200, "missing streamed code 200");
+            TestKit.check(missing.stream() != null, "missing stream not null");
+            ByteArrayOutputStream missingOut = new ByteArrayOutputStream();
+            missing.stream().write(missingOut);
+            String missingStr = missingOut.toString(StandardCharsets.UTF_8).trim();
+            String[] missingLines = missingStr.split("\n");
+            String missingLast = missingLines[missingLines.length - 1].trim();
+            TestKit.check(missingLast.contains("\"codigo\":502"), "missing ends with codigo 502");
+
+            Path dropFile = outsideDir.resolve("drop.png");
+            Files.write(dropFile, new byte[]{9, 8, 7});
+            byte[] dropBody = dropFile.toAbsolutePath().toString().getBytes(StandardCharsets.UTF_8);
+            var dropResp = http.route(new HttpSurface.Request("POST", "/seurat/v1/importar",
+                    Map.of("accept", "application/x-ndjson"), dropBody, "localhost", null, dropBody.length, true));
+            TestKit.check(dropResp.stream() != null, "drop stream not null");
+            dropResp.stream().write(new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    throw new IOException("viewer closed dialog");
+                }
+            });
+            TestKit.check(Files.exists(config.inbox.resolve("drop.png")), "drop.png lands in inbox despite broken stream");
+        } finally {
+            server.stop(0);
+        }
 
         System.out.println("ImportRouteTest OK");
     }

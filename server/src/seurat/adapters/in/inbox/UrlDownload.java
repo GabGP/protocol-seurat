@@ -25,7 +25,16 @@ public final class UrlDownload {
                 .build();
     }
 
+    @FunctionalInterface
+    public interface Listener {
+        void progress(long received, long total);
+    }
+
     public Path fetch(String rawUrl) throws IntakeRefused, IOException, InterruptedException {
+        return fetch(rawUrl, (received, total) -> {});
+    }
+
+    public Path fetch(String rawUrl, Listener listener) throws IntakeRefused, IOException, InterruptedException {
         if (rawUrl == null) {
             throw new IntakeRefused(IntakeRefused.Reason.UNSUPPORTED, "URL cannot be null");
         }
@@ -58,9 +67,11 @@ public final class UrlDownload {
         }
         String name = staging.admit(DownloadName.resolve(response));
         long length = parseLength(response);
-        Path part = staging.reserve(name, length);
+        Path part = staging.reserve(name, Math.max(0L, length));
         TransferProgress progress = new TransferProgress(name, "downloading", length, response.uri().getHost());
+        Listener safeListener = listener != null ? listener : (r, t) -> {};
         try {
+            long received = 0;
             try (OutputStream out = Files.newOutputStream(part);
                  InputStream in = response.body()) {
                 byte[] buf = new byte[IntakeConstants.COPY_BUFFER];
@@ -73,7 +84,9 @@ public final class UrlDownload {
                     }
                     if (n < 0) break;
                     out.write(buf, 0, n);
+                    received += n;
                     progress.add(n);
+                    safeListener.progress(received, length);
                 }
             }
             Path published = staging.publish(part, name);
@@ -90,9 +103,10 @@ public final class UrlDownload {
         Optional<String> cl = response.headers().firstValue("Content-Length");
         if (cl.isPresent()) {
             try {
-                return Math.max(0L, Long.parseLong(cl.get().trim()));
+                long len = Long.parseLong(cl.get().trim());
+                if (len >= 0) return len;
             } catch (NumberFormatException ignored) {}
         }
-        return 0L;
+        return -1L;
     }
 }

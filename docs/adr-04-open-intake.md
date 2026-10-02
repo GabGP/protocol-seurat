@@ -38,7 +38,8 @@ of them land a *complete* file in `inbox/` through one path:
   This is informational only: the server checks again on every call.
 - **Progress** in the viewer comes from the existing `OBRA` pushes: `RECIBIENDO`, then the ingest
   percentage, then `LISTA`. No new message is added. Upload progress is the browser's own
-  (`XMLHttpRequest.upload`).
+  (`XMLHttpRequest.upload`). The server's own download or copy is shown from the import's streamed
+  answer (deviation 5): "Server downloading N%", or "Server copying".
 
 ## Deviations from Seurat/1 v1.0 (§3.1)
 
@@ -50,6 +51,12 @@ The spec is not edited. These are the deltas from it:
    before `inbox/`.
 3. New route `POST /seurat/v1/importar` (link or local path).
 4. `POST /seurat/v1/sesion` returns an extra field, `local`.
+5. With `Accept: application/x-ndjson`, `POST /seurat/v1/importar` answers `200` as a chunked
+   stream of JSON lines while the server works: `{"fase":"descargando","recibido","total"}` (at most
+   every 250 ms; `total` is `-1` when unknown), `{"fase":"copiando"}` before a copy fallback, then
+   one final line, either `{"nombre","modo"}` or `{"error","codigo"}`. Without that header it still
+   answers `202` with plain JSON. If the viewer goes away, the server stops writing but still
+   finishes the transfer.
 
 Seurat/1 itself (frames, messages, numbers, accounting) is unchanged.
 

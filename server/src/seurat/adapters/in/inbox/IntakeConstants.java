@@ -41,5 +41,8 @@ public final class IntakeConstants {
     /** URL scheme for HTTPS. */
     public static final String SCHEME_HTTPS = "https";
 
+    /** Throttle interval in milliseconds for streaming download progress updates. */
+    public static final long IMPORT_PROGRESS_MS = 250L;
+
     private IntakeConstants() {}
 }

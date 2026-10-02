@@ -22,6 +22,10 @@ public final class PathImport {
     }
 
     public Result link(String rawPath) throws IntakeRefused, IOException {
+        return link(rawPath, () -> {});
+    }
+
+    public Result link(String rawPath, Runnable beforeCopy) throws IntakeRefused, IOException {
         if (rawPath == null) {
             throw new IntakeRefused(IntakeRefused.Reason.NOT_LOCAL_FILE, "Path cannot be null");
         }
@@ -68,6 +72,9 @@ public final class PathImport {
             try {
                 Files.createLink(part, src);
             } catch (FileSystemException | UnsupportedOperationException ex) {
+                if (beforeCopy != null) {
+                    beforeCopy.run();
+                }
                 Log.info(LogTags.INGEST, LogTags.work(name) + " copying (no hard link here) size=" + LogUnits.bytes(size));
                 Files.copy(src, part);
                 copied = true;

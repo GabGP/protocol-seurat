@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Map;
 import seurat.adapters.in.inbox.IntakeRefused;
 import seurat.adapters.in.inbox.PathImport;
 import seurat.core.shared.config.SeuratConfig;
@@ -27,14 +28,24 @@ final class ImportRoute {
         if (text.isEmpty()) {
             return HttpSurface.json(HttpConstants.BAD_REQUEST, "{\"error\":\"vacio\"}");
         }
-        String lower = text.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("http://") || lower.startsWith("https://")) {
-            return fetchLink(text);
-        }
-        if (!req.local()) {
+        boolean isHttp = isHttp(text);
+        if (!isHttp && !req.local()) {
             return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"solo local\"}");
         }
+        String accept = ETags.header(req.headers(), "accept");
+        if (accept != null && accept.contains(HttpConstants.NDJSON)) {
+            return new HttpSurface.Response(HttpConstants.OK, HttpConstants.NDJSON,
+                    new byte[0], Map.of(), new ImportStream(text, req.local(), ports));
+        }
+        if (isHttp) {
+            return fetchLink(text);
+        }
         return linkPath(text);
+    }
+
+    private static boolean isHttp(String text) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://");
     }
 
     private HttpSurface.Response fetchLink(String url) throws IOException {

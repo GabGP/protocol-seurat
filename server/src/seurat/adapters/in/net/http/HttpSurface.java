@@ -1,6 +1,8 @@
 package seurat.adapters.in.net.http;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
@@ -17,6 +19,11 @@ import seurat.core.works.catalog.Catalog;
  * the single egress stays paint/Painter over PINCELADA flows.
  */
 public final class HttpSurface {
+    @FunctionalInterface
+    public interface BodyWriter {
+        void write(OutputStream out) throws IOException;
+    }
+
     /**
      * An HTTP request. Body is read up front, except a master upload, which streams
      * (length bytes from stream). {@code local} is true when the HTTP peer is on the
@@ -34,9 +41,13 @@ public final class HttpSurface {
         }
     }
 
-    public record Response(int code, String type, byte[] body, Map<String, String> headers) {
+    public record Response(int code, String type, byte[] body, Map<String, String> headers, BodyWriter stream) {
+        public Response(int code, String type, byte[] body, Map<String, String> headers) {
+            this(code, type, body, headers, null);
+        }
+
         public Response(int code, String type, byte[] body) {
-            this(code, type, body, Map.of());
+            this(code, type, body, Map.of(), null);
         }
     }
 

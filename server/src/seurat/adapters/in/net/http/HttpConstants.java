@@ -3,6 +3,7 @@ package seurat.adapters.in.net.http;
 /** Content types and JSON bodies the HTTP surface answers with. */
 public final class HttpConstants {
     public static final String JSON = "application/json";
+    public static final String NDJSON = "application/x-ndjson";
     public static final String HTML = "text/html; charset=utf-8";
     public static final String JAVASCRIPT = "text/javascript; charset=utf-8";
     public static final String CSS = "text/css; charset=utf-8";
@@ -11,6 +12,8 @@ public final class HttpConstants {
     public static final String BINARY = "application/octet-stream";
     public static final String NOT_FOUND_BODY = "{\"error\":\"no existe\"}";
     public static final String INTERNAL_BODY = "{\"error\":\"interno\"}";
+    public static final String TRANSFER_ENCODING = "Transfer-Encoding";
+    public static final String CHUNKED = "chunked";
     /** HTTP/1.1 line terminator (RFC 9112). */
     public static final String CRLF = "\r\n";
     /** Every response is no-store unless it names its own Cache-Control; static files revalidate by ETag. */
