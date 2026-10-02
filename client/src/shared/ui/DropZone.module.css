@@ -1,0 +1,103 @@
+.zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 220px;
+  padding: 32px 24px;
+  border: 2px dashed var(--border-line);
+  border-radius: var(--radius-card);
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 200ms ease, background-color 200ms ease, border-style 200ms ease;
+}
+
+.zone:focus-visible {
+  border-color: var(--primary);
+}
+
+.dragging {
+  border-style: solid;
+  border-color: var(--primary);
+  background-color: var(--drop-tint);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.folderGlyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dragging .folderGlyph {
+  transform: translateY(-8px) scale(1.08);
+}
+
+.prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.title {
+  color: var(--ink);
+}
+
+.promptOr {
+  color: var(--text-muted);
+}
+
+.browseBtn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.browseBtn:hover {
+  color: var(--primary-deep);
+}
+
+.formatsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--border-line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.footnote {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}

@@ -1,6 +1,10 @@
 export const PROTO_VERSION = 1;
 export const WS_SUBPROTOCOL = 'seurat.1';
 export const SESSION_PATH = '/seurat/v1/sesion';
+/** PUT /seurat/v1/obras/{name} streams a master or .zip into the server inbox (spec 3.1). */
+export const OBRAS_PATH = '/seurat/v1/obras/';
+/** POST /seurat/v1/importar: the server fetches a link, or links a path on its own disk (localhost only). */
+export const IMPORT_PATH = '/seurat/v1/importar';
 /** `cliente` in POST /sesion (spec 3.4.1). */
 export const CLIENT_NAME = 'visor/2.0';
 export const MAX_FRAME_BYTES = 64 * 1024;

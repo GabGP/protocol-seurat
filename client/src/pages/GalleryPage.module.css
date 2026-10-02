@@ -20,6 +20,12 @@
   color: var(--text-primary, #191B23);
 }
 
+.headerRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
 .main {
   max-width: var(--gallery-max-width, 1440px);
   margin: 0 auto;

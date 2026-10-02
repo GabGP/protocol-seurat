@@ -10,6 +10,8 @@ export interface SessionResponse {
   rol?: string;
   /** The signed-in account's name; absent when anonymous. */
   cuenta?: string;
+  /** True when the browser runs on the server machine. */
+  local?: boolean;
 }
 
 /** POST /sesion refused the Bearer key (401): the account does not exist. */

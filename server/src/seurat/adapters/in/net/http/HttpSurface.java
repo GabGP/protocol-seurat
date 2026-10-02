@@ -1,10 +1,11 @@
 package seurat.adapters.in.net.http;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Log;
@@ -18,30 +19,50 @@ import seurat.core.works.catalog.Catalog;
  * the single egress stays paint/Painter over PINCELADA flows.
  */
 public final class HttpSurface {
-    /** body is read up front, except a master upload, which streams (length bytes from stream). */
+    @FunctionalInterface
+    public interface BodyWriter {
+        void write(OutputStream out) throws IOException;
+    }
+
+    /**
+     * An HTTP request. Body is read up front, except a master upload, which streams
+     * (length bytes from stream). {@code local} is true when the HTTP peer is on the
+     * same machine as the server.
+     */
     public record Request(String method, String path, Map<String, String> headers,
-            byte[] body, String host, InputStream stream, long length) {
+            byte[] body, String host, InputStream stream, long length, boolean local) {
         public Request(String method, String path, Map<String, String> headers, byte[] body, String host) {
-            this(method, path, headers, body, host, null, body.length);
+            this(method, path, headers, body, host, null, body.length, false);
+        }
+
+        public Request(String method, String path, Map<String, String> headers,
+                byte[] body, String host, InputStream stream, long length) {
+            this(method, path, headers, body, host, stream, length, false);
         }
     }
 
-    public record Response(int code, String type, byte[] body, Map<String, String> headers) {
+    public record Response(int code, String type, byte[] body, Map<String, String> headers, BodyWriter stream) {
+        public Response(int code, String type, byte[] body, Map<String, String> headers) {
+            this(code, type, body, headers, null);
+        }
+
         public Response(int code, String type, byte[] body) {
-            this(code, type, body, Map.of());
+            this(code, type, body, Map.of(), null);
         }
     }
 
     private final StaticRoute statics;
     private final SessionRoute session;
+    private final ImportRoute importRoute;
     private final WorkRoutes routes;
 
     public HttpSurface(Path staticRoot, Sessions sessions, Catalog catalog,
-            SeuratConfig config, BiConsumer<String, Path> onMaster,
+            SeuratConfig config, IntakePorts intake,
             Consumer<String> onPolicy, Consumer<String> onWithdraw) {
         this.statics = new StaticRoute(staticRoot);
         this.session = new SessionRoute(sessions, config);
-        this.routes = new WorkRoutes(catalog, config, onMaster, onPolicy, onWithdraw);
+        this.importRoute = new ImportRoute(config, intake);
+        this.routes = new WorkRoutes(catalog, config, intake, onPolicy, onWithdraw);
     }
 
     /** PUT /seurat/v1/obras/{id} streams to inbox/ instead of being buffered in memory. */
@@ -56,6 +77,9 @@ public final class HttpSurface {
             }
             if (req.method().equals("POST") && req.path().equals("/seurat/v1/sesion")) {
                 return session.issue(req);
+            }
+            if (req.method().equals("POST") && req.path().equals("/seurat/v1/importar")) {
+                return importRoute.route(req);
             }
             if (req.path().startsWith("/seurat/v1/obras/")) {
                 return routes.route(req);

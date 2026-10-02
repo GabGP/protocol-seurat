@@ -1,0 +1,46 @@
+.dialogContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.tabBar {
+  display: flex;
+  background: var(--card);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.tab,
+.tabActive {
+  flex: 1 1 0;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.tab {
+  background: transparent;
+  color: var(--border-line);
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tabActive {
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.tabContent {
+  min-height: 220px;
+}

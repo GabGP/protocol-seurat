@@ -41,7 +41,10 @@ final class Listeners {
     /** Writes one HTTP response and ends the connection (Connection: close, no-store unless set). */
     static void respond(Socket socket, HttpSurface.Response response) throws IOException {
         StringBuilder header = new StringBuilder("HTTP/1.1 ").append(status(response.code())).append(CRLF);
-        if (response.code() != HttpConstants.NOT_MODIFIED) {
+        if (response.stream() != null) {
+            header.append("Content-Type: ").append(response.type()).append(CRLF)
+                    .append(HttpConstants.TRANSFER_ENCODING).append(": ").append(HttpConstants.CHUNKED).append(CRLF);
+        } else if (response.code() != HttpConstants.NOT_MODIFIED) {
             header.append("Content-Type: ").append(response.type()).append(CRLF)
                     .append("Content-Length: ").append(response.body().length).append(CRLF);
         }
@@ -50,10 +53,22 @@ final class Listeners {
         response.headers().forEach((k, v) -> header.append(k).append(": ").append(v).append(CRLF));
         OutputStream out = socket.getOutputStream();
         out.write(header.append(CRLF).toString().getBytes(StandardCharsets.UTF_8));
-        if (response.code() != HttpConstants.NOT_MODIFIED) {
+        if (response.stream() != null) {
+            out.flush();
+            ChunkedOutput chunked = new ChunkedOutput(out);
+            try {
+                response.stream().write(chunked);
+            } finally {
+                try {
+                    chunked.close();
+                } catch (IOException ignored) {}
+            }
+        } else if (response.code() != HttpConstants.NOT_MODIFIED) {
             out.write(response.body());
+            out.flush();
+        } else {
+            out.flush();
         }
-        out.flush();
         closeGracefully(socket);
     }
 
@@ -89,7 +104,12 @@ final class Listeners {
             case 400 -> "400 Bad Request";
             case 401 -> "401 Unauthorized";
             case 403 -> "403 Forbidden";
+            case 409 -> "409 Conflict";
+            case 411 -> "411 Length Required";
+            case 415 -> "415 Unsupported Media Type";
             case 500 -> "500 Internal Error";
+            case 502 -> "502 Bad Gateway";
+            case 507 -> "507 Insufficient Storage";
             default -> "404 Not Found";
         };
     }

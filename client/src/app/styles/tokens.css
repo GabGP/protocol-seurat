@@ -12,6 +12,15 @@
   --badge-bg: #FBF8FF; --badge-text: #00105C;
   --surface-ambient: #0D0E13; --text-contrast: #E3E1E9; --brand-secondary: #FF8A5B;
   --chip-on-bg: #DEE1F9; --chip-on-ink: #171B2C; --chip-hover: #EFEDF4;
+  --drop-tint: rgba(67, 85, 185, 0.08);
+  --progress-track: #E0DFE8;
+  --progress-fill: #4355B9;
+  --danger: #BA1A1A;
+  --danger-soft: #FFEDEA;
+  --backdrop: rgba(13, 14, 19, 0.6);
+  --shimmer: rgba(67, 85, 185, 0.12);
+  --badge-failed-bg: var(--danger-soft);
+  --badge-failed-ink: var(--danger);
 }
 
 * { box-sizing: border-box; }

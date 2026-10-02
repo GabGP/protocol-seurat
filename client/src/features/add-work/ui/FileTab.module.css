@@ -1,0 +1,16 @@
+.switchBtn {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.switchBtn:hover {
+  color: var(--primary-hover);
+}

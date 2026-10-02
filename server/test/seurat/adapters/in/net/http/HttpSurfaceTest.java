@@ -5,6 +5,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import seurat.adapters.in.inbox.PathImport;
+import seurat.adapters.in.inbox.PutUpload;
+import seurat.adapters.in.inbox.Staging;
+import seurat.adapters.in.inbox.UrlDownload;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.viewing.session.Sessions;
@@ -26,11 +30,16 @@ public final class HttpSurfaceTest {
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Catalog catalog = new Catalog(new DiskArchive(root.resolve("obras")));
-        List<String> masters = new ArrayList<>();
+        Staging staging = new Staging(config.staging, config.inbox, catalog);
+        PutUpload upload = new PutUpload(staging);
+        PathImport paths = new PathImport(staging, List.of(config.inbox, config.works, config.staging));
+        UrlDownload links = new UrlDownload(staging);
+        List<Path> arrived = new ArrayList<>();
+        IntakePorts intakePorts = new IntakePorts(upload, paths, links, arrived::add);
         List<String> policies = new ArrayList<>();
         List<String> withdrawn = new ArrayList<>();
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                (id, file) -> masters.add(id), policies::add, withdrawn::add);
+                intakePorts, policies::add, withdrawn::add);
 
         var index = http.route(new HttpSurface.Request("GET", "/", Map.of(), new byte[0],
                 "localhost"));
@@ -111,6 +120,7 @@ public final class HttpSurfaceTest {
                 && created.contains("/seurat/v1/lienzo-ws"), "POST /sesion issues");
         TestKit.check(created.contains("\"rol\":\"privilegiado\"") && created.contains("\"cuenta\":\"prof\""),
                 "POST /sesion names the account and its role");
+        TestKit.check(created.contains("\"local\":false"), "POST /sesion reports local:false");
         String token = created.split("\"token\":\"")[1].split("\"")[0];
         var issued = sessions.consumeToken(token);
         TestKit.check(issued != null && issued.role().equals("privilegiado")
@@ -129,13 +139,26 @@ public final class HttpSurfaceTest {
                 && !new String(anon.body()).contains("cuenta"), "anonymous: a role, no account");
 
         var denied = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/x",
-                Map.of(), new byte[0], "h"));
-        TestKit.check(denied.code() == 403, "PUT without admin denied");
-        var put = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1",
-                Map.of("x-admin-token", "test-admin"), new byte[]{1, 2, 3}, "h"));
-        TestKit.check(put.code() == 202 && masters.equals(List.of("img1"))
-                && Files.exists(config.inbox.resolve("img1")), "PUT master to inbox");
+                Map.of(), new byte[]{1, 2, 3}, "h"));
+        TestKit.check(denied.code() == 415, "PUT /seurat/v1/obras/x without extension answers 415");
+        var put = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1.png",
+                Map.of(), new byte[]{1, 2, 3}, "h"));
+        TestKit.check(put.code() == 202, "PUT master without token answers 202");
+        TestKit.check(Files.exists(config.inbox.resolve("img1.png")), "file exists in config.inbox");
+        TestKit.check(arrived.equals(List.of(config.inbox.resolve("img1.png"))),
+                "arrived consumer got it exactly once");
+        var spaced = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/my%20scan.png",
+                Map.of(), new byte[]{1, 2, 3}, "h"));
+        TestKit.check(spaced.code() == 202 && Files.exists(config.inbox.resolve("my scan.png")),
+                "PUT decodes the percent-encoded file name");
+        var evilOrigin = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1.png",
+                Map.of("origin", "http://evil.example"), new byte[]{1, 2, 3}, "h"));
+        TestKit.check(evilOrigin.code() == 403, "PUT with foreign origin answers 403");
         catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 2)));
+        var noTokenPol = http.route(new HttpSurface.Request("PUT",
+                "/seurat/v1/obras/img1/politica", Map.of(),
+                "{\"autenticado\":[1,4]}".getBytes(), "h"));
+        TestKit.check(noTokenPol.code() == 403, "PUT politica without token answers 403");
         var policy = http.route(new HttpSurface.Request("PUT",
                 "/seurat/v1/obras/img1/politica", Map.of("x-admin-token", "test-admin"),
                 "{\"autenticado\":[1,4]}".getBytes(), "h"));
@@ -149,6 +172,9 @@ public final class HttpSurfaceTest {
         var unknown = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/zzz/politica",
                 Map.of("x-admin-token", "test-admin"), "{\"anonimo\":[1,4]}".getBytes(), "h"));
         TestKit.check(unknown.code() == 404, "PUT politica on an unknown work");
+        var noTokenDel = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
+                Map.of(), new byte[0], "h"));
+        TestKit.check(noTokenDel.code() == 403, "DELETE without token answers 403");
         var delete = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
                 Map.of("x-admin-token", "test-admin"), new byte[0], "h"));
         TestKit.check(delete.code() == 200 && withdrawn.equals(List.of("img1")), "DELETE");

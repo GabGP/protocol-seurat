@@ -93,10 +93,21 @@ Accounts live in `seurat.conf` as `auth.accounts=name:key:role,...`. To sign in,
 
 ## Ingesting Images & Works
 
-Images can be ingested into the pyramid store in two ways:
+Images can be ingested into the pyramid store directly through the viewer, by dropping files on the server disk, or via HTTP:
 
-### Option A: Local Inbox Drop (Automatic Ingest)
-Place any PNG, JPEG, TIFF/BigTIFF, PSB/PSD image, or `.zip` archive of them directly into the `.seurat/runtime/inbox/` directory. The reader is picked by content: streaming parallel readers for PNG, baseline JPEG, 8-bit TIFF (none/LZW/Deflate/PackBits) and 8-bit RGB/gray Photoshop (raw/RLE), ImageIO for the rest. Embedded ICC profiles are ignored. See `docs/adr-03-ingest-decoders.md` for the benchmarks behind these choices.
+### Adding Works from the Gallery
+
+The gallery header provides an **Add** button (top right) with a menu offering three intake options (see `docs/adr-04-open-intake.md` for the design and how it departs from the spec):
+
+- **Upload file**: Select a local master image or a `.zip` archive to stream directly from your browser to the server (`PUT /seurat/v1/obras/{nombre}`). Open to all viewers without an admin token.
+- **From link**: Paste an `http://` or `https://` URL; the server downloads the master directly into its staging area (`POST /seurat/v1/importar`).
+- **From this computer** (available only when connecting from the server machine itself): Enter an absolute path to a master file already on the server's disk (`POST /seurat/v1/importar`). This is instant on the same volume because the server creates a hard link, leaving the original file intact (and falling back to copying only across different volumes).
+
+A transfer dialog tracks upload progress, displays live ingest percentages from server `OBRA` notifications, and offers an **Open** button once ready. Gallery cards display a *Receiving* or *Processing N%* badge until the work is `LISTA`. Incoming files stream into `.seurat/runtime/staging/<nombre>.<hex>.part` and are moved atomically into `inbox/` only upon completion, preventing the file watcher from reading partial uploads (any leftover `.part` files are swept on boot).
+
+### Dropping Files into Inbox (Automatic Ingest)
+
+Place any PNG, JPEG, TIFF/BigTIFF, PSB/PSD image, or `.zip` archive of them directly into the `.seurat/runtime/inbox/` directory:
 ```bash
 cp /path/to/my-image.png .seurat/runtime/inbox/mona-lisa.png
 ```
@@ -104,18 +115,26 @@ Or drop a multi-image zip archive:
 ```bash
 cp /path/to/archive.zip .seurat/runtime/inbox/
 ```
-The server's background intake watcher will detect the file, unpack zip archives into `.seurat/runtime/inbox/<archive>.d/` caches, move each master out of the inbox into `.seurat/runtime/obras/<id>/master/`, construct multi-stratum pyramidal brushes and seed (`semilla.bin`), and register each work in the catalog (`.seurat/runtime/obras/`). A pass cut short by a restart runs again from that master.
+The reader is picked by content: streaming parallel readers for PNG, baseline JPEG, 8-bit TIFF (none/LZW/Deflate/PackBits) and 8-bit RGB/gray Photoshop (raw/RLE), ImageIO for the rest. Embedded ICC profiles are ignored. See `docs/adr-03-ingest-decoders.md` for the benchmarks behind these choices. The server's background intake watcher will detect the file, unpack zip archives into `.seurat/runtime/inbox/<archive>.d/` caches, move each master out of the inbox into `.seurat/runtime/obras/<id>/master/`, construct multi-stratum pyramidal brushes and seed (`semilla.bin`), and register each work in the catalog (`.seurat/runtime/obras/`). A pass cut short by a restart runs again from that master.
 
-### Option B: HTTP Admin REST API
-Upload an image with the admin token configured in `seurat.conf`:
+### HTTP REST API
+
+Master images and archives can be streamed over HTTP without an admin token (the work ID is the filename without extension):
 ```bash
 curl -X PUT \
-  -H "X-Admin-Token: cambia-esto" \
   --data-binary @/path/to/my-image.png \
-  http://localhost:8180/seurat/v1/obras/mona-lisa
+  http://localhost:8180/seurat/v1/obras/mona-lisa.png
 ```
 
-To update role-based density ceilings (`[stratum, bands]`) for a work:
+Or imported from a remote URL or server path:
+```bash
+curl -X POST \
+  -H "Content-Type: text/plain" \
+  -d "https://example.org/mona-lisa.tif" \
+  http://localhost:8180/seurat/v1/importar
+```
+
+To update role-based density ceilings (`[stratum, bands]`) for a work (requires admin token):
 ```bash
 curl -X PUT \
   -H "X-Admin-Token: cambia-esto" \
@@ -125,7 +144,7 @@ curl -X PUT \
 ```
 Open sessions get the change at once (`CONCESION`, plus `RASPAR` when it lowers a ceiling). The ceilings are saved in the work's `meta.json` and survive restarts and new masters. The server answers `400` if a value is out of range (stratum 0–10, bands 1–4) or if a role would get more than a stronger one (anonymous ≤ `autenticado` ≤ `privilegiado`, §9.1).
 
-To withdraw and delete a work:
+To withdraw and delete a work (requires admin token):
 ```bash
 curl -X DELETE \
   -H "X-Admin-Token: cambia-esto" \

@@ -1,0 +1,110 @@
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-dim);
+  border-radius: 16px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--border-line);
+  flex-shrink: 0;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.mediaError {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.mediaDone {
+  background: var(--tag-bg);
+  color: var(--primary);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.descError {
+  color: var(--danger);
+}
+
+.progressWrap {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--shimmer) 50%,
+    transparent 100%
+  );
+  animation: shimmerMove 1.8s infinite;
+}
+
+@keyframes shimmerMove {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+}

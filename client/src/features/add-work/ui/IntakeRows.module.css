@@ -1,0 +1,50 @@
+.list {
+  margin-top: 16px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.cancelBtn,
+.removeBtn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-dim);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.cancelBtn:hover,
+.removeBtn:hover {
+  background: var(--chip-hover);
+  color: var(--ink);
+}
+
+.readyActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.openBtn {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms;
+}
+
+.openBtn:hover {
+  background: var(--primary-hover);
+}
