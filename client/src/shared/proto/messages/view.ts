@@ -1,6 +1,8 @@
-import { Reader } from '../reader';
+import { TlvTag } from '../../config/constants';
+import { parseTlvs, tlvEncode } from '../frame';
 import { rangesEncode } from '../ranges';
-import { concat, viEncode } from '../varint';
+import { Reader } from '../reader';
+import { concat, u64Encode, viEncode } from '../varint';
 
 export interface Gaze {
   handle: number; seq: number; x0: number; y0: number; x1: number; y1: number;
@@ -39,12 +41,28 @@ export function concessionDecode(payload: Uint8Array): Concession {
 }
 
 export type PlanMsg =
-  | { handle: number; gazeSeq: number; event: 0; first: number; expectedCount: number; throttle: number }
+  | {
+      handle: number;
+      gazeSeq: number;
+      event: 0;
+      first: number;
+      expectedCount: number;
+      throttle: number;
+      unrecoverable?: bigint[];
+    }
   | { handle: number; gazeSeq: number; event: 1; last: number }
   | { handle: number; gazeSeq: number; event: 2; cancelled: number[] };
 export function planCore(p: PlanMsg): Uint8Array {
   const head = concat(viEncode(p.handle), viEncode(p.gazeSeq), [p.event]);
-  if (p.event === 0) return concat(head, viEncode(p.first), viEncode(p.expectedCount), [p.throttle]);
+  if (p.event === 0) {
+    const core = concat(head, viEncode(p.first), viEncode(p.expectedCount), [p.throttle]);
+    if (p.unrecoverable && p.unrecoverable.length > 0) {
+      const parts: Array<number[] | Uint8Array> = [viEncode(p.unrecoverable.length)];
+      for (const id of p.unrecoverable) parts.push(u64Encode(id));
+      return concat(core, tlvEncode(TlvTag.UNRECOVERABLE, concat(...parts)));
+    }
+    return core;
+  }
   if (p.event === 1) return concat(head, viEncode(p.last));
   return concat(head, rangesEncode(p.cancelled));
 }
@@ -53,7 +71,26 @@ export function planDecode(payload: Uint8Array): PlanMsg {
   const handle = r.vi();
   const gazeSeq = r.vi();
   const event = r.u8();
-  if (event === 0) return { handle, gazeSeq, event, first: r.vi(), expectedCount: r.vi(), throttle: r.u8() };
+  if (event === 0) {
+    const first = r.vi();
+    const expectedCount = r.vi();
+    const throttle = r.u8();
+    let unrecoverable: bigint[] | undefined;
+    const rest = r.rest();
+    if (rest.length > 0) {
+      for (const t of parseTlvs(rest)) {
+        if (t.tag === TlvTag.UNRECOVERABLE) {
+          const v = new Reader(t.value);
+          const list: bigint[] = [];
+          for (let i = 0, n = v.vi(); i < n; i++) list.push(v.u64());
+          unrecoverable = list;
+        }
+      }
+    }
+    const out: PlanMsg = { handle, gazeSeq, event: 0, first, expectedCount, throttle };
+    if (unrecoverable !== undefined) out.unrecoverable = unrecoverable;
+    return out;
+  }
   if (event === 1) return { handle, gazeSeq, event, last: r.vi() };
   return { handle, gazeSeq, event: 2, cancelled: r.ranges() };
 }

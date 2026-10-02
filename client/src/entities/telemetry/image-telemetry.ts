@@ -19,6 +19,8 @@ export class ImageTelemetry {
   plan: PlanProgress | null = null;
   plans = 0;
   cancelled = 0;
+  /** Brushes the server gave up on (ADR-06 IRRECUPERABLES): their area stays at the parent density. */
+  unrecoverable = 0;
 
   constructor(
     readonly handle: number,
@@ -35,6 +37,7 @@ export class ImageTelemetry {
   onPlan(p: PlanMsg, now: number): void {
     if (p.event === 0) {
       this.plans += 1;
+      this.unrecoverable += p.unrecoverable?.length ?? 0;
       this.plan = {
         seq: p.gazeSeq, first: p.first, expected: p.expectedCount, throttle: p.throttle,
         received: 0, startedAt: now, finishedAt: null,
