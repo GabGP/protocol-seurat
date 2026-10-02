@@ -19,6 +19,8 @@
   --danger-soft: #FFEDEA;
   --backdrop: rgba(13, 14, 19, 0.6);
   --shimmer: rgba(67, 85, 185, 0.12);
+  --badge-failed-bg: var(--danger-soft);
+  --badge-failed-ink: var(--danger);
 }
 
 * { box-sizing: border-box; }

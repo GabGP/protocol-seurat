@@ -42,7 +42,64 @@
 }
 
 .cardThumb {
+  position: relative;
   aspect-ratio: var(--ratio, 3 / 2);
+}
+
+.ingestBadge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.badgeProcessing {
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.badgeProcessing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--shimmer) 50%,
+    transparent 100%
+  );
+  animation: badgeShimmer 2s infinite;
+}
+
+.badgeFailed {
+  background: var(--badge-failed-bg);
+  color: var(--badge-failed-ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes badgeShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badgeProcessing::after {
+    animation: none;
+  }
 }
 
 .thumbCanvas {

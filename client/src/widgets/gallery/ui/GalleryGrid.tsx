@@ -1,6 +1,6 @@
 import { useRef, type CSSProperties } from 'react';
 import type { Filter, Work } from '@/entities/work';
-import { workDims, workTitle } from '@/entities/work';
+import { ingestBadge, workDims, workTitle, WORK_STATE } from '@/entities/work';
 import { ICON_XS } from '@/shared/config/icon';
 import { Icon } from '@/shared/ui/Icon';
 import { Pagination } from '@/shared/ui/Pagination';
@@ -70,31 +70,43 @@ export function GalleryGrid({
         <span className={styles.counter}>{total} images</span>
       </div>
       <div className={styles.grid}>
-        {items.map((w, i) => (
-          <div
-            key={w.id}
-            onClick={() => onOpen(w.id)}
-            className="gallery-card"
-          >
+        {items.map((w, i) => {
+          const badge = ingestBadge(w);
+          return (
             <div
-              className={`gallery-card-thumb ${styles.cardThumb}`}
-              style={{ '--ratio': `${w.width} / ${w.height}` } as CSSProperties}
+              key={w.id}
+              onClick={() => onOpen(w.id)}
+              className="gallery-card"
             >
-              <Thumb work={w} />
-            </div>
-            <div className={styles.cardMeta}>
-              <span className={styles.cardTitle} title={workTitle(w, offset + i)}>{workTitle(w, offset + i)}</span>
-              <span className={styles.cardDims}>{workDims(w)}</span>
-            </div>
-            {w.tag && (
-              <div className={styles.cardTagRow}>
-                <span className={styles.cardTag}>
-                  {w.tag}
-                </span>
+              <div
+                className={`gallery-card-thumb ${styles.cardThumb}`}
+                style={{ '--ratio': `${w.width} / ${w.height}` } as CSSProperties}
+              >
+                {badge && (
+                  <span
+                    className={`${styles.ingestBadge} ${
+                      w.state === WORK_STATE.FAILED ? styles.badgeFailed : styles.badgeProcessing
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
+                <Thumb work={w} />
               </div>
-            )}
-          </div>
-        ))}
+              <div className={styles.cardMeta}>
+                <span className={styles.cardTitle} title={workTitle(w, offset + i)}>{workTitle(w, offset + i)}</span>
+                <span className={styles.cardDims}>{workDims(w)}</span>
+              </div>
+              {w.tag && (
+                <div className={styles.cardTagRow}>
+                  <span className={styles.cardTag}>
+                    {w.tag}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className={styles.pager}>
         <Pagination page={page} count={count} onPage={turn} />
