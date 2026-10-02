@@ -3,7 +3,7 @@
 # Two distinct packages of the same rank never import each other. Scans server/src (tests may reach anywhere).
 # core/works never imports core/viewing.
 # adapters/in and adapters/out never import each other.
-# Checks `import seurat.x.Y` lines and fully qualified `seurat.x.Y` uses in code.
+# Checks `import seurat.x.Y` lines, wildcard `import seurat.x.*` lines and fully qualified `seurat.x.Y` uses in code.
 # Usage: bash check-layers.sh [--report] [root] — root defaults to the repo root.
 #   --report lists every violation and always exits 0 (for tracking a refactor in progress).
 set -euo pipefail
@@ -55,6 +55,7 @@ FNR == 1 { pkg = "" }
 /^\s*(\/\/|\*|\/\*)/ { next }
 {
     line = $0
+    gsub(/\.\*;/, ".X;", line)
     while (match(line, /seurat(\.[a-z][a-z0-9]*)*\.[A-Z]/)) {
         ref = substr(line, RSTART, RLENGTH - 2)
         line = substr(line, RSTART + RLENGTH)
