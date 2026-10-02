@@ -31,6 +31,13 @@ public final class UrlDownloadTest {
                 os.write(noextBytes);
             }
         });
+        server.createContext("/layers", exchange -> {
+            exchange.getResponseHeaders().set("Content-Type", "image/vnd.adobe.photoshop");
+            exchange.sendResponseHeaders(200, noextBytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(noextBytes);
+            }
+        });
         server.createContext("/cd", exchange -> {
             exchange.getResponseHeaders().set("Content-Disposition", "attachment; filename=cd.tif");
             exchange.sendResponseHeaders(200, cdBytes.length);
@@ -71,6 +78,9 @@ public final class UrlDownloadTest {
             TestKit.check(noextFile.equals(inbox.resolve("noext.png")), "noext.png in inbox");
             TestKit.check(Files.exists(noextFile), "noext.png exists");
             TestKit.check(Arrays.equals(Files.readAllBytes(noextFile), noextBytes), "noext.png bytes match");
+
+            Path psdFile = download.fetch(base + "/layers");
+            TestKit.check(psdFile.equals(inbox.resolve("layers.psd")), "Photoshop content type names layers.psd");
 
             Path cdFile = download.fetch(base + "/cd");
             TestKit.check(cdFile.equals(inbox.resolve("cd.tif")), "cd.tif in inbox");

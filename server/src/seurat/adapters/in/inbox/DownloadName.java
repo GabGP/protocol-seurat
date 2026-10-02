@@ -10,13 +10,24 @@ import java.util.Optional;
 
 /** Resolves an admitted inbox file name from HTTP response URI, headers and MIME type. */
 final class DownloadName {
-    private static final Map<String, String> MIME_EXTENSIONS = Map.of(
-            "image/png", ".png",
-            "image/jpeg", ".jpg",
-            "image/tiff", ".tif",
-            "application/zip", ".zip",
-            "application/x-zip-compressed", ".zip"
-    );
+    /**
+     * One entry per admitted format (MasterNames + zip), with the common aliases. Photoshop has one
+     * type for PSD and PSB; .psd is enough because PsbLayout tells them apart by content.
+     */
+    private static final Map<String, String> MIME_EXTENSIONS = Map.ofEntries(
+            Map.entry("image/png", ".png"),
+            Map.entry("image/jpeg", ".jpg"),
+            Map.entry("image/jpg", ".jpg"),
+            Map.entry("image/pjpeg", ".jpg"),
+            Map.entry("image/tiff", ".tif"),
+            Map.entry("image/tif", ".tif"),
+            Map.entry("image/x-tiff", ".tif"),
+            Map.entry("image/vnd.adobe.photoshop", ".psd"),
+            Map.entry("image/x-photoshop", ".psd"),
+            Map.entry("application/x-photoshop", ".psd"),
+            Map.entry("application/photoshop", ".psd"),
+            Map.entry("application/zip", ".zip"),
+            Map.entry("application/x-zip-compressed", ".zip"));
 
     private DownloadName() {}
 

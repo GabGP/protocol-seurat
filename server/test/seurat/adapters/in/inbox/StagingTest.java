@@ -3,9 +3,13 @@ package seurat.adapters.in.inbox;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.Catalog;
+import seurat.core.works.catalog.MasterNames;
 import seurat.core.works.catalog.WorkRecord;
 import seurat.core.works.store.WorkMeta;
 import seurat.kit.TestKit;
@@ -72,6 +76,22 @@ public final class StagingTest {
 
         String clean = s.admit("PHOTO.PNG");
         TestKit.check("PHOTO.PNG".equals(clean), "PHOTO.PNG should be admitted");
+        // Every format the inbox ingests is admitted, in either letter case.
+        List<String> all = new ArrayList<>(MasterNames.EXTENSIONS);
+        all.add("zip");
+        for (String ext : all) {
+            for (String name : List.of("w-" + ext + "." + ext, "W-" + ext + "." + ext.toUpperCase(Locale.ROOT))) {
+                TestKit.check(name.equals(s.admit(name)), name + " should be admitted");
+            }
+        }
+        for (String name : List.of("a.gif", "a.bmp", "a.webp", "a.7z")) {
+            try {
+                s.admit(name);
+                TestKit.check(false, name + " should be refused");
+            } catch (IntakeRefused ex) {
+                TestKit.check(ex.reason == IntakeRefused.Reason.UNSUPPORTED, name + " refused as unsupported");
+            }
+        }
     }
 
     private static void testAdmitCatalogStates() throws Exception {
