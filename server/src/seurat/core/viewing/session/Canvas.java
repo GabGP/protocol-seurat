@@ -1,6 +1,8 @@
 package seurat.core.viewing.session;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.config.SeuratConstants;
@@ -23,6 +25,7 @@ public final class Canvas {
     private final PlanProgress plan = new PlanProgress();
     private final Set<BrushId> retried = new HashSet<>();
     private final Set<BrushId> unusable = new HashSet<>();
+    private final List<BrushId> toAnnounce = new ArrayList<>();
     private Session session;
     private MsgGaze.Gaze gaze;
 
@@ -114,12 +117,29 @@ public final class Canvas {
         return unusable.contains(p) ? 4 : book.bands(p);
     }
 
+    /** Brush given up (ADR-06): unusable in this session, queued for next PLAN INICIO. */
+    public void giveUp(BrushId p) {
+        if (unusable.add(p)) {
+            toAnnounce.add(p);
+        }
+    }
+
+    /** Brushes given up since previous PLAN INICIO (ADR-06); clears the list. */
+    public List<BrushId> takeUnrecoverable() {
+        if (toAnnounce.isEmpty()) {
+            return List.of();
+        }
+        List<BrushId> out = List.copyOf(toAnnounce);
+        toAnnounce.clear();
+        return out;
+    }
+
     /** SOLTAR DECODIFICACION / CRC (ADR-06): true the first time (repaired by a replan), then given up. */
     public boolean retryOnce(BrushId p) {
         if (retried.add(p)) {
             return true;
         }
-        unusable.add(p);
+        giveUp(p);
         return false;
     }
 }

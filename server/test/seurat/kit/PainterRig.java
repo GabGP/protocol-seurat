@@ -2,11 +2,14 @@ package seurat.kit;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
+import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.paint.Painter;
@@ -67,15 +70,28 @@ public final class PainterRig {
 
     /** Control frames of PLAN with the given event that a mapping recorded. */
     public static int planEvents(RecordingMapping mapping, int event) {
-        int n = 0;
+        return (int) plans(mapping).stream().filter(p -> p.event() == event).count();
+    }
+
+    /** The last PLAN INICIO a mapping recorded, or null. */
+    public static MsgGaze.Plan lastPlanStart(RecordingMapping mapping) {
+        MsgGaze.Plan last = null;
+        for (MsgGaze.Plan p : plans(mapping)) {
+            last = p.event() == ProtoCodes.PLAN_INICIO ? p : last;
+        }
+        return last;
+    }
+
+    private static List<MsgGaze.Plan> plans(RecordingMapping mapping) {
+        List<MsgGaze.Plan> out = new ArrayList<>();
         synchronized (mapping) {
             for (byte[] frame : mapping.control) {
                 Frame f = Frame.decode(ByteBuffer.wrap(frame));
-                if (f.type() == FrameType.PLAN && MsgGaze.Plan.parse(f.payload()).event() == event) {
-                    n++;
+                if (f.type() == FrameType.PLAN) {
+                    out.add(MsgGaze.Plan.parse(f.payload()));
                 }
             }
         }
-        return n;
+        return out;
     }
 }

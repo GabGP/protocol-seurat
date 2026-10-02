@@ -60,11 +60,17 @@ final class Opener {
                 PlanEvents.resolved(canvas, x.generation()); // (a)(b): planned on a stale state
                 return;
             }
-            e = servable(canvas, e);
-            if (e == null) {
-                PlanEvents.resolved(canvas, x.generation()); // no valid band on disk: nothing to send, nothing to retry
+            PlanEntry ready = servable(canvas, e);
+            if (ready == null) {
+                if (e.from() == 0) {
+                    canvas.giveUp(e.brush());
+                    canvas.plan().lost();
+                }
+                // No valid band on disk: nothing to send. Band 0 bad: given up and announced (ADR-06).
+                PlanEvents.resolved(canvas, x.generation());
                 return;
             }
+            e = ready;
             if (!eligible(x) || !session.takeSlot()) {
                 queue.pushFront(x.unready());
                 return;

@@ -29,7 +29,8 @@ final class PlanIssuer {
         long generation = canvas.plan().start(seq, entries.size());
         canvas.plan().cutTo(ConePlanner.rung(canvas.session().share));
         GrantController.send(canvas.session(), FrameType.PLAN,
-                MsgGaze.Plan.start(canvas.handle(), seq, first, entries.size(), throttle).encode());
+                MsgGaze.Plan.start(canvas.handle(), seq, first, entries.size(), throttle,
+                        canvas.takeUnrecoverable().stream().map(BrushId::id).toList()).encode());
         painter.enqueue(canvas, entries, generation);
         if (entries.isEmpty()) {
             GrantController.send(canvas.session(), FrameType.PLAN,

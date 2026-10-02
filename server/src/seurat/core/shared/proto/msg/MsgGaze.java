@@ -1,10 +1,13 @@
 package seurat.core.shared.proto.msg;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import seurat.core.shared.proto.Buf;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.Ranges;
+import seurat.core.shared.proto.Tlv;
 import seurat.core.shared.proto.VarInt;
 
 /** MIRADA / CONCESION / PLAN. */
@@ -65,21 +68,32 @@ public final class MsgGaze {
     }
 
     public record Plan(long handle, long gazeSeq, int event, long first,
-            long expectedCount, int throttle, long last, Ranges cancelled) {
-        public static Plan start(long h, long seq, long first, long expectedCount, int flags) {
-            return new Plan(h, seq, ProtoCodes.PLAN_INICIO, first, expectedCount, flags, 0, null);
+            long expectedCount, int throttle, long last, Ranges cancelled,
+            List<Long> unrecoverable) {
+        public Plan {
+            unrecoverable = unrecoverable == null ? List.of() : List.copyOf(unrecoverable);
+        }
+
+        public static Plan start(long h, long seq, long first, long count, int flags) {
+            return start(h, seq, first, count, flags, List.of());
+        }
+
+        /** unrec: brush ids given up (TLV IRRECUPERABLES, ADR-06). */
+        public static Plan start(long h, long seq, long first, long count, int flags, List<Long> unrec) {
+            return new Plan(h, seq, ProtoCodes.PLAN_INICIO, first, count, flags, 0, null, unrec);
         }
 
         public static Plan end(long h, long seq, long last) {
-            return new Plan(h, seq, ProtoCodes.PLAN_FIN, 0, 0, 0, last, null);
+            return new Plan(h, seq, ProtoCodes.PLAN_FIN, 0, 0, 0, last, null, List.of());
         }
 
         public static Plan cancelled(long h, long seq, Ranges r) {
-            return new Plan(h, seq, ProtoCodes.PLAN_CANCELADAS, 0, 0, 0, 0, r);
+            return new Plan(h, seq, ProtoCodes.PLAN_CANCELADAS, 0, 0, 0, 0, r, List.of());
         }
 
         public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(64);
+            byte[] sets = cancelled == null ? new byte[0] : cancelled.encode();
+            ByteBuffer b = ByteBuffer.allocate(64 + 10 * unrecoverable.size() + sets.length);
             VarInt.put(b, handle);
             VarInt.put(b, gazeSeq);
             Buf.u8(b, event);
@@ -87,10 +101,17 @@ public final class MsgGaze {
                 VarInt.put(b, first);
                 VarInt.put(b, expectedCount);
                 Buf.u8(b, throttle);
+                if (!unrecoverable.isEmpty()) {
+                    int valLen = VarInt.encodedLength(unrecoverable.size()) + 8 * unrecoverable.size();
+                    ByteBuffer vb = ByteBuffer.allocate(valLen);
+                    VarInt.put(vb, unrecoverable.size());
+                    for (long id : unrecoverable) Buf.u64(vb, id);
+                    b.put(new Tlv(Tlv.IRRECUPERABLES, vb.array()).encode());
+                }
             } else if (event == ProtoCodes.PLAN_FIN) {
                 VarInt.put(b, last);
             } else {
-                b.put(cancelled.encode());
+                b.put(sets);
             }
             return Arrays.copyOf(b.array(), b.position());
         }
@@ -98,15 +119,24 @@ public final class MsgGaze {
         public static Plan parse(byte[] p) {
             ByteBuffer b = ByteBuffer.wrap(p);
             long h = VarInt.get(b);
-            long stratum = VarInt.get(b);
+            long seq = VarInt.get(b);
             int e = Buf.u8(b);
             if (e == ProtoCodes.PLAN_INICIO) {
-                return start(h, stratum, VarInt.get(b), VarInt.get(b), Buf.u8(b));
+                long first = VarInt.get(b);
+                long expected = VarInt.get(b);
+                int throttle = Buf.u8(b);
+                List<Long> unrec = new ArrayList<>();
+                for (Tlv t : Buf.tail(b)) {
+                    if (t.tag() == Tlv.IRRECUPERABLES) {
+                        ByteBuffer v = ByteBuffer.wrap(t.value());
+                        for (long i = 0, n = VarInt.get(v); i < n; i++) {
+                            unrec.add(v.getLong());
+                        }
+                    }
+                }
+                return start(h, seq, first, expected, throttle, unrec);
             }
-            if (e == ProtoCodes.PLAN_FIN) {
-                return end(h, stratum, VarInt.get(b));
-            }
-            return cancelled(h, stratum, Ranges.decode(b));
+            return e == ProtoCodes.PLAN_FIN ? end(h, seq, VarInt.get(b)) : cancelled(h, seq, Ranges.decode(b));
         }
     }
 }

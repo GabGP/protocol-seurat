@@ -20,6 +20,7 @@ public final class PainterGatesTest {
         knownBadBandsClampBeforeOpen();
         windowWaitIsNotCongestion();
         fullBookOpensUpgradeRefusesNewBrush();
+        badBandZeroUnrecoverable();
         System.out.println("PainterGatesTest OK");
     }
 
@@ -160,6 +161,26 @@ public final class PainterGatesTest {
         }
         TestKit.check(rig.planEvents(1) == 2, "no valid band: the plan still ends");
         TestKit.check(rig.mapping.deliveries.size() == 1, "and nothing more goes on the wire");
+        thread.interrupt();
+    }
+
+    /** Band 0 bad on disk (ADR-06): unrecoverable at once, never planned again. */
+    private static void badBandZeroUnrecoverable() throws Exception {
+        PainterRig rig = PainterRig.create();
+        BrushId brush = new BrushId(1, 0, 0);
+        rig.store.badFrom(brush, 0);
+        rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
+        rig.canvas.book().settle(Ranges.of(1));
+        Thread thread = rig.start();
+        rig.painter.enqueue(rig.canvas, List.of(new PlanEntry(brush, 0, 2, 1)),
+                rig.canvas.plan().start(0, 1));
+        long deadline = System.currentTimeMillis() + 5000;
+        while (rig.planEvents(1) < 1 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+        TestKit.check(rig.mapping.deliveries.isEmpty(), "0 valid bands: not opened");
+        TestKit.check(rig.canvas.plannedBands(brush) == 4, "unusable brush planned bands is 4");
+        TestKit.check(rig.canvas.takeUnrecoverable().contains(brush), "unrecoverable queued for announcement");
         thread.interrupt();
     }
 }

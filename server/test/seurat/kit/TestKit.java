@@ -62,6 +62,7 @@ public final class TestKit {
     public static class FixedStore implements BrushStore {
         private final WorkMeta meta;
         private final Map<String, byte[][]> bands = new ConcurrentHashMap<>();
+        private final Map<BrushId, Integer> valid = new ConcurrentHashMap<>();
 
         public FixedStore(WorkMeta meta) {
             this.meta = meta;
@@ -69,6 +70,15 @@ public final class TestKit {
 
         public void put(BrushId p, byte[]... bandBytes) {
             bands.put(p.stratum() + ":" + p.bx() + ":" + p.by(), bandBytes);
+        }
+
+        public void badFrom(BrushId p, int validBands) {
+            valid.put(p, validBands);
+        }
+
+        @Override
+        public int validBands(BrushId p) {
+            return valid.getOrDefault(p, Integer.MAX_VALUE);
         }
 
         private byte[][] get(BrushId p) throws IOException {

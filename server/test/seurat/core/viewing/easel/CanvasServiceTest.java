@@ -11,6 +11,7 @@ import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.Ranges;
+import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.shared.proto.msg.MsgLoans;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.GazeGate;
@@ -54,6 +55,9 @@ public final class CanvasServiceTest {
         service.release(session, crc(again));
         TestKit.check(alerted(brush), "second CRC failure on the brush: operator alert");
         TestKit.check(!canvas.book().contains(again), "released either way");
+        MsgGaze.Plan lastPlan = PainterRig.lastPlanStart(mapping);
+        TestKit.check(lastPlan != null && lastPlan.unrecoverable().contains(brush.id()),
+                "second CRC failure: unrecoverable announced");
         System.out.println("CanvasServiceTest OK");
     }
 
