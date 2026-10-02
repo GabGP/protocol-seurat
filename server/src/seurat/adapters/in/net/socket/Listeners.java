@@ -89,7 +89,12 @@ final class Listeners {
             case 400 -> "400 Bad Request";
             case 401 -> "401 Unauthorized";
             case 403 -> "403 Forbidden";
+            case 409 -> "409 Conflict";
+            case 411 -> "411 Length Required";
+            case 415 -> "415 Unsupported Media Type";
             case 500 -> "500 Internal Error";
+            case 502 -> "502 Bad Gateway";
+            case 507 -> "507 Insufficient Storage";
             default -> "404 Not Found";
         };
     }

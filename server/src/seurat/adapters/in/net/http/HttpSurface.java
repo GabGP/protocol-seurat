@@ -18,11 +18,20 @@ import seurat.core.works.catalog.Catalog;
  * the single egress stays paint/Painter over PINCELADA flows.
  */
 public final class HttpSurface {
-    /** body is read up front, except a master upload, which streams (length bytes from stream). */
+    /**
+     * An HTTP request. Body is read up front, except a master upload, which streams
+     * (length bytes from stream). {@code local} is true when the HTTP peer is on the
+     * same machine as the server.
+     */
     public record Request(String method, String path, Map<String, String> headers,
-            byte[] body, String host, InputStream stream, long length) {
+            byte[] body, String host, InputStream stream, long length, boolean local) {
         public Request(String method, String path, Map<String, String> headers, byte[] body, String host) {
-            this(method, path, headers, body, host, null, body.length);
+            this(method, path, headers, body, host, null, body.length, false);
+        }
+
+        public Request(String method, String path, Map<String, String> headers,
+                byte[] body, String host, InputStream stream, long length) {
+            this(method, path, headers, body, host, stream, length, false);
         }
     }
 

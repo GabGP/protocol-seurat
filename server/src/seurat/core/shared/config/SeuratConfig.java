@@ -16,6 +16,8 @@ public final class SeuratConfig {
 
     public final int httpPort;
     public final Path inbox;
+    /** Where intake writes partial files before an atomic move into inbox. */
+    public final Path staging;
     public final Path works;
     public final Path coverage;
     public final String adminToken;
@@ -35,6 +37,7 @@ public final class SeuratConfig {
     private SeuratConfig(Map<String, String> props, Path base) throws IOException {
         httpPort = intOf(props, "http.port", SeuratConstants.HTTP_PORT);
         inbox = dir(base, props.getOrDefault("inbox", ".seurat/runtime/inbox"));
+        staging = dir(base, props.getOrDefault("staging", ".seurat/runtime/staging"));
         works = dir(base, props.getOrDefault("works", ".seurat/runtime/obras"));
         coverage = dir(base, props.getOrDefault("coverage", ".seurat/runtime/cobertura"));
         adminToken = props.getOrDefault("admin.token", DEFAULT_ADMIN_TOKEN);

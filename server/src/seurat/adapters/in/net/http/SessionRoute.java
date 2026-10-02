@@ -18,8 +18,9 @@ import seurat.core.works.catalog.WorkRecord;
  * `auth.accounts`, 401 if unknown; without one, an anonymous cookie so the brush budget
  * is per viewer) and issues a single-use 32 B token that expires in 120 s, plus the mapping
  * URLs (only the WebSocket one is served, so `lienzo` names it too and the viewer goes straight
- * to it, spec 8 "UDP bloqueado"), the role (`rol`) and, when signed in, the account (`cuenta`)
- * so the viewer can say who it is. No other state is created.
+ * to it, spec 8 "UDP bloqueado"), the role (`rol`), when signed in the account (`cuenta`),
+ * and `local` (the viewer uses it to show the path-import tab; informational only, the server
+ * re-checks on every intake call). No other state is created.
  */
 final class SessionRoute {
     static final String ANON_COOKIE = "seurat_anon";
@@ -60,7 +61,8 @@ final class SessionRoute {
         String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
         String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + ws
                 + "\",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE
-                + ",\"rol\":\"" + role + "\"" + (account != null ? ",\"cuenta\":\"" + account.name() + "\"" : "") + "}";
+                + ",\"rol\":\"" + role + "\"" + (account != null ? ",\"cuenta\":\"" + account.name() + "\"" : "")
+                + ",\"local\":" + req.local() + "}";
         Map<String, String> headers = fresh
                 ? Map.of("Set-Cookie", ANON_COOKIE + "=" + anon + "; Path=/; HttpOnly; SameSite=Strict")
                 : Map.of();

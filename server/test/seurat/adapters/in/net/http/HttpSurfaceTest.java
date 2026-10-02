@@ -111,6 +111,7 @@ public final class HttpSurfaceTest {
                 && created.contains("/seurat/v1/lienzo-ws"), "POST /sesion issues");
         TestKit.check(created.contains("\"rol\":\"privilegiado\"") && created.contains("\"cuenta\":\"prof\""),
                 "POST /sesion names the account and its role");
+        TestKit.check(created.contains("\"local\":false"), "POST /sesion reports local:false");
         String token = created.split("\"token\":\"")[1].split("\"")[0];
         var issued = sessions.consumeToken(token);
         TestKit.check(issued != null && issued.role().equals("privilegiado")

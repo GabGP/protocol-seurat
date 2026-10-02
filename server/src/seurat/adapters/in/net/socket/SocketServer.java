@@ -95,9 +95,11 @@ public final class SocketServer implements Closeable {
         long length = head.contentLength();
         String host = headers.getOrDefault("host", "localhost:" + config.httpPort);
         boolean streamed = HttpSurface.streamed(parts[0], parts[1]);
+        boolean local = socket.getInetAddress().isLoopbackAddress()
+                || socket.getInetAddress().equals(socket.getLocalAddress());
         var request = new HttpSurface.Request(parts[0], parts[1], headers,
                 streamed ? new byte[0] : in.readNBytes((int) Math.min(length, SeuratConstants.FRAME_MAX)),
-                host, streamed ? in : null, length);
+                host, streamed ? in : null, length, local);
         long t0 = System.nanoTime();
         var response = http.route(request);
         Log.info(LogTags.HTTP, "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()
