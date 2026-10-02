@@ -2,7 +2,6 @@ package seurat.core.shared.observe;
 
 /** The tag column of a log line, and the work= key every ingest and catalog line shares. */
 public final class LogTags {
-    public static final String ADMIN = "admin";
     public static final String AUDIT = "audit";
     public static final String BUDGET = "budget";
     public static final String CATALOG = "catalog";

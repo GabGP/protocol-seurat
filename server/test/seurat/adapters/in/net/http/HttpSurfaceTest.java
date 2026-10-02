@@ -17,7 +17,7 @@ import seurat.core.works.catalog.WorkRecord;
 import seurat.core.works.store.WorkMeta;
 import seurat.kit.TestKit;
 
-/** HTTP surface: static, session issue, admin obras routes. */
+/** HTTP surface: static, session issue, obras routes. */
 public final class HttpSurfaceTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("http-test");
@@ -25,7 +25,7 @@ public final class HttpSurfaceTest {
         Files.createDirectories(web);
         Files.writeString(web.resolve("index.html"), "<html>viewer</html>");
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=18080\nadmin.token=test-admin\n"
+        Files.writeString(conf, "http.port=18080\n"
                 + "auth.accounts=prof:k-prof:privilegiado, ana:k-ana:autenticado, bad:k-bad:root\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
@@ -36,10 +36,9 @@ public final class HttpSurfaceTest {
         UrlDownload links = new UrlDownload(staging);
         List<Path> arrived = new ArrayList<>();
         IntakePorts intakePorts = new IntakePorts(upload, paths, links, arrived::add);
-        List<String> policies = new ArrayList<>();
         List<String> withdrawn = new ArrayList<>();
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                intakePorts, policies::add, withdrawn::add);
+                intakePorts, withdrawn::add);
 
         var index = http.route(new HttpSurface.Request("GET", "/", Map.of(), new byte[0],
                 "localhost"));
@@ -155,15 +154,19 @@ public final class HttpSurfaceTest {
                 Map.of("origin", "http://evil.example"), new byte[]{1, 2, 3}, "h"));
         TestKit.check(evilOrigin.code() == 403, "PUT with foreign origin answers 403");
         catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 4)));
-        var noTokenDel = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
-                Map.of(), new byte[0], "h"));
-        TestKit.check(noTokenDel.code() == 403, "DELETE without token answers 403");
+        var evilDelete = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
+                Map.of("origin", "http://evil.example"), new byte[0], "h"));
+        TestKit.check(evilDelete.code() == 403 && withdrawn.isEmpty(),
+                "DELETE with foreign origin answers 403 and does not withdraw");
         var delete = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
-                Map.of("x-admin-token", "test-admin"), new byte[0], "h"));
-        TestKit.check(delete.code() == 200 && withdrawn.equals(List.of("img1")), "DELETE");
+                Map.of(), new byte[0], "h"));
+        TestKit.check(delete.code() == 200 && withdrawn.equals(List.of("img1")),
+                "DELETE with no headers succeeds and withdraw callback got id");
+        var putPolitica = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1/politica",
+                Map.of(), "{\"bandas\":[0,1]}".getBytes(), "h"));
+        TestKit.check(putPolitica.code() != 200, "PUT /seurat/v1/obras/img1/politica no longer succeeds");
         TestKit.check(HttpSurface.number("{\"memMiB\":256}", "memMiB", 0) == 256,
                 "json number");
-        TestKit.check(HttpSurface.pair("{\"a\":[1,4]}", "a")[1] == 4, "json pair");
         System.out.println("HttpSurfaceTest OK");
     }
 }

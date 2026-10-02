@@ -12,21 +12,19 @@ import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.works.catalog.Catalog;
 
-/** PUT/DELETE /seurat/v1/obras/{id} (spec 3.1). Admin only for deletion. */
+/** PUT and DELETE /seurat/v1/obras/{id} (spec 3.1, ADR-04, ADR-05): open to any viewer from the same origin. */
 final class WorkRoutes {
     private static final String PREFIX = "/seurat/v1/obras/";
     private final Catalog catalog;
     private final SeuratConfig config;
     private final IntakePorts ports;
-    private final Consumer<String> onPolicy;
     private final Consumer<String> onWithdraw;
 
     WorkRoutes(Catalog catalog, SeuratConfig config, IntakePorts ports,
-            Consumer<String> onPolicy, Consumer<String> onWithdraw) {
+            Consumer<String> onWithdraw) {
         this.catalog = catalog;
         this.config = config;
         this.ports = ports;
-        this.onPolicy = onPolicy;
         this.onWithdraw = onWithdraw;
     }
 
@@ -58,15 +56,14 @@ final class WorkRoutes {
                 return IntakeGate.refused(ex);
             }
         }
-        if (!req.headers().getOrDefault("x-admin-token", "").equals(config.adminToken)) {
-            Log.warn(LogTags.ADMIN, req.method() + " " + req.path() + " refused: bad admin token");
-            return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"admin\"}");
-        }
-        if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
-            return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-        }
         if (req.method().equals("DELETE") && tail.isEmpty()) {
-            Log.info(LogTags.ADMIN, LogTags.work(id) + " withdrawn");
+            if (!IntakeGate.sameOrigin(req, config)) {
+                return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"origin\"}");
+            }
+            if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
+                return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
+            }
+            Log.info(LogTags.INGEST, LogTags.work(id) + " withdrawn");
             onWithdraw.accept(id);
             return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
         }

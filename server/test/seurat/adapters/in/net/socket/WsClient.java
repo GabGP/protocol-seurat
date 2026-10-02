@@ -47,7 +47,7 @@ final class WsClient {
     static int serve(Path root, Catalog catalog) throws Exception {
         int port = freePort();
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=" + port + "\nadmin.token=t\nauth.accounts=loop:loopback:autenticado\n");
+        Files.writeString(conf, "http.port=" + port + "\nauth.accounts=loop:loopback:autenticado\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Painter painter = new Painter(new Regulator(),
@@ -63,7 +63,7 @@ final class WsClient {
         UrlDownload links = new UrlDownload(staging);
         IntakePorts intakePorts = new IntakePorts(upload, paths, links, p -> {});
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                intakePorts, id -> {}, id -> {});
+                intakePorts, id -> {});
         var ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 1024, 0);
         var server = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);

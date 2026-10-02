@@ -36,7 +36,6 @@ import seurat.core.viewing.grant.EditionSwap;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.grant.Liveness;
-import seurat.core.viewing.grant.PolicySync;
 import seurat.core.viewing.paint.Painter;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Regulator;
@@ -69,7 +68,6 @@ public final class SeuratServer {
         GrantController grants = new GrantController(catalog, painter, sessions);
         GazeGate gazes = new GazeGate(grants);
         Liveness liveness = new Liveness(grants, sessions);
-        PolicySync policies = new PolicySync(grants);
         DiskReaper reaper = new DiskReaper(config.works, sessions, catalog);
         Thread painterThread = Thread.ofPlatform().name("painter").daemon(true).unstarted(painter);
         painterThread.start();
@@ -89,7 +87,6 @@ public final class SeuratServer {
         UrlDownload links = new UrlDownload(staging);
         HttpSurface http = new HttpSurface(base.resolve("client/dist"), sessions, catalog, config,
                 new IntakePorts(upload, paths, links, intake::arrived),
-                id -> forEachCanvas(sessions, id, policies::apply),
                 id -> {
                     catalog.withdraw(id);
                     forEachCanvas(sessions, id, grants::withdraw);
