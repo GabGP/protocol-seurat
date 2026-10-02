@@ -1,12 +1,18 @@
 package seurat;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import seurat.adapters.in.inbox.MasterIntake;
+import seurat.adapters.in.inbox.PathImport;
+import seurat.adapters.in.inbox.PutUpload;
+import seurat.adapters.in.inbox.Staging;
+import seurat.adapters.in.inbox.UrlDownload;
 import seurat.adapters.in.net.http.HttpSurface;
+import seurat.adapters.in.net.http.IntakePorts;
 import seurat.adapters.in.net.socket.SocketServer;
 import seurat.adapters.in.net.ws.WsMapping;
 import seurat.adapters.out.decode.Decoders;
@@ -76,8 +82,13 @@ public final class SeuratServer {
                 reaper.swapped(id); // ed1/ goes once no canvas uses it
             }
         });
+        Staging staging = new Staging(config.staging, config.inbox, catalog);
+        staging.sweep();
+        PutUpload upload = new PutUpload(staging);
+        PathImport paths = new PathImport(staging, List.of(config.inbox, config.works, config.staging));
+        UrlDownload links = new UrlDownload(staging);
         HttpSurface http = new HttpSurface(base.resolve("client/dist"), sessions, catalog, config,
-                intake::offer,
+                new IntakePorts(upload, paths, links, intake::arrived),
                 id -> forEachCanvas(sessions, id, policies::apply),
                 id -> {
                     catalog.withdraw(id);
@@ -98,7 +109,7 @@ public final class SeuratServer {
 
     private static void forEachCanvas(Sessions sessions, String id, java.util.function.Consumer<Canvas> action) {
         for (Session session : sessions.all()) {
-            for (Canvas canvas : java.util.List.copyOf(session.canvases().values())) {
+            for (Canvas canvas : List.copyOf(session.canvases().values())) {
                 if (canvas.workId().equals(id)) {
                     action.accept(canvas);
                 }

@@ -4,7 +4,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Log;
@@ -43,14 +42,16 @@ public final class HttpSurface {
 
     private final StaticRoute statics;
     private final SessionRoute session;
+    private final ImportRoute importRoute;
     private final WorkRoutes routes;
 
     public HttpSurface(Path staticRoot, Sessions sessions, Catalog catalog,
-            SeuratConfig config, BiConsumer<String, Path> onMaster,
+            SeuratConfig config, IntakePorts intake,
             Consumer<String> onPolicy, Consumer<String> onWithdraw) {
         this.statics = new StaticRoute(staticRoot);
         this.session = new SessionRoute(sessions, config);
-        this.routes = new WorkRoutes(catalog, config, onMaster, onPolicy, onWithdraw);
+        this.importRoute = new ImportRoute(config, intake);
+        this.routes = new WorkRoutes(catalog, config, intake, onPolicy, onWithdraw);
     }
 
     /** PUT /seurat/v1/obras/{id} streams to inbox/ instead of being buffered in memory. */
@@ -65,6 +66,9 @@ public final class HttpSurface {
             }
             if (req.method().equals("POST") && req.path().equals("/seurat/v1/sesion")) {
                 return session.issue(req);
+            }
+            if (req.method().equals("POST") && req.path().equals("/seurat/v1/importar")) {
+                return importRoute.route(req);
             }
             if (req.path().startsWith("/seurat/v1/obras/")) {
                 return routes.route(req);

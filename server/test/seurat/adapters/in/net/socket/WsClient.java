@@ -13,7 +13,12 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import seurat.adapters.in.inbox.PathImport;
+import seurat.adapters.in.inbox.PutUpload;
+import seurat.adapters.in.inbox.Staging;
+import seurat.adapters.in.inbox.UrlDownload;
 import seurat.adapters.in.net.http.HttpSurface;
+import seurat.adapters.in.net.http.IntakePorts;
 import seurat.adapters.in.net.ws.WsFraming;
 import seurat.adapters.in.net.ws.WsHandshake;
 import seurat.adapters.in.net.ws.WsMapping;
@@ -52,8 +57,13 @@ final class WsClient {
         Path web = root.resolve("web");
         Files.createDirectories(web);
         Files.writeString(web.resolve("index.html"), "x");
+        Staging staging = new Staging(config.staging, config.inbox, catalog);
+        PutUpload upload = new PutUpload(staging);
+        PathImport paths = new PathImport(staging, List.of(config.inbox, config.works, config.staging));
+        UrlDownload links = new UrlDownload(staging);
+        IntakePorts intakePorts = new IntakePorts(upload, paths, links, p -> {});
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                (id, file) -> {}, id -> {}, id -> {});
+                intakePorts, id -> {}, id -> {});
         var ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 1024, 0);
         var server = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);

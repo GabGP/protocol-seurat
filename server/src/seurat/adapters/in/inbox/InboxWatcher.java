@@ -100,6 +100,11 @@ public final class InboxWatcher {
         onMaster.accept(id, file);
     }
 
+    void arrived(Path file) {
+        if (file == null || file.getFileName() == null) return;
+        offerIfMaster(file.getFileName().toString());
+    }
+
     void done(Path file) {
         seen.remove(file.toAbsolutePath().normalize());
     }

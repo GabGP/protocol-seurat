@@ -39,6 +39,14 @@ public final class MasterIntake implements Closeable {
         queue.offer(id, file);
     }
 
+    /**
+     * An intake route published this file into inbox; offered through the watcher dedupe
+     * so a missed WatchService event cannot strand it.
+     */
+    public void arrived(Path file) {
+        watcher.arrived(file);
+    }
+
     private void launch(String id, Path file) {
         try {
             if (ZipNames.isZip(file.toString())) {

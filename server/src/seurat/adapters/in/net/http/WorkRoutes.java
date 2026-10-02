@@ -1,38 +1,36 @@
 package seurat.adapters.in.net.http;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import seurat.adapters.in.inbox.IntakeRefused;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
-import seurat.core.shared.observe.LogUnits;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.RolePolicy;
 import seurat.core.works.catalog.WorkRecord;
 
-/** PUT/DELETE /seurat/v1/obras/{id} + PUT .../politica (spec 3.1). Admin only. */
+/** PUT/DELETE /seurat/v1/obras/{id} + PUT .../politica (spec 3.1). Admin only for policy and deletion. */
 final class WorkRoutes {
     private static final String PREFIX = "/seurat/v1/obras/";
-    private static final int COPY_BUFFER = 1 << 16;
     private final Catalog catalog;
     private final SeuratConfig config;
-    private final BiConsumer<String, Path> onMaster;
+    private final IntakePorts ports;
     private final Consumer<String> onPolicy;
     private final Consumer<String> onWithdraw;
 
-    WorkRoutes(Catalog catalog, SeuratConfig config, BiConsumer<String, Path> onMaster,
+    WorkRoutes(Catalog catalog, SeuratConfig config, IntakePorts ports,
             Consumer<String> onPolicy, Consumer<String> onWithdraw) {
         this.catalog = catalog;
         this.config = config;
-        this.onMaster = onMaster;
+        this.ports = ports;
         this.onPolicy = onPolicy;
         this.onWithdraw = onWithdraw;
     }
@@ -47,19 +45,30 @@ final class WorkRoutes {
         int slash = rest.indexOf('/');
         String id = slash < 0 ? rest : rest.substring(0, slash);
         String tail = slash < 0 ? "" : rest.substring(slash);
+        if (req.method().equals("PUT") && tail.isEmpty()) {
+            if (!IntakeGate.sameOrigin(req, config)) {
+                return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"origin\"}");
+            }
+            try {
+                byte[] body = req.body() != null ? req.body() : new byte[0];
+                InputStream stream = req.stream() != null ? req.stream() : new ByteArrayInputStream(body);
+                long length = req.stream() != null ? req.length() : body.length;
+                // The viewer sends encodeURIComponent(file.name): the work id is the decoded stem.
+                Path path = ports.upload().store(URLDecoder.decode(id, StandardCharsets.UTF_8), stream, length);
+                ports.arrived().accept(path);
+                String name = path.getFileName().toString();
+                return HttpSurface.json(HttpConstants.ACCEPTED,
+                        "{\"estado\":\"recibiendo\",\"nombre\":\"" + IntakeGate.escapeJson(name) + "\"}");
+            } catch (IntakeRefused ex) {
+                return IntakeGate.refused(ex);
+            }
+        }
         if (!req.headers().getOrDefault("x-admin-token", "").equals(config.adminToken)) {
             Log.warn(LogTags.ADMIN, req.method() + " " + req.path() + " refused: bad admin token");
-            return HttpSurface.json(403, "{\"error\":\"admin\"}");
+            return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"admin\"}");
         }
         if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
             return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-        }
-        if (req.method().equals("PUT") && tail.isEmpty()) {
-            Path file = config.inbox.resolve(id);
-            long bytes = store(req, file);
-            Log.info(LogTags.ADMIN, LogTags.work(id) + " master uploaded size=" + LogUnits.bytes(bytes));
-            onMaster.accept(id, file);
-            return HttpSurface.json(202, "{\"estado\":\"recibiendo\"}");
         }
         if (req.method().equals("PUT") && tail.equals("/politica")) {
             return applyPolicy(id, new String(req.body(), StandardCharsets.UTF_8));
@@ -67,31 +76,9 @@ final class WorkRoutes {
         if (req.method().equals("DELETE") && tail.isEmpty()) {
             Log.info(LogTags.ADMIN, LogTags.work(id) + " withdrawn");
             onWithdraw.accept(id);
-            return HttpSurface.json(200, "{\"ok\":true}");
+            return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
         }
         return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-    }
-
-    /** Streaming upload (spec 3.1): at most one buffer of the master is ever in memory. */
-    private static long store(HttpSurface.Request req, Path file) throws IOException {
-        if (req.stream() == null) {
-            Files.write(file, req.body());
-            return req.body().length;
-        }
-        long left = req.length();
-        byte[] buf = new byte[COPY_BUFFER];
-        try (OutputStream out = Files.newOutputStream(file)) {
-            InputStream in = req.stream();
-            while (left > 0) {
-                int n = in.read(buf, 0, (int) Math.min(buf.length, left));
-                if (n < 0) {
-                    throw new IOException("upload cut short: " + left + " B missing");
-                }
-                out.write(buf, 0, n);
-                left -= n;
-            }
-        }
-        return req.length();
     }
 
     /** Validated (RolePolicy) and persisted before any open canvas hears of it. */
@@ -109,11 +96,11 @@ final class WorkRoutes {
         }
         Map<String, long[]> next = RolePolicy.merge(work.ceilings, changes);
         if (next == null) {
-            return HttpSurface.json(400, "{\"error\":\"politica\"}");
+            return HttpSurface.json(HttpConstants.BAD_REQUEST, "{\"error\":\"politica\"}");
         }
         catalog.policy(work, next);
         Log.info(LogTags.ADMIN, LogTags.work(id) + " policy updated");
         onPolicy.accept(id);
-        return HttpSurface.json(200, "{\"ok\":true}");
+        return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
     }
 }
