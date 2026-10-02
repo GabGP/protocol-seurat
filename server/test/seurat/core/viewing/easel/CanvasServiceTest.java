@@ -12,7 +12,6 @@ import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.Ranges;
 import seurat.core.shared.proto.msg.MsgLoans;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
@@ -32,7 +31,7 @@ public final class CanvasServiceTest {
     public static void main(String[] args) throws Exception {
         Sessions sessions = new Sessions();
         Catalog catalog = new Catalog(new DiskArchive(Files.createTempDirectory("cs-works")));
-        Painter painter = new Painter(new Regulator(), new BrushBudget(Files.createTempDirectory("cs-cov")), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         EaselContext ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
         RecordingMapping mapping = new RecordingMapping();

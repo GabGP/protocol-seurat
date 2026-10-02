@@ -25,7 +25,6 @@ seurat.core.works.catalog 6
 seurat.core.viewing.plan 7
 seurat.core.works.ingest.port 7
 seurat.core.works.ingest.sketch 8
-seurat.core.viewing.budget 8
 seurat.core.works.ingest 9
 seurat.core.viewing.session 10
 seurat.core.viewing.paint 11

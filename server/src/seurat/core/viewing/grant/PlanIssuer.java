@@ -25,12 +25,11 @@ final class PlanIssuer {
     }
 
     void issue(Canvas canvas, long seq, List<PlanEntry> entries, int throttle) {
-        int flags = throttle | painter.budgetFlags(canvas, entries) | canvas.plan().takeDeferred();
         long first = canvas.book().lastNumber() + 1;
         long generation = canvas.plan().start(seq, entries.size());
         canvas.plan().cutTo(ConePlanner.rung(canvas.session().share));
         GrantController.send(canvas.session(), FrameType.PLAN,
-                MsgGaze.Plan.start(canvas.handle(), seq, first, entries.size(), flags).encode());
+                MsgGaze.Plan.start(canvas.handle(), seq, first, entries.size(), throttle).encode());
         painter.enqueue(canvas, entries, generation);
         if (entries.isEmpty()) {
             GrantController.send(canvas.session(), FrameType.PLAN,

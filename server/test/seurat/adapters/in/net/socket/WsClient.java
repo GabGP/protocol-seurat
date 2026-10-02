@@ -27,7 +27,6 @@ import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.Headers;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
 import seurat.core.viewing.grant.GazeGate;
@@ -50,8 +49,7 @@ final class WsClient {
         Files.writeString(conf, "http.port=" + port + "\nauth.accounts=loop:loopback:autenticado\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
-        Painter painter = new Painter(new Regulator(),
-                new BrushBudget(root.resolve("cov")), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         Thread.ofPlatform().daemon().start(painter);
         Path web = root.resolve("web");

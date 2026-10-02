@@ -28,8 +28,6 @@ import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogLevel;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.Metrics;
-import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
 import seurat.core.viewing.grant.EditionSwap;
@@ -54,17 +52,11 @@ public final class SeuratServer {
         Catalog catalog = new Catalog(new DiskArchive(config.works));
         Sessions sessions = new Sessions();
         catalog.observe(new Broadcast(sessions));
-        BrushBudget budget = new BrushBudget(config.coverage);
-        catalog.observe(m -> {
-            if (m.event() == ProtoCodes.OBRA_BAJA) {
-                budget.forget(m.id()); // a withdrawn work keeps no buckets or coverage in memory
-            }
-        });
         catalog.load();
         catalog.all().forEach(w -> Log.info(LogTags.CATALOG, LogTags.work(w.meta.id()) + " loaded size=" + w.meta.width()
                 + "x" + w.meta.height() + " strata=" + w.meta.strata()));
         Regulator regulator = new Regulator();
-        Painter painter = new Painter(regulator, budget, new Metrics());
+        Painter painter = new Painter(regulator, new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         GazeGate gazes = new GazeGate(grants);
         Liveness liveness = new Liveness(grants, sessions);

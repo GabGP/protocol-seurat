@@ -16,7 +16,6 @@ import seurat.adapters.in.net.socket.SocketServer;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.paint.Painter;
 import seurat.core.viewing.session.Regulator;
 import seurat.core.viewing.session.Session;
@@ -147,9 +146,8 @@ public final class ShutdownTest {
         watcher.close();
     }
 
-    private static Painter testPainter() throws Exception {
-        Path root = Files.createTempDirectory("shutdown-painter");
-        return new Painter(new Regulator(), new BrushBudget(root), new Metrics());
+    private static Painter testPainter() {
+        return new Painter(new Regulator(), new Metrics());
     }
 
     static final class FakeListener implements Closeable {

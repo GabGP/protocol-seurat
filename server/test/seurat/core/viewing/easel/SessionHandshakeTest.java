@@ -16,7 +16,6 @@ import seurat.core.shared.proto.Ranges;
 import seurat.core.shared.proto.msg.MsgError;
 import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.shared.proto.msg.MsgHello;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
@@ -50,7 +49,7 @@ public final class SessionHandshakeTest {
         if (withWork) {
             catalog.register(new WorkRecord(META));
         }
-        Painter painter = new Painter(new Regulator(), new BrushBudget(Files.createTempDirectory("hs-cov")), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         return new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
     }

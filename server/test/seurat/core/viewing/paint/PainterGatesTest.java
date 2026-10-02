@@ -11,7 +11,7 @@ import seurat.core.works.store.WorkMeta;
 import seurat.kit.PainterRig;
 import seurat.kit.TestKit;
 
-/** Painter gates: red cola_ms (spec 6.1), budget at open (9.2), valid band prefix (8). */
+/** Painter gates: red cola_ms (spec 6.1), valid band prefix (8). */
 public final class PainterGatesTest {
     public static void main(String[] args) throws Exception {
         redHoldsNewFlows();

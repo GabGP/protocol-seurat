@@ -7,7 +7,6 @@ import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.EditionSwap;
 import seurat.core.viewing.grant.GrantController;
@@ -37,7 +36,7 @@ public final class MasterIntakeTest {
         SeuratConfig config = SeuratConfig.load(root.resolve("seurat.conf"));
         Catalog catalog = new Catalog(new DiskArchive(works));
         Sessions sessions = new Sessions();
-        Painter painter = new Painter(new Regulator(), new BrushBudget(config.coverage), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
 
         var directExecutor = Executors.newSingleThreadExecutor();

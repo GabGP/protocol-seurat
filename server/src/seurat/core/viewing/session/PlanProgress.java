@@ -11,7 +11,6 @@ public final class PlanProgress {
     private long expected;
     private long resolved;
     private long lastNumber;
-    private int deferredThrottle;
     /** Spec 6.3 rung (ConePlanner.rung) the live plan was cut to. */
     private int rung = Integer.MAX_VALUE;
     /** Spec 8 "Entrega parcial": one of its deliveries was cut before its FIN. */
@@ -59,16 +58,5 @@ public final class PlanProgress {
 
     public long lastNumber() {
         return lastNumber;
-    }
-
-    /** Regulation noticed after PLAN INICIO (budget at open): reported in the next PLAN INICIO. */
-    public void defer(int flags) {
-        deferredThrottle |= flags;
-    }
-
-    public int takeDeferred() {
-        int out = deferredThrottle;
-        deferredThrottle = 0;
-        return out;
     }
 }

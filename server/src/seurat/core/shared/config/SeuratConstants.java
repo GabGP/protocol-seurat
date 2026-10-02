@@ -63,8 +63,6 @@ public final class SeuratConstants {
     public static final long PAINTER_WAIT_MS = 20;
     /** LATIDO without ECO before the session is declared dead (3 x 15 s = 45 s, spec 8). */
     public static final int HEARTBEAT_MISSES = 3;
-    /** Stride weight per role (spec 6.2): 1 by default. */
-    public static final double ROLE_WEIGHT = 1.0;
     public static final int SEED_STRATUM = 10;
     public static final int SKETCH_MIN = 7;
     /** Band deflate level: 4 halves level 6's encode time for ~1.5% larger bands (measured on 31 GP). */
