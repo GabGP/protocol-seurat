@@ -154,24 +154,7 @@ public final class HttpSurfaceTest {
         var evilOrigin = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1.png",
                 Map.of("origin", "http://evil.example"), new byte[]{1, 2, 3}, "h"));
         TestKit.check(evilOrigin.code() == 403, "PUT with foreign origin answers 403");
-        catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 2)));
-        var noTokenPol = http.route(new HttpSurface.Request("PUT",
-                "/seurat/v1/obras/img1/politica", Map.of(),
-                "{\"autenticado\":[1,4]}".getBytes(), "h"));
-        TestKit.check(noTokenPol.code() == 403, "PUT politica without token answers 403");
-        var policy = http.route(new HttpSurface.Request("PUT",
-                "/seurat/v1/obras/img1/politica", Map.of("x-admin-token", "test-admin"),
-                "{\"autenticado\":[1,4]}".getBytes(), "h"));
-        TestKit.check(policy.code() == 200 && policies.equals(List.of("img1"))
-                && catalog.get("img1").ceiling("autenticado")[0] == 1, "PUT politica");
-        for (String body : new String[]{"{\"privilegiado\":[2,4]}", "{\"anonimo\":[0,5]}", "{\"anonimo\":[x]}"}) {
-            var bad = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1/politica",
-                    Map.of("x-admin-token", "test-admin"), body.getBytes(), "h"));
-            TestKit.check(bad.code() == 400 && policies.size() == 1, "400 for " + body);
-        }
-        var unknown = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/zzz/politica",
-                Map.of("x-admin-token", "test-admin"), "{\"anonimo\":[1,4]}".getBytes(), "h"));
-        TestKit.check(unknown.code() == 404, "PUT politica on an unknown work");
+        catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 4)));
         var noTokenDel = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
                 Map.of(), new byte[0], "h"));
         TestKit.check(noTokenDel.code() == 403, "DELETE without token answers 403");

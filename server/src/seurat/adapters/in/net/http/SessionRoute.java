@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Set;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.config.Units;
@@ -26,6 +27,9 @@ final class SessionRoute {
     static final String ANON_COOKIE = "seurat_anon";
     private static final int ANON_BYTES = 16;
     private static final String BEARER = "Bearer ";
+    // Kept until the session role and the budget go (ADR-05).
+    private static final Set<String> ROLES =
+            Set.of(WorkRecord.ANONYMOUS, WorkRecord.AUTHENTICATED, WorkRecord.PRIVILEGED);
 
     private final Sessions sessions;
     private final SeuratConfig config;
@@ -43,7 +47,7 @@ final class SessionRoute {
         ViewerAccounts.Account account = null;
         if (!auth.isEmpty()) {
             account = auth.startsWith(BEARER) ? config.accounts.find(auth.substring(BEARER.length()).trim()) : null;
-            if (account == null || !WorkRecord.ROLES.contains(account.role())) {
+            if (account == null || !ROLES.contains(account.role())) {
                 Log.warn(LogTags.SESSION, "token refused: unknown Bearer key");
                 return HttpSurface.json(401, "{\"error\":\"autenticacion\"}");
             }
