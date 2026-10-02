@@ -23,8 +23,11 @@ export function Popover({ open, onClose, children, className }: PopoverProps): J
 
   useEffect(() => {
     if (!open) return;
+    // The anchor (the popover's parent, which holds the trigger) counts as inside: otherwise a
+    // press on the trigger closes the menu here and its click opens it again.
     const onPointerDown = (e: PointerEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      const anchor = popoverRef.current?.parentElement ?? popoverRef.current;
+      if (anchor && !anchor.contains(e.target as Node)) {
         onClose();
       }
     };
