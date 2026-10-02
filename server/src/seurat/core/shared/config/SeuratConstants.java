@@ -5,6 +5,9 @@ public final class SeuratConstants {
     private SeuratConstants() {}
 
     public static final int HTTP_PORT = 8080;
+    /** Every viewer gets full quality: stratum 0 with all bands (ADR-05). */
+    public static final int FULL_CEILING_STRATUM = 0;
+    public static final int FULL_CEILING_BANDS = 4;
     public static final long LEASE_S = 120;
     /** delta's floor: delta = max(1 s, 2 RTT) (spec 8). */
     public static final long SKEW_MS = 1000;
@@ -60,8 +63,6 @@ public final class SeuratConstants {
     public static final long PAINTER_WAIT_MS = 20;
     /** LATIDO without ECO before the session is declared dead (3 x 15 s = 45 s, spec 8). */
     public static final int HEARTBEAT_MISSES = 3;
-    /** Stride weight per role (spec 6.2): 1 by default. */
-    public static final double ROLE_WEIGHT = 1.0;
     public static final int SEED_STRATUM = 10;
     public static final int SKETCH_MIN = 7;
     /** Band deflate level: 4 halves level 6's encode time for ~1.5% larger bands (measured on 31 GP). */

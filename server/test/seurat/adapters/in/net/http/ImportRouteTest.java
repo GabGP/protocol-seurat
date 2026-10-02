@@ -29,7 +29,7 @@ public final class ImportRouteTest {
         Path web = root.resolve("web");
         Files.createDirectories(web);
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=18080\nadmin.token=test-admin\n");
+        Files.writeString(conf, "http.port=18080\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Catalog catalog = new Catalog(new DiskArchive(root.resolve("obras")));
@@ -40,7 +40,7 @@ public final class ImportRouteTest {
         List<Path> arrived = new ArrayList<>();
         IntakePorts intakePorts = new IntakePorts(upload, paths, links, arrived::add);
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                intakePorts, w -> {}, w -> {});
+                intakePorts, w -> {});
 
         Path outsideDir = Files.createTempDirectory("import-src");
         Path outsideFile = outsideDir.resolve("sample.png");

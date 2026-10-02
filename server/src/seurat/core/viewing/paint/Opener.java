@@ -6,8 +6,6 @@ import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
-import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.loans.Delivery;
 import seurat.core.viewing.plan.PlanEntry;
@@ -17,21 +15,19 @@ import seurat.core.viewing.session.Session;
 
 /**
  * Spec 4.1.4-5 for one entry, under the canvas lock: (a) concession and edition,
- * (b) monotone parent, (c) book in brushes and RECIBO.libre, (e) slots, (d) brush budget
- * (failure serves s + 1), then number + book BEFORE any byte.
+ * (b) monotone parent, (c) book in brushes and RECIBO.libre, (e) slots
+ * (check d is gone per ADR-05), then number + book BEFORE any byte.
  */
 final class Opener {
     private final Regulator regulator;
-    private final BrushBudget budget;
     private final Semaphore globalSlots;
     private final InFlightDeliveries inFlight;
     private final DeliveryWriter writer;
     private final PaintQueue queue;
 
-    Opener(Regulator regulator, BrushBudget budget, Semaphore globalSlots,
+    Opener(Regulator regulator, Semaphore globalSlots,
             InFlightDeliveries inFlight, DeliveryWriter writer, PaintQueue queue) {
         this.regulator = regulator;
-        this.budget = budget;
         this.globalSlots = globalSlots;
         this.inFlight = inFlight;
         this.writer = writer;
@@ -78,14 +74,7 @@ final class Opener {
                 queue.pushFront(x);
                 return;
             }
-            PlanEntry chosen = budgeted(canvas, e);
-            if (chosen == null) {
-                session.releaseSlot();
-                globalSlots.release();
-                PlanEvents.resolved(canvas, x.generation());
-                return;
-            }
-            open(canvas, x, chosen);
+            open(canvas, x, e);
         }
     }
 
@@ -104,27 +93,6 @@ final class Opener {
                 || canvas.book().bands(brush.parentCapped(canvas.meta().strata() - 1)) >= through);
     }
 
-    /** (d) for s <= 1: charge, or substitute the s + 1 version (recorte de entrega, PRESUPUESTO). */
-    private PlanEntry budgeted(Canvas canvas, PlanEntry e) {
-        Session s = canvas.session();
-        int finest = canvas.concession().minStratum();
-        if (e.brush().stratum() > 1 || budget.consume(s.principal(), canvas.workId(), e.brush(),
-                e.from(), e.through(), s.role(), finest, canvas.meta())) {
-            return e;
-        }
-        canvas.plan().defer(ProtoCodes.REG_PRESUPUESTO);
-        BrushId parent = e.brush().parentCapped(canvas.meta().strata() - 1);
-        int have = canvas.book().bands(parent);
-        if (parent.stratum() >= SeuratConstants.SEED_STRATUM || have >= e.through()
-                || (have == 0 && !BookGate.admits(canvas, parent))
-                || !permitted(canvas, parent, e.through())
-                || !budget.consume(s.principal(), canvas.workId(), parent, have, e.through(),
-                        s.role(), finest, canvas.meta())) {
-            return null;
-        }
-        return new PlanEntry(parent, have, e.through(), e.pass());
-    }
-
     private void open(Canvas canvas, Pending x, PlanEntry e) {
         Session session = canvas.session();
         Delivery delivery;
@@ -140,7 +108,7 @@ final class Opener {
             return;
         }
         canvas.plan().numbered(x.generation(), delivery.number());
-        session.stride += Math.max(1, delivery.bytes()) / SeuratConstants.ROLE_WEIGHT;
+        session.stride += Math.max(1, delivery.bytes());
         session.rate.spend(delivery.bytes());
         inFlight.add(canvas, delivery);
         var flow = new DeliveryWriter.Flow(canvas, delivery, canvas.store(), x.generation());

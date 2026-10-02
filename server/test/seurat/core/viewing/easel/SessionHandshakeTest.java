@@ -16,7 +16,6 @@ import seurat.core.shared.proto.Ranges;
 import seurat.core.shared.proto.msg.MsgError;
 import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.shared.proto.msg.MsgHello;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
@@ -50,7 +49,7 @@ public final class SessionHandshakeTest {
         if (withWork) {
             catalog.register(new WorkRecord(META));
         }
-        Painter painter = new Painter(new Regulator(), new BrushBudget(Files.createTempDirectory("hs-cov")), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         return new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
     }
@@ -58,7 +57,7 @@ public final class SessionHandshakeTest {
     /** A dead session holding canvas 1 with delivery 1; returns its ticket. */
     private static byte[] grave(Sessions sessions, long id) {
         byte[] ticket = sessions.newTicket();
-        Session old = new Session(id, "alice", "autenticado", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
+        Session old = new Session(id, "alice", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
         Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
         canvas.session(old);
@@ -70,7 +69,7 @@ public final class SessionHandshakeTest {
 
     private static Session hello(EaselContext ctx, RecordingMapping mapping, MsgHello.ResumeRequest resume)
             throws Exception {
-        byte[] token = HexFormat.of().parseHex(ctx.sessions().issueToken("alice", "autenticado", 256, 60000));
+        byte[] token = HexFormat.of().parseHex(ctx.sessions().issueToken("alice", 256, 60000));
         var queue = new LinkedBlockingQueue<byte[]>();
         queue.add(new Frame(FrameType.SALUDO, new MsgHello.Hello(1, 1,
                 ProtoCodes.CAP_REANUDAR | ProtoCodes.CAP_DATAGRAMAS, 256, token, resume).encode()).encode());
@@ -138,7 +137,7 @@ public final class SessionHandshakeTest {
         Sessions sessions = new Sessions();
         EaselContext ctx = ctx(sessions, true);
         byte[] ticket = grave(sessions, 500);
-        Session old = new Session(501, "alice", "autenticado", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
+        Session old = new Session(501, "alice", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
         Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
         canvas.session(old);

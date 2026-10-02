@@ -65,7 +65,7 @@ final class SessionHandshake {
         }
         long offered = ProtoCodes.CAP_REANUDAR | (mapping.datagrams() ? ProtoCodes.CAP_DATAGRAMAS : 0);
         long caps = hello.caps() & offered;
-        Session session = new Session(ctx.sessions().reserveId(), token.principal(), token.role(),
+        Session session = new Session(ctx.sessions().reserveId(), token.principal(),
                 token.memMib(), caps, mapping, ctx.sessions().newTicket(), ctx.rateBytesPerS());
         ResumeAdopter.Result resumed = null;
         if (hello.resume() != null) {
@@ -79,7 +79,7 @@ final class SessionHandshake {
         ctx.sessions().add(session);
         List<Long> handles = resumed == null ? List.of() : resumed.handles();
         Log.info(LogTags.SESSION, "s" + session.id() + " established principal=" + token.principal()
-                + " role=" + token.role() + " mem=" + token.memMib() + " MiB caps=0x" + Long.toHexString(caps));
+                + " mem=" + token.memMib() + " MiB caps=0x" + Long.toHexString(caps));
         mapping.send(FrameType.BIENVENIDA, new MsgWelcome.Welcome(1, caps, session.id(),
                 SeuratConstants.BRUSH_SIDE, SeuratConstants.LEASE_S, SeuratConstants.HEARTBEAT_S,
                 SeuratConstants.MAX_IN_FLIGHT, ctx.sessionMax(), session.ticket(), handles).encode());

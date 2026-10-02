@@ -2,7 +2,7 @@
 # Seurat/1 LAN run: static viewer + Java server on one port. Offline-safe.
 set -euo pipefail
 cd "$(dirname "$0")"
-mkdir -p .seurat/runtime/{inbox,obras,cobertura} .seurat/build/classes
+mkdir -p .seurat/runtime/{inbox,obras} .seurat/build/classes
 
 # Rebuild the viewer when a JS toolchain is available; otherwise serve the
 # committed client/dist. Never fails the boot.

@@ -10,7 +10,6 @@ import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.paint.Painter;
@@ -51,9 +50,9 @@ public final class ConcessionRig {
         }
         work.store = store;
         catalog.register(work);
-        var painter = new Painter(new Regulator(), new BrushBudget(root.resolve("cov")), new Metrics());
+        var painter = new Painter(new Regulator(), new Metrics());
         grants = new GrantController(catalog, painter, sessions);
-        session = new Session(1, "p", WorkRecord.AUTHENTICATED, 256, 3, mapping, new byte[32]);
+        session = new Session(1, "p", 256, 3, mapping, new byte[32]);
         sessions.add(session);
         canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 2, 1, 768, 36864, 120));
         canvas.session(session);

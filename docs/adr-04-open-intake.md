@@ -46,7 +46,8 @@ of them land a *complete* file in `inbox/` through one path:
 The spec is not edited. These are the deltas from it:
 
 1. `PUT /seurat/v1/obras/{id}` is **no longer admin-only**. Any viewer may upload, guarded only by
-   the `Origin` check. `PUT …/politica` and `DELETE` keep `X-Admin-Token`.
+   the `Origin` check. `PUT …/politica` and `DELETE` keep `X-Admin-Token`. (Superseded by ADR-05:
+   politica is removed and DELETE is open, Origin check only.)
 2. The path segment is the **file name with its extension**, and the upload goes to `staging/`
    before `inbox/`.
 3. New route `POST /seurat/v1/importar` (link or local path).

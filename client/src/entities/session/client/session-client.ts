@@ -5,7 +5,7 @@ import { hexToBytes } from '@/shared/lib/hex';
 import { RateMeter } from '@/shared/lib/rate-meter';
 import { encodeFrame } from '@/shared/proto/frame';
 import { CAP_DATAGRAMAS, CAP_REANUDAR, T, helloCore, helloTlvs, type Welcome } from '@/shared/proto/messages';
-import { accountOf } from '../access-key';
+import { sessionInfoOf } from '../session-info';
 import { declareMemMib, loadResume } from '../store';
 import { authenticate, connectTransport } from './connect';
 import { ControlRouter } from './control-router';
@@ -54,7 +54,7 @@ export class SessionClient extends Outbound {
     this.opens.clear();
     const resume = loadResume();
     const ses = await authenticate(this.memMib);
-    this.events.onAccount?.(accountOf(ses));
+    this.events.onSessionInfo?.(sessionInfoOf(ses));
     const token = hexToBytes(ses.token);
     const t = await connectTransport(ses.lienzo, ses.respaldo, (x) => this.wire(x), (s) => this.events.onStatus(s));
     this.transport = t;

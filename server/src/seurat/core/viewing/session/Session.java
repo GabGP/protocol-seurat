@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class Session {
     private final long id;
     private final String principal;
-    private final String role;
     private final long memMib;
     private final long caps;
     private final Mapping mapping;
@@ -29,11 +28,10 @@ public final class Session {
     /** LATIDO -> ECO, for delta = max(1 s, 2 RTT) (spec 8). */
     public final RoundTrip roundTrip = new RoundTrip();
 
-    public Session(long id, String principal, String role, long memMib, long caps,
+    public Session(long id, String principal, long memMib, long caps,
             Mapping mapping, byte[] ticket, long rateBytesPerS) {
         this.id = id;
         this.principal = principal;
-        this.role = role;
         this.memMib = memMib;
         this.caps = caps;
         this.mapping = mapping;
@@ -42,8 +40,8 @@ public final class Session {
     }
 
     /** No byte-rate limit (tests, tools). */
-    public Session(long id, String principal, String role, long memMib, long caps, Mapping mapping, byte[] ticket) {
-        this(id, principal, role, memMib, caps, mapping, ticket, 0);
+    public Session(long id, String principal, long memMib, long caps, Mapping mapping, byte[] ticket) {
+        this(id, principal, memMib, caps, mapping, ticket, 0);
     }
 
     public long id() {
@@ -52,10 +50,6 @@ public final class Session {
 
     public String principal() {
         return principal;
-    }
-
-    public String role() {
-        return role;
     }
 
     public long memMib() {

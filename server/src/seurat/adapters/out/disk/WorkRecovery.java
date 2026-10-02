@@ -8,7 +8,6 @@ import java.util.Map;
 import seurat.core.shared.codec.Geometry;
 import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.works.catalog.MasterNames;
-import seurat.core.works.catalog.RolePolicy;
 import seurat.core.works.catalog.WorkRecord;
 
 /** Restart recovery: read meta.json per work and rebuild LISTA stores. */
@@ -41,10 +40,6 @@ final class WorkRecovery {
                 }
                 WorkRecord work = new WorkRecord(info);
                 work.keepMaster = MetaJson.keepMaster(json);
-                var ceilings = RolePolicy.merge(work.ceilings, MetaJson.ceilings(json));
-                if (ceilings != null) {
-                    work.ceilings.putAll(ceilings);
-                }
                 if (info.strata() > 0 && servable(info)) {
                     attachStore(dir, info, work);
                 }

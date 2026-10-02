@@ -17,7 +17,7 @@ public final class SessionsTest {
 
     private static void tokenSingleUse() {
         Sessions sessions = new Sessions();
-        String hex = sessions.issueToken("anonimo", "anonimo", 128, 120_000);
+        String hex = sessions.issueToken("viewer-a", 128, 120_000);
         TestKit.check(hex.length() == 64, "32B hex token");
         Sessions.Token first = sessions.consumeToken(hex);
         TestKit.check(first != null && first.memMib() == 128, "consume once");
@@ -29,7 +29,7 @@ public final class SessionsTest {
         Sessions sessions = new Sessions();
         byte[] ticket = new byte[32];
         ticket[0] = 7;
-        Session session = new Session(9, "p", "anonimo", 128, 0, null, ticket);
+        Session session = new Session(9, "p", 128, 0, null, ticket);
         sessions.add(session);
         TestKit.check(sessions.find(9) == session, "registry");
         sessions.retire(session);
@@ -47,7 +47,7 @@ public final class SessionsTest {
      */
     private static void renewedAtDisconnect() {
         Sessions sessions = new Sessions();
-        Session session = new Session(4, "p", "anonimo", 128, 0, null, new byte[32]);
+        Session session = new Session(4, "p", 128, 0, null, new byte[32]);
         Canvas canvas = new Canvas(1, "w", null, new seurat.core.works.store.WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
                 new Concession(1, 0, 4, 1, 768, 36864, 120));
         session.canvases().put(1L, canvas);
@@ -67,14 +67,14 @@ public final class SessionsTest {
     private static void idempotentUntilFirstReceipt() {
         Sessions sessions = new Sessions();
         byte[] ticket = new byte[32];
-        Session old = new Session(1, "p", "anonimo", 128, 0, null, ticket);
+        Session old = new Session(1, "p", 128, 0, null, ticket);
         sessions.retire(old);
-        Session first = new Session(2, "p", "anonimo", 128, 0, null, new byte[32]);
+        Session first = new Session(2, "p", 128, 0, null, new byte[32]);
         sessions.adopted(1, sessions.resumable(1, ticket, "p"), first);
         sessions.retire(first); // BIENVENIDA lost, connection dead again
         Sessions.Resumable again = sessions.resumable(1, ticket, "p");
         TestKit.check(again != null && again.holder() == first, "retry adopts from the first adopter");
-        Session second = new Session(3, "p", "anonimo", 128, 0, null, new byte[32]);
+        Session second = new Session(3, "p", 128, 0, null, new byte[32]);
         sessions.add(second);
         sessions.adopted(1, again, second);
         sessions.settled(second);
@@ -85,7 +85,7 @@ public final class SessionsTest {
     private static void retiredSessionIsPruned() {
         Sessions sessions = new Sessions();
         byte[] ticket = new byte[32];
-        Session session = new Session(5, "p", "anonimo", 128, 0, null, ticket);
+        Session session = new Session(5, "p", 128, 0, null, ticket);
         sessions.add(session);
         sessions.retire(session);
         long now = System.nanoTime();
@@ -102,13 +102,13 @@ public final class SessionsTest {
         Sessions sessions = new Sessions();
         byte[] ticket = new byte[32];
         ticket[0] = 3;
-        Session old = new Session(6, "p", "anonimo", 128, 0, null, ticket);
+        Session old = new Session(6, "p", 128, 0, null, ticket);
         sessions.add(old);
         Sessions.Resumable r = sessions.resumable(6, ticket, "p");
         TestKit.check(r != null && r.holder() == old, "a live session is resumable under its ticket");
         TestKit.check(sessions.resumable(6, new byte[32], "p") == null, "not under another ticket");
         TestKit.check(sessions.resumable(6, ticket, "q") == null, "not for another principal");
-        Session next = new Session(7, "p", "anonimo", 128, 0, null, new byte[32]);
+        Session next = new Session(7, "p", 128, 0, null, new byte[32]);
         sessions.add(next);
         sessions.adopted(6, r, next);
         sessions.retire(old); // the half-open socket finally closes

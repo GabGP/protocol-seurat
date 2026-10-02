@@ -12,15 +12,12 @@ public final class SeuratConfig {
     /** Defaults when seurat.conf leaves a knob out. */
     private static final int DEFAULT_SESSION_MAX_BRUSHES = 1024;
     private static final String DEFAULT_RATE_BYTES_PER_S = "25000000";
-    private static final String DEFAULT_ADMIN_TOKEN = "cambia-esto";
 
     public final int httpPort;
     public final Path inbox;
     /** Where intake writes partial files before an atomic move into inbox. */
     public final Path staging;
     public final Path works;
-    public final Path coverage;
-    public final String adminToken;
     public final int sessionMaxBrushes;
     public final long rateBytesPerSec;
     public final String logLevel;
@@ -31,16 +28,12 @@ public final class SeuratConfig {
     public final boolean keepMaster;
     /** Extra Origins accepted on the WS upgrade besides the server's own (spec 9.2, CSWSH). */
     public final List<String> origins;
-    /** Viewer accounts behind a Bearer key (spec 3.1); without one, a viewer is anonymous. */
-    public final ViewerAccounts accounts;
 
     private SeuratConfig(Map<String, String> props, Path base) throws IOException {
         httpPort = intOf(props, "http.port", SeuratConstants.HTTP_PORT);
         inbox = dir(base, props.getOrDefault("inbox", ".seurat/runtime/inbox"));
         staging = dir(base, props.getOrDefault("staging", ".seurat/runtime/staging"));
         works = dir(base, props.getOrDefault("works", ".seurat/runtime/obras"));
-        coverage = dir(base, props.getOrDefault("coverage", ".seurat/runtime/cobertura"));
-        adminToken = props.getOrDefault("admin.token", DEFAULT_ADMIN_TOKEN);
         sessionMaxBrushes = intOf(props, "session.max_brushes", DEFAULT_SESSION_MAX_BRUSHES);
         rateBytesPerSec = Long.parseLong(props.getOrDefault("rate.bytes_per_s", DEFAULT_RATE_BYTES_PER_S));
         logLevel = props.getOrDefault("log.level", "INFO");
@@ -50,7 +43,6 @@ public final class SeuratConfig {
         keepMaster = Boolean.parseBoolean(props.getOrDefault("ingest.keep_master", "true"));
         origins = List.of(props.getOrDefault("ws.origins", "").split("\\s*,\\s*")).stream()
                 .filter(o -> !o.isBlank()).toList();
-        accounts = new ViewerAccounts(props.getOrDefault("auth.accounts", ""));
     }
 
     public boolean tls() {

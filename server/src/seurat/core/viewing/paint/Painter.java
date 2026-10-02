@@ -6,9 +6,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Predicate;
 import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.observe.Metrics;
-import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.shared.proto.Ranges;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.loans.Delivery;
 import seurat.core.viewing.plan.PlanEntry;
@@ -17,20 +15,19 @@ import seurat.core.viewing.session.Regulator;
 import seurat.core.viewing.session.Session;
 
 /**
- * Sole point through which points leave the server (spec 4.1, 6.2). Its thread picks
- * and checks; up to 512 virtual writers copy bytes. Number + book BEFORE bytes.
+ * Sole point through which points leave the server (spec 4.1, 6.2). Checks (a) concession
+ * and edition, (b) monotone parent, (c) book in brushes and RECIBO.libre, (e) slots in order;
+ * check (d) is gone (ADR-05). Up to 512 virtual writers copy bytes. Number + book BEFORE bytes.
  */
 public final class Painter implements Runnable {
     private final PaintQueue queue = new PaintQueue();
     private final Semaphore globalSlots = new Semaphore(SeuratConstants.GLOBAL_SLOTS);
     private final InFlightDeliveries inFlight = new InFlightDeliveries();
-    private final BrushBudget budget;
     private final Opener opener;
 
-    public Painter(Regulator regulator, BrushBudget budget, Metrics metrics) {
-        this.budget = budget;
+    public Painter(Regulator regulator, Metrics metrics) {
         DeliveryWriter writer = new DeliveryWriter(metrics, globalSlots, inFlight, queue::wake);
-        this.opener = new Opener(regulator, budget, globalSlots, inFlight, writer, queue);
+        this.opener = new Opener(regulator, globalSlots, inFlight, writer, queue);
     }
 
     /** Replaces the canvas's pending plan: its unopened entries are dropped (spec 4.1.3). */
@@ -61,14 +58,6 @@ public final class Painter implements Runnable {
 
     public boolean isIdle() {
         return queue.isEmpty() && inFlight.isEmpty();
-    }
-
-    /** Plan time, nothing charged: PLAN INICIO's PRESUPUESTO bit when the budget will cut. */
-    public int budgetFlags(Canvas canvas, List<PlanEntry> entries) {
-        Session s = canvas.session();
-        return budget.wouldCut(s.principal(), canvas.workId(), s.role(),
-                canvas.concession().minStratum(), canvas.meta(), entries)
-                ? ProtoCodes.REG_PRESUPUESTO : 0;
     }
 
     /** Reduction (spec 4.2.2), canvas lock held: queue out, in-flight RESET. Returns the cancelled numbers. */

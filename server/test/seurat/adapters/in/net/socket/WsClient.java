@@ -27,7 +27,6 @@ import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.Headers;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
 import seurat.core.viewing.grant.GazeGate;
@@ -47,11 +46,10 @@ final class WsClient {
     static int serve(Path root, Catalog catalog) throws Exception {
         int port = freePort();
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=" + port + "\nadmin.token=t\nauth.accounts=loop:loopback:autenticado\n");
+        Files.writeString(conf, "http.port=" + port + "\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
-        Painter painter = new Painter(new Regulator(),
-                new BrushBudget(root.resolve("cov")), new Metrics());
+        Painter painter = new Painter(new Regulator(), new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         Thread.ofPlatform().daemon().start(painter);
         Path web = root.resolve("web");
@@ -63,7 +61,7 @@ final class WsClient {
         UrlDownload links = new UrlDownload(staging);
         IntakePorts intakePorts = new IntakePorts(upload, paths, links, p -> {});
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
-                intakePorts, id -> {}, id -> {});
+                intakePorts, id -> {});
         var ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 1024, 0);
         var server = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);
@@ -116,7 +114,7 @@ final class WsClient {
     static String postSession(int port) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             String body = "{\"memMiB\":128}";
-            String req = "POST /seurat/v1/sesion HTTP/1.1" + CRLF + "Host: x" + CRLF + "Authorization: Bearer loopback" + CRLF + "Content-Length: "
+            String req = "POST /seurat/v1/sesion HTTP/1.1" + CRLF + "Host: x" + CRLF + "Content-Length: "
                     + body.length() + CRLF + "Connection: close" + CRLF + CRLF + body;
             socket.getOutputStream().write(req.getBytes(StandardCharsets.UTF_8));
             byte[] response = socket.getInputStream().readAllBytes();

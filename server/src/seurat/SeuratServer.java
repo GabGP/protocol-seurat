@@ -28,15 +28,12 @@ import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogLevel;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.Metrics;
-import seurat.core.shared.proto.ProtoCodes;
-import seurat.core.viewing.budget.BrushBudget;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
 import seurat.core.viewing.grant.EditionSwap;
 import seurat.core.viewing.grant.GazeGate;
 import seurat.core.viewing.grant.GrantController;
 import seurat.core.viewing.grant.Liveness;
-import seurat.core.viewing.grant.PolicySync;
 import seurat.core.viewing.paint.Painter;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Regulator;
@@ -55,21 +52,14 @@ public final class SeuratServer {
         Catalog catalog = new Catalog(new DiskArchive(config.works));
         Sessions sessions = new Sessions();
         catalog.observe(new Broadcast(sessions));
-        BrushBudget budget = new BrushBudget(config.coverage);
-        catalog.observe(m -> {
-            if (m.event() == ProtoCodes.OBRA_BAJA) {
-                budget.forget(m.id()); // a withdrawn work keeps no buckets or coverage in memory
-            }
-        });
         catalog.load();
         catalog.all().forEach(w -> Log.info(LogTags.CATALOG, LogTags.work(w.meta.id()) + " loaded size=" + w.meta.width()
                 + "x" + w.meta.height() + " strata=" + w.meta.strata()));
         Regulator regulator = new Regulator();
-        Painter painter = new Painter(regulator, budget, new Metrics());
+        Painter painter = new Painter(regulator, new Metrics());
         GrantController grants = new GrantController(catalog, painter, sessions);
         GazeGate gazes = new GazeGate(grants);
         Liveness liveness = new Liveness(grants, sessions);
-        PolicySync policies = new PolicySync(grants);
         DiskReaper reaper = new DiskReaper(config.works, sessions, catalog);
         Thread painterThread = Thread.ofPlatform().name("painter").daemon(true).unstarted(painter);
         painterThread.start();
@@ -89,7 +79,6 @@ public final class SeuratServer {
         UrlDownload links = new UrlDownload(staging);
         HttpSurface http = new HttpSurface(base.resolve("client/dist"), sessions, catalog, config,
                 new IntakePorts(upload, paths, links, intake::arrived),
-                id -> forEachCanvas(sessions, id, policies::apply),
                 id -> {
                     catalog.withdraw(id);
                     forEachCanvas(sessions, id, grants::withdraw);

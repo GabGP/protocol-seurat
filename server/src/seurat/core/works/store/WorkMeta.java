@@ -4,9 +4,9 @@ package seurat.core.works.store;
 public record WorkMeta(String id, String name, int width, int height, int side,
         int strata, int state, long edition, long ceilingStratum, long ceilingBands) {
 
-    /** Ceilings a work starts with: none on stratum, two bands (spec 5.3). */
+    /** Ceilings a work starts with: stratum 0, 4 bands: full quality for every viewer (ADR-05). */
     private static final long DEFAULT_CEILING_STRATUM = 0;
-    private static final long DEFAULT_CEILING_BANDS = 2;
+    private static final long DEFAULT_CEILING_BANDS = 4;
 
     /** A work with the default ceilings. */
     public static WorkMeta of(String id, String name, int width, int height, int side,

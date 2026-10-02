@@ -36,7 +36,7 @@ final class CanvasOpener {
             return;
         }
         long handle = session.newHandle();
-        long[] ceiling = work.ceiling(session.role());
+        long[] ceiling = work.ceiling();
         int top = work.meta.strata() - 1;
         Canvas canvas = new Canvas(handle, request.id(), work.store, work.meta,
                 Concessions.initial(session.memMib(), ctx.sessionMax(), top));

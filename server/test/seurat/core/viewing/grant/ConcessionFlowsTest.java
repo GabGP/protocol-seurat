@@ -1,6 +1,5 @@
 package seurat.core.viewing.grant;
 
-import java.nio.ByteBuffer;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.proto.Frame;
 import seurat.core.shared.proto.FrameType;
@@ -13,35 +12,13 @@ import seurat.core.works.store.WorkMeta;
 import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 
-/** Concession flows: policy bands (2.3), floor until LISTA (7.3), edition swap (7.3), withdrawal (7.4). */
+/** Concession flows: floor until LISTA (7.3), edition swap (7.3), withdrawal (7.4). */
 public final class ConcessionFlowsTest {
     public static void main(String[] args) throws Exception {
-        policyLowersBandsScrapes();
         gazeKeepsFloorWhilePainting();
         editionSwapReissuesConcession();
         withdrawalWaitsForScrape();
         System.out.println("ConcessionFlowsTest OK");
-    }
-
-    /** Same stratum, fewer bands: CONCESION + RASPAR BANDAS (the band reduction is a revocation). */
-    private static void policyLowersBandsScrapes() throws Exception {
-        var s = ConcessionRig.create();
-        s.canvas.floored = false;
-        s.canvas.setConcession(new seurat.core.viewing.concession.Concession(3, 0, 4, 1, 768, 36864, 120));
-        s.work.ceilings.put("autenticado", new long[]{0, 2});
-        new PolicySync(s.grants).apply(s.canvas);
-        TestKit.check(s.canvas.concession().maxBands() == 2 && s.canvas.concession().epoch() == 4, "narrowed");
-        Frame raspar = s.first(FrameType.RASPAR);
-        TestKit.check(raspar != null, "RASPAR sent for a band reduction");
-        var b = ByteBuffer.wrap(raspar.payload());
-        for (int i = 0; i < 4; i++) {
-            seurat.core.shared.proto.VarInt.get(b);
-        }
-        TestKit.check(b.get() == ProtoCodes.PRED_BANDAS && b.get() == 0 && b.get() == 2, "BANDAS estrato 0, 2");
-        s.work.ceilings.put("autenticado", new long[]{0, 4});
-        int before = s.mapping.control.size();
-        new PolicySync(s.grants).apply(s.canvas);
-        TestKit.check(s.mapping.control.size() == before, "widening waits for a MIRADA (spec 2.3)");
     }
 
     private static MsgGaze.Gaze gaze(long seq, int flags) {

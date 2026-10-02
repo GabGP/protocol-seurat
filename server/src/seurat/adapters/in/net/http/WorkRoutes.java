@@ -1,37 +1,30 @@
 package seurat.adapters.in.net.http;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Consumer;
 import seurat.adapters.in.inbox.IntakeRefused;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.works.catalog.Catalog;
-import seurat.core.works.catalog.RolePolicy;
-import seurat.core.works.catalog.WorkRecord;
 
-/** PUT/DELETE /seurat/v1/obras/{id} + PUT .../politica (spec 3.1). Admin only for policy and deletion. */
+/** PUT and DELETE /seurat/v1/obras/{id} (spec 3.1, ADR-04, ADR-05): open to any viewer from the same origin. */
 final class WorkRoutes {
     private static final String PREFIX = "/seurat/v1/obras/";
     private final Catalog catalog;
     private final SeuratConfig config;
     private final IntakePorts ports;
-    private final Consumer<String> onPolicy;
     private final Consumer<String> onWithdraw;
 
     WorkRoutes(Catalog catalog, SeuratConfig config, IntakePorts ports,
-            Consumer<String> onPolicy, Consumer<String> onWithdraw) {
+            Consumer<String> onWithdraw) {
         this.catalog = catalog;
         this.config = config;
         this.ports = ports;
-        this.onPolicy = onPolicy;
         this.onWithdraw = onWithdraw;
     }
 
@@ -63,44 +56,17 @@ final class WorkRoutes {
                 return IntakeGate.refused(ex);
             }
         }
-        if (!req.headers().getOrDefault("x-admin-token", "").equals(config.adminToken)) {
-            Log.warn(LogTags.ADMIN, req.method() + " " + req.path() + " refused: bad admin token");
-            return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"admin\"}");
-        }
-        if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
-            return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-        }
-        if (req.method().equals("PUT") && tail.equals("/politica")) {
-            return applyPolicy(id, new String(req.body(), StandardCharsets.UTF_8));
-        }
         if (req.method().equals("DELETE") && tail.isEmpty()) {
-            Log.info(LogTags.ADMIN, LogTags.work(id) + " withdrawn");
+            if (!IntakeGate.sameOrigin(req, config)) {
+                return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"origin\"}");
+            }
+            if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
+                return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
+            }
+            Log.info(LogTags.INGEST, LogTags.work(id) + " withdrawn");
             onWithdraw.accept(id);
             return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
         }
         return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-    }
-
-    /** Validated (RolePolicy) and persisted before any open canvas hears of it. */
-    private HttpSurface.Response applyPolicy(String id, String body) throws IOException {
-        WorkRecord work = catalog.get(id);
-        if (work == null) {
-            return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
-        }
-        Map<String, long[]> changes = new HashMap<>();
-        for (String role : WorkRecord.ROLES) {
-            long[] pair = HttpSurface.pair(body, role);
-            if (pair != null) {
-                changes.put(role, pair);
-            }
-        }
-        Map<String, long[]> next = RolePolicy.merge(work.ceilings, changes);
-        if (next == null) {
-            return HttpSurface.json(HttpConstants.BAD_REQUEST, "{\"error\":\"politica\"}");
-        }
-        catalog.policy(work, next);
-        Log.info(LogTags.ADMIN, LogTags.work(id) + " policy updated");
-        onPolicy.accept(id);
-        return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
     }
 }

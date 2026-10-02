@@ -13,7 +13,7 @@ public final class RegulatorTest {
     }
 
     static Session session() {
-        return new Session(1, "p", "anonimo", 128, 0, null, new byte[32]);
+        return new Session(1, "p", 128, 0, null, new byte[32]);
     }
 
     private static void idleKeepsShare() {

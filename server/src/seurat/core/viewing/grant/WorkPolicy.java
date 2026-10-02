@@ -6,7 +6,7 @@ import seurat.core.viewing.session.Canvas;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.catalog.WorkRecord;
 
-/** What the catalog lets a canvas hold: the role ceiling and whether the work is LISTA. */
+/** What the catalog lets a canvas hold: the work ceiling and whether the work is LISTA. */
 final class WorkPolicy {
     private final Catalog catalog;
 
@@ -14,10 +14,10 @@ final class WorkPolicy {
         this.catalog = catalog;
     }
 
-    /** Ceiling of the canvas's role on its work; a withdrawn work grants only the sketch. */
+    /** Ceiling of the canvas on its work; a withdrawn work grants only the sketch. */
     long[] ceiling(Canvas canvas) {
         WorkRecord work = catalog.get(canvas.workId());
-        return work == null ? new long[]{SeuratConstants.SKETCH_MIN, 4} : work.ceiling(canvas.session().role());
+        return work == null ? new long[]{SeuratConstants.SKETCH_MIN, 4} : work.ceiling();
     }
 
     boolean lista(Canvas canvas) {
