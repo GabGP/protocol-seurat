@@ -22,9 +22,13 @@ import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 import seurat.core.works.catalog.Catalog;
 import seurat.core.works.store.WorkMeta;
+import seurat.kit.PainterRig;
 import seurat.kit.TestKit;
 
-/** SOLTAR CRC (spec 5.3, 8): the first one is resent, a second one on the brush alerts the operator. */
+/**
+ * SOLTAR CRC (ADR-06): the first failure is repaired through a replan of the live MIRADA, never
+ * an out-of-plan resend; a second one on the brush alerts the operator.
+ */
 public final class CanvasServiceTest {
     private static final WorkMeta META = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2);
 
@@ -44,8 +48,9 @@ public final class CanvasServiceTest {
 
         long first = canvas.book().log(brush, 0, 2, 100, 1).number();
         service.release(session, crc(first));
-        TestKit.check(!alerted(brush), "first CRC failure: resent, no alert");
-        long again = canvas.book().log(brush, 0, 2, 100, 1).number(); // the resend
+        TestKit.check(PainterRig.planEvents(mapping, ProtoCodes.PLAN_INICIO) > 0, "first CRC failure: replanned");
+        TestKit.check(!alerted(brush), "first CRC failure: repaired, no alert");
+        long again = canvas.book().log(brush, 0, 2, 100, 1).number(); // the repair, numbered by the replan
         service.release(session, crc(again));
         TestKit.check(alerted(brush), "second CRC failure on the brush: operator alert");
         TestKit.check(!canvas.book().contains(again), "released either way");

@@ -7,13 +7,12 @@ import seurat.core.viewing.session.Canvas;
 
 /**
  * A plan entry waiting for the Painter. generation ties it to the PLAN it came
- * from (PLAN FIN accounting); RESEND marks a one-off resend outside any plan.
+ * from (PLAN FIN accounting).
  * readyNs is when it became "lista" (spec 6.3: its turn, and its session's own gates
  * allow it), the start of the CoDel dwell; UNREADY until then.
  */
 public record Pending(Canvas canvas, PlanEntry entry, long queuedNs, long edition, long generation,
         long readyNs) {
-    public static final long RESEND = -1;
     public static final long UNREADY = Long.MIN_VALUE;
 
     public Pending(Canvas canvas, PlanEntry entry, long queuedNs, long edition, long generation) {

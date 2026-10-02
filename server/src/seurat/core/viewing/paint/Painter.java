@@ -8,11 +8,9 @@ import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Ranges;
 import seurat.core.viewing.concession.Concession;
-import seurat.core.viewing.loans.Delivery;
 import seurat.core.viewing.plan.PlanEntry;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Regulator;
-import seurat.core.viewing.session.Session;
 
 /**
  * Sole point through which points leave the server (spec 4.1, 6.2). Checks (a) concession
@@ -38,12 +36,6 @@ public final class Painter implements Runnable {
             list.add(new Pending(canvas, e, now, canvas.meta().edition(), generation));
         }
         queue.replace(canvas, list);
-    }
-
-    /** SOLTAR DECODIFICACION / CRC: the same bands once more, ahead of the plan (spec 5.3). */
-    public void resend(Canvas canvas, Delivery d) {
-        queue.pushFront(new Pending(canvas, new PlanEntry(d.brush(), d.from(), d.through(), 1),
-                System.nanoTime(), canvas.meta().edition(), Pending.RESEND));
     }
 
     /** CERRAR or session end: its unopened entries must not keep using the link. */

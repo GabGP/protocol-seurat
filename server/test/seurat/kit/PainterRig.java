@@ -62,6 +62,11 @@ public final class PainterRig {
 
     /** Control frames of PLAN with the given event (0 start, 1 FIN). */
     public int planEvents(int event) {
+        return planEvents(mapping, event);
+    }
+
+    /** Control frames of PLAN with the given event that a mapping recorded. */
+    public static int planEvents(RecordingMapping mapping, int event) {
         int n = 0;
         synchronized (mapping) {
             for (byte[] frame : mapping.control) {

@@ -58,15 +58,16 @@ final class LoanHandlers {
                     if (d == null) {
                         return;
                     }
-                    if (canvas.retryOnce(d.brush())) {
-                        ctx.grants().resend(canvas, d); // spec 5.3: resent once, then unusable
-                    } else if (release.reason() == ProtoCodes.SOLTAR_CRC) {
+                    if (!canvas.retryOnce(d.brush()) && release.reason() == ProtoCodes.SOLTAR_CRC) {
                         AuditLog.alert("s" + session.id() + "/c" + canvas.handle() + " CRC failed twice on "
                                 + d.brush() + ": unusable in this session");
                     }
                 });
             }
             canvas.book().release(release.ranges());
+            if (release.reason() == ProtoCodes.SOLTAR_DECODIFICACION || release.reason() == ProtoCodes.SOLTAR_CRC) {
+                ctx.grants().repair(canvas); // ADR-06: repaired through the live plan once, then given up
+            }
         }
         ctx.grants().credit(canvas);
     }

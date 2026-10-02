@@ -112,5 +112,13 @@ public final class GrantController {
     public void audit(Canvas c, MsgAudit.Inventory i) { LoanVerifier.audit(c, i); }
     public void credit(Canvas c) { painter.unpark(c); }
     public void drop(Canvas c) { painter.drop(c); }
-    public void resend(Canvas c, seurat.core.viewing.loans.Delivery d) { painter.resend(c, d); }
+
+    /** ADR-06 cone-gated repair: a failed delivery is wanted again through the live plan. Canvas lock. */
+    public void repair(Canvas c) {
+        MsgGaze.Gaze gaze = c.gaze();
+        boolean hidden = gaze != null && (gaze.flags() & MsgGaze.M_OCULTA) != 0;
+        if (!c.retiring && !hidden) {
+            plans.replan(c, sketch(c));
+        }
+    }
 }

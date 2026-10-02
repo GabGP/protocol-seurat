@@ -114,7 +114,7 @@ public final class Canvas {
         return unusable.contains(p) ? 4 : book.bands(p);
     }
 
-    /** SOLTAR DECODIFICACION / CRC: true the first time (resend once), then the brush is given up. */
+    /** SOLTAR DECODIFICACION / CRC (ADR-06): true the first time (repaired by a replan), then given up. */
     public boolean retryOnce(BrushId p) {
         if (retried.add(p)) {
             return true;
