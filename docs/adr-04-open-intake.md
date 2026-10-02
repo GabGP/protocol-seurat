@@ -70,6 +70,10 @@ Seurat/1 itself (frames, messages, numbers, accounting) is unchanged.
 
 - The browser stays light. It streams the `File` from disk and never decodes it: rows show a
   format icon, not a preview.
+- The server console follows each transfer (`TransferProgress`). It logs a `receiving` or
+  `downloading` line with the size, then the shared progress bar (a line every 10 % when stdout is
+  not a terminal; bytes so far when the size is unknown), then `received` or `downloaded` with took
+  and rate. A cut transfer is a warning.
 - A failed transfer leaves no trace in `inbox/`. A failed ingest is reported as before
   (`FALLIDA`), and a viewer can retry it.
 - The code lives in `adapters/in/inbox/{Staging,PutUpload,PathImport,UrlDownload}` and

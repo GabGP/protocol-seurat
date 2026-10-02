@@ -68,6 +68,7 @@ public final class PathImport {
             try {
                 Files.createLink(part, src);
             } catch (FileSystemException | UnsupportedOperationException ex) {
+                Log.info(LogTags.INGEST, LogTags.work(name) + " copying (no hard link here) size=" + LogUnits.bytes(size));
                 Files.copy(src, part);
                 copied = true;
             }

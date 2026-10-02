@@ -11,6 +11,9 @@ public final class IntakeConstants {
     /** Connect timeout in seconds for upstream downloads. */
     public static final int DOWNLOAD_CONNECT_TIMEOUT_S = 10;
 
+    /** How often a transfer of unknown size refreshes its progress line. */
+    public static final long TRANSFER_TICK_MS = 1_000;
+
     /** Minimum byte length required for an upload. */
     public static final long MIN_UPLOAD_BYTES = 1L;
 

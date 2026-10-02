@@ -5,9 +5,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import seurat.core.shared.observe.Log;
-import seurat.core.shared.observe.LogTags;
-import seurat.core.shared.observe.LogUnits;
 
 /** Streams an incoming master upload into staging and publishes it atomically to inbox. */
 public final class PutUpload {
@@ -25,6 +22,7 @@ public final class PutUpload {
         }
         String name = staging.admit(rawName);
         Path part = staging.reserve(name, length);
+        TransferProgress progress = new TransferProgress(name, "receiving", length, null);
         try {
             long left = length;
             byte[] buf = new byte[IntakeConstants.COPY_BUFFER];
@@ -36,12 +34,14 @@ public final class PutUpload {
                     }
                     out.write(buf, 0, n);
                     left -= n;
+                    progress.add(n);
                 }
             }
             Path published = staging.publish(part, name);
-            Log.info(LogTags.INGEST, LogTags.work(name) + " upload stored size=" + LogUnits.bytes(length));
+            progress.finish("received");
             return published;
         } catch (IOException | RuntimeException | Error ex) {
+            progress.fail(ex);
             staging.discard(part);
             throw ex;
         }

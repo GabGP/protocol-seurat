@@ -11,9 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
-import seurat.core.shared.observe.Log;
-import seurat.core.shared.observe.LogTags;
-import seurat.core.shared.observe.LogUnits;
 
 /** Downloads a remote master image over HTTP/HTTPS into staging and publishes to inbox. */
 public final class UrlDownload {
@@ -62,7 +59,7 @@ public final class UrlDownload {
         String name = staging.admit(DownloadName.resolve(response));
         long length = parseLength(response);
         Path part = staging.reserve(name, length);
-        long written = 0;
+        TransferProgress progress = new TransferProgress(name, "downloading", length, response.uri().getHost());
         try {
             try (OutputStream out = Files.newOutputStream(part);
                  InputStream in = response.body()) {
@@ -76,13 +73,14 @@ public final class UrlDownload {
                     }
                     if (n < 0) break;
                     out.write(buf, 0, n);
-                    written += n;
+                    progress.add(n);
                 }
             }
             Path published = staging.publish(part, name);
-            Log.info(LogTags.INGEST, LogTags.work(name) + " download stored size=" + LogUnits.bytes(written));
+            progress.finish("downloaded");
             return published;
         } catch (IntakeRefused | IOException | RuntimeException | Error ex) {
+            progress.fail(ex);
             staging.discard(part);
             throw ex;
         }
