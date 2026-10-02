@@ -33,8 +33,7 @@ An asynchronous, server-authoritative protocol and viewer for streaming gigapixe
 └── .seurat/                    # Unified runtime data and build outputs (uncommitted)
     ├── runtime/
     │   ├── inbox/              # Watched drop folder for raw master images & zip archives
-    │   ├── obras/              # Processed multi-scale pyramidal strata & seed binaries
-    │   └── cobertura/          # Persistent principal coverage token buckets
+    │   └── obras/              # Processed multi-scale pyramidal strata & seed binaries
     └── build/                  # Compiled Java classes and test classes
 ```
 
@@ -75,19 +74,7 @@ Open your browser and navigate to:
 http://localhost:8180/
 ```
 
-The server serves the compiled Single Page Application (`client/dist/`) and manages WebSocket connections on `/seurat/v1/lienzo-ws`.
-
-### 3. Sign In for Full Detail
-
-By design (protocol §2.3, §9) an anonymous viewer never receives the finest detail. What a viewer may see depends on its role:
-
-| Role | Default ceiling per work | Brush budget (§9.2) |
-| :--- | :--- | :--- |
-| anonymous (no key) | stratum 1 (half resolution), 2 of 4 bands | 1 000 bands, 1/s, ≤ 25 % of the stratum |
-| `autenticado` | stratum 0 (native resolution), 2 of 4 bands | 20 000 bands, 10/s, ≤ 15 % of the stratum |
-| `privilegiado` | stratum 0, all 4 bands (full quality) | none |
-
-Accounts live in `seurat.conf` as `auth.accounts=name:key:role,...`. To sign in, open a work, press **S** (Settings), and enter the access key under **Account**. The page restarts its session with `Authorization: Bearer <key>` on `POST /seurat/v1/sesion`. **Details** (**I**) then shows the level of detail the account gets. The shipped `seurat.conf` has a `profesor` account (full quality) and an `invitado` account (authenticated); change their keys before deploying.
+The server serves the compiled Single Page Application (`client/dist/`) and manages WebSocket connections on `/seurat/v1/lienzo-ws`. Every viewer gets full quality (stratum 0 with all 4 detail bands and no brush budget; see `docs/adr-05-no-roles.md`).
 
 ---
 
@@ -99,7 +86,7 @@ Images can be ingested into the pyramid store directly through the viewer, by dr
 
 The gallery header provides an **Add** button (top right) with a menu offering three intake options (see `docs/adr-04-open-intake.md` for the design and how it departs from the spec):
 
-- **Upload file**: Select a local master image or a `.zip` archive to stream directly from your browser to the server (`PUT /seurat/v1/obras/{nombre}`). Open to all viewers without an admin token.
+- **Upload file**: Select a local master image or a `.zip` archive to stream directly from your browser to the server (`PUT /seurat/v1/obras/{nombre}`). Open to all viewers (Origin check only; see `docs/adr-04-open-intake.md` and `docs/adr-05-no-roles.md`).
 - **From link**: Paste an `http://` or `https://` URL; the server downloads the master directly into its staging area (`POST /seurat/v1/importar`).
 - **From this computer** (available only when connecting from the server machine itself): Enter an absolute path to a master file already on the server's disk (`POST /seurat/v1/importar`). This is instant on the same volume because the server creates a hard link, leaving the original file intact (and falling back to copying only across different volumes).
 
@@ -119,7 +106,7 @@ The reader is picked by content: streaming parallel readers for PNG, baseline JP
 
 ### HTTP REST API
 
-Master images and archives can be streamed over HTTP without an admin token (the work ID is the filename without extension):
+Master images and archives can be streamed over HTTP (the work ID is the filename without extension; Origin check only; see `docs/adr-04-open-intake.md` and `docs/adr-05-no-roles.md`):
 ```bash
 curl -X PUT \
   --data-binary @/path/to/my-image.png \
@@ -134,20 +121,9 @@ curl -X POST \
   http://localhost:8180/seurat/v1/importar
 ```
 
-To update role-based density ceilings (`[stratum, bands]`) for a work (requires admin token):
-```bash
-curl -X PUT \
-  -H "X-Admin-Token: cambia-esto" \
-  -H "Content-Type: application/json" \
-  -d '{"anonimo":[2,4],"autenticado":[1,4],"privilegiado":[0,4]}' \
-  http://localhost:8180/seurat/v1/obras/mona-lisa/politica
-```
-Open sessions get the change at once (`CONCESION`, plus `RASPAR` when it lowers a ceiling). The ceilings are saved in the work's `meta.json` and survive restarts and new masters. The server answers `400` if a value is out of range (stratum 0–10, bands 1–4) or if a role would get more than a stronger one (anonymous ≤ `autenticado` ≤ `privilegiado`, §9.1).
-
-To withdraw and delete a work (requires admin token):
+To withdraw and delete a work (open to any viewer, Origin check only; see `docs/adr-05-no-roles.md`):
 ```bash
 curl -X DELETE \
-  -H "X-Admin-Token: cambia-esto" \
   http://localhost:8180/seurat/v1/obras/mona-lisa
 ```
 
@@ -179,9 +155,6 @@ Server parameters can be customized in `seurat.conf`:
 | `http.port` | `8180` | Port for HTTP static files, handshake, and WebSocket traffic (protocol default `8080`). |
 | `inbox` | `.seurat/runtime/inbox` | Directory watched for incoming image and archive intake. |
 | `works` | `.seurat/runtime/obras` | Directory containing committed multi-scale work packages. |
-| `coverage` | `.seurat/runtime/cobertura` | Persistent principal coverage tracking (fine strata token buckets). |
-| `admin.token` | `cambia-esto` | Token required for admin REST routes (`X-Admin-Token`). |
-| `auth.accounts` | *(none)* | Viewer accounts, `name:key:role` comma-separated (`autenticado` or `privilegiado`). An unknown Bearer key gets `401`. |
 | `session.max_brushes`| `1024` | Maximum concurrent active brush grants per session. |
 | `rate.bytes_per_s` | `25000000` | Global egress bandwidth cap (bytes/sec). |
 | `ingest.keep_master` | `true` | Keep `obras/<id>/master/` after the ingest (`meta.json` `keepMaster`); `false` deletes it once the work is `LISTA`. |
@@ -216,14 +189,14 @@ With the server running, drive the real viewer in headless Chrome/Edge (Node >= 
 ```bash
 node scripts/smoke-viewer.mjs --work The_Night_Watch_-_HD   # use a large work (1.6-31 GP)
 ```
-It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional. `--pan N` drags the view N times after zooming. `--key <access key>` signs in first and reports the bands delivered at stratum 0, which shows whether an account really gets full detail:
+It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional. `--pan N` drags the view N times after zooming. The run reports the bands delivered at stratum 0, which shows that every viewer gets full detail (ADR-05):
 ```bash
-node scripts/smoke-viewer.mjs --work 093-494-000-120123412 --zoom 7 --pan 6 --seconds 40 --key <profesor key>
+node scripts/smoke-viewer.mjs --work 093-494-000-120123412 --zoom 7 --pan 6 --seconds 40
 ```
 
 ### Cleaning Build Artifacts
 To clean build outputs without touching runtime data:
 ```bash
 bash scripts/clean.sh            # Cleans .seurat/build/ (.class files)
-bash scripts/clean.sh --runtime  # Also cleans .seurat/runtime/cobertura/ and unpacked .d caches
+bash scripts/clean.sh --runtime  # Also cleans unpacked .d caches and a leftover cobertura/ (unused since ADR-05)
 ```

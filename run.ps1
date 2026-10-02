@@ -4,7 +4,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
 # Ensure runtime and build directories exist
-New-Item -ItemType Directory -Force -Path ".seurat/runtime/inbox", ".seurat/runtime/obras", ".seurat/runtime/cobertura", ".seurat/build/classes" | Out-Null
+New-Item -ItemType Directory -Force -Path ".seurat/runtime/inbox", ".seurat/runtime/obras", ".seurat/build/classes" | Out-Null
 
 # Resolve Java if JAVA_HOME is configured but not yet in PATH
 if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
