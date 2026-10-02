@@ -1,11 +1,16 @@
 import { PROGRESS_THROTTLE_MS } from '@/shared/config/intake-ui';
 import { MS_PER_S } from '@/shared/config/units';
+import type { ImportProgress } from '@/shared/api/intake';
 import { reasonForStatus } from './reasons';
 import type { IntakeAction, IntakeItem } from './types';
 
 export interface RunQueueDeps {
   upload(file: File, onProgress: (sent: number, total: number) => void, signal: AbortSignal): Promise<void>;
-  importSource(text: string, signal: AbortSignal): Promise<void>;
+  importSource(
+    text: string,
+    signal: AbortSignal,
+    onProgress?: (progress: ImportProgress) => void,
+  ): Promise<void>;
   dispatch(action: IntakeAction): void;
   signalFor(key: string): AbortSignal;
   now(): number;
@@ -71,7 +76,54 @@ export async function runQueue(items: IntakeItem[], deps: RunQueueDeps): Promise
         await deps.upload(item.file, onProgress, signal);
       } else {
         deps.dispatch({ type: 'waiting', key: item.key });
-        await deps.importSource(item.label, signal);
+        const startTime = deps.now();
+        let lastDispatchTime = -Infinity;
+        let lastReceivedBytes = 0;
+        let lastTime = startTime;
+
+        const onProgress = (p: ImportProgress) => {
+          if (p.phase === 'copying') {
+            deps.dispatch({
+              type: 'remote',
+              key: item.key,
+              phase: 'copying',
+            });
+            return;
+          }
+
+          const currentTime = deps.now();
+          const timeSinceLast = currentTime - lastDispatchTime;
+          const isComplete = p.total !== null && p.total > 0 && p.received >= p.total;
+
+          if (!isComplete && timeSinceLast < PROGRESS_THROTTLE_MS) {
+            return;
+          }
+
+          const dt = (currentTime - lastTime) / MS_PER_S;
+          const rate = dt > 0 ? Math.max(0, Math.round((p.received - lastReceivedBytes) / dt)) : undefined;
+          lastDispatchTime = currentTime;
+          lastTime = currentTime;
+          lastReceivedBytes = p.received;
+
+          const sent =
+            p.total !== null
+              ? p.total > 0
+                ? Math.min(1, Math.max(0, p.received / p.total))
+                : 0
+              : undefined;
+
+          deps.dispatch({
+            type: 'remote',
+            key: item.key,
+            phase: 'downloading',
+            sent,
+            received: p.received,
+            total: p.total ?? undefined,
+            rate,
+          });
+        };
+
+        await deps.importSource(item.label, signal, onProgress);
       }
 
       deps.dispatch({ type: 'accepted', key: item.key });

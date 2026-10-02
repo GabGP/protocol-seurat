@@ -193,4 +193,68 @@ describe('runQueue', () => {
       { type: 'failed', key: 'key-err', error: 'Connection lost' },
     ]);
   });
+
+  it('passes onProgress to importSource and dispatches remote actions with rate calculation', async () => {
+    const item = makeItem('remote-test', 'link', '/remote/huge.png');
+    const actions: IntakeAction[] = [];
+    let currentTime = 2000;
+
+    const deps: RunQueueDeps = {
+      upload: async () => {},
+      importSource: async (_text, _signal, onProgress) => {
+        onProgress?.({ phase: 'copying' });
+        onProgress?.({ phase: 'downloading', received: 0, total: 20_000 });
+
+        currentTime = 2020;
+        onProgress?.({ phase: 'downloading', received: 2_000, total: 20_000 });
+
+        currentTime = 2000 + PROGRESS_THROTTLE_MS + 50;
+        onProgress?.({ phase: 'downloading', received: 10_000, total: 20_000 });
+
+        currentTime += 50;
+        onProgress?.({ phase: 'downloading', received: 20_000, total: 20_000 });
+      },
+      dispatch: (action) => actions.push(action),
+      signalFor: () => new AbortController().signal,
+      now: () => currentTime,
+    };
+
+    await runQueue([item], deps);
+
+    const remoteActions = actions.filter((a) => a.type === 'remote');
+    expect(remoteActions).toHaveLength(4);
+    expect(remoteActions[0]).toEqual({
+      type: 'remote',
+      key: 'key-remote-test',
+      phase: 'copying',
+    });
+    expect(remoteActions[1]).toEqual({
+      type: 'remote',
+      key: 'key-remote-test',
+      phase: 'downloading',
+      sent: 0,
+      received: 0,
+      total: 20_000,
+      rate: undefined,
+    });
+    expect(remoteActions[2]).toEqual({
+      type: 'remote',
+      key: 'key-remote-test',
+      phase: 'downloading',
+      sent: 0.5,
+      received: 10_000,
+      total: 20_000,
+      rate: 66667,
+    });
+    expect(remoteActions[3]).toEqual({
+      type: 'remote',
+      key: 'key-remote-test',
+      phase: 'downloading',
+      sent: 1,
+      received: 20_000,
+      total: 20_000,
+      rate: 200000,
+    });
+  });
 });
+

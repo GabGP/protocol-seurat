@@ -6,6 +6,7 @@ import {
   itemsFromFiles,
   type IntakeItem,
 } from '../index';
+import { attachmentStateOf, stateTextOf } from '../ui/intake-format';
 
 function makeWork(id: string, state: number, progress = 0, edition = 1): Work {
   return {
@@ -137,6 +138,72 @@ describe('intakeReducer', () => {
   it('removes an item by key', () => {
     const next = intakeReducer([sampleItem], { type: 'remove', key: 'k-1' });
     expect(next).toHaveLength(0);
+  });
+
+  describe('remote action and formatting', () => {
+    const waitingItem: IntakeItem = { ...sampleItem, status: 'waiting' };
+
+    it('updates waiting item on remote downloading with known total (Server downloading 42%)', () => {
+      const next = intakeReducer([waitingItem], {
+        type: 'remote',
+        key: 'k-1',
+        phase: 'downloading',
+        sent: 0.42,
+        received: 4200,
+        total: 10000,
+      });
+      const item = next[0]!;
+      expect(item.status).toBe('waiting');
+      expect(item.sent).toBe(0.42);
+      expect(item.remote).toEqual({ phase: 'downloading', received: 4200, total: 10000 });
+      expect(stateTextOf(item)).toBe('Server downloading 42%');
+      expect(attachmentStateOf(item)).toEqual({ state: 'uploading', progress: 0.42 });
+    });
+
+    it('updates waiting item on remote downloading with unknown total', () => {
+      const next = intakeReducer([waitingItem], {
+        type: 'remote',
+        key: 'k-1',
+        phase: 'downloading',
+        received: 51200,
+      });
+      const item = next[0]!;
+      expect(item.status).toBe('waiting');
+      expect(item.remote).toEqual({ phase: 'downloading', received: 51200, total: undefined });
+      expect(stateTextOf(item)).toBe('Server downloading 50.0 KB');
+      expect(attachmentStateOf(item)).toEqual({ state: 'processing' });
+    });
+
+    it('updates waiting item on remote copying (Server copying)', () => {
+      const next = intakeReducer([waitingItem], {
+        type: 'remote',
+        key: 'k-1',
+        phase: 'copying',
+      });
+      const item = next[0]!;
+      expect(item.status).toBe('waiting');
+      expect(item.remote).toEqual({ phase: 'copying', received: undefined, total: undefined });
+      expect(stateTextOf(item)).toBe('Server copying');
+      expect(attachmentStateOf(item)).toEqual({ state: 'processing' });
+    });
+
+    it('formats plain waiting item without remote', () => {
+      expect(stateTextOf(waitingItem)).toBe('Waiting for the server');
+      expect(attachmentStateOf(waitingItem)).toEqual({ state: 'processing' });
+    });
+
+    it('ignores remote action when item status is not waiting', () => {
+      const queuedItem: IntakeItem = { ...sampleItem, status: 'queued' };
+      const next = intakeReducer([queuedItem], {
+        type: 'remote',
+        key: 'k-1',
+        phase: 'downloading',
+        sent: 0.5,
+        received: 500,
+        total: 1000,
+      });
+      expect(next[0]).toBe(queuedItem);
+    });
   });
 
   describe('works action transitions', () => {

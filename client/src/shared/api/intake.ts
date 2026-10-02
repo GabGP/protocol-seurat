@@ -1,4 +1,5 @@
 import { IMPORT_PATH, OBRAS_PATH } from '../config/protocol';
+import { consumeImportStream } from './import-stream';
 
 const HTTP_OK_MIN = 200;
 const HTTP_REDIRECTION_MIN = 300;
@@ -14,6 +15,10 @@ export class IntakeError extends Error {
     this.status = status;
   }
 }
+
+export type ImportProgress =
+  | { phase: 'downloading'; received: number; total: number | null }
+  | { phase: 'copying' };
 
 function makeAbortError(): Error {
   const err = new Error('The operation was aborted');
@@ -95,14 +100,29 @@ export function uploadMaster(
 }
 
 /** Requests server intake from a remote link or a server-local disk path. */
-export async function importSource(text: string, signal: AbortSignal): Promise<void> {
+export async function importSource(
+  text: string,
+  signal: AbortSignal,
+  onProgress?: (progress: ImportProgress) => void,
+): Promise<void> {
   const res = await fetch(IMPORT_PATH, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      Accept: 'application/x-ndjson',
+    },
     body: text.trim(),
     signal,
   });
   if (!res.ok) {
     throw new IntakeError(res.status);
   }
+  const contentType = res.headers?.get?.('content-type') ?? '';
+  if (!contentType.includes('application/x-ndjson')) {
+    return;
+  }
+  if (!res.body) {
+    throw new IntakeError(NETWORK_FAILURE_STATUS);
+  }
+  await consumeImportStream(res.body, signal, onProgress);
 }

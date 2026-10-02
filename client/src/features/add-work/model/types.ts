@@ -22,12 +22,26 @@ export interface IntakeItem {
   ingest?: number;
   error?: string;
   file?: File;
+  remote?: {
+    phase: 'downloading' | 'copying';
+    received?: number;
+    total?: number;
+  };
 }
 
 export type IntakeAction =
   | { type: 'add'; items: IntakeItem[] }
   | { type: 'progress'; key: string; sent: number; rate?: number }
   | { type: 'waiting'; key: string }
+  | {
+      type: 'remote';
+      key: string;
+      phase: 'downloading' | 'copying';
+      sent?: number;
+      received?: number;
+      total?: number;
+      rate?: number;
+    }
   | { type: 'accepted'; key: string }
   | { type: 'failed'; key: string; error: string }
   | { type: 'remove'; key: string }

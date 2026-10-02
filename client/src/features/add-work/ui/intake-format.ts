@@ -35,8 +35,21 @@ export function stateTextOf(item: IntakeItem): string {
       const rateText = item.rate ? `${formatBytes(item.rate)}/s` : '';
       return rateText ? `Sending ${pct}% · ${rateText}` : `Sending ${pct}%`;
     }
-    case 'waiting':
+    case 'waiting': {
+      if (item.remote?.phase === 'copying') {
+        return 'Server copying';
+      }
+      if (item.remote?.phase === 'downloading') {
+        const rateText = item.rate ? `${formatBytes(item.rate)}/s` : '';
+        if (item.remote.total !== undefined) {
+          const pct = Math.round(item.sent * 100);
+          return rateText ? `Server downloading ${pct}% · ${rateText}` : `Server downloading ${pct}%`;
+        }
+        const sizeText = formatBytes(item.remote.received ?? 0);
+        return rateText ? `Server downloading ${sizeText} · ${rateText}` : `Server downloading ${sizeText}`;
+      }
       return 'Waiting for the server';
+    }
     case 'ingesting': {
       // The server ingests one work at a time: until its OBRA arrives, this one is in line.
       if (item.ingest === undefined) return 'Queued on the server';
@@ -70,8 +83,12 @@ export function attachmentStateOf(item: IntakeItem): {
       return { state: 'idle' };
     case 'sending':
       return { state: 'uploading', progress: item.sent };
-    case 'waiting':
+    case 'waiting': {
+      if (item.remote?.phase === 'downloading' && item.remote.total !== undefined) {
+        return { state: 'uploading', progress: item.sent };
+      }
       return { state: 'processing' };
+    }
     case 'ingesting':
       return {
         state: 'processing',
