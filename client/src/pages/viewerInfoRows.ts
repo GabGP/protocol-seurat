@@ -17,7 +17,6 @@ export function buildViewerInfoRows(
   fitPct: number,
   status: string,
   tag?: string,
-  detail?: string,
 ): InfoRowItem[] {
   return [
     { k: 'Dimensions', v: dims + ' px' },
@@ -27,7 +26,6 @@ export function buildViewerInfoRows(
     { k: 'Fit zoom', v: fmtPct(fitPct) },
     { k: 'Max zoom', v: (VIEWER_MAX_ZOOM * 100).toLocaleString('en-US') + '%' },
     { k: 'Dots from', v: POINTILLIST_ZOOM_THRESHOLD_PCT.toLocaleString('en-US') + '%' },
-    ...(detail ? [{ k: 'Detail', v: detail }] : []),
     { k: 'Source', v: status },
   ];
 }

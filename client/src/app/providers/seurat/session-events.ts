@@ -36,8 +36,8 @@ export function createEvents(rt: Runtime, reconnect: Reconnect): SessionEvents {
       if (rt.alive) rt.ui.setWelcome(b);
     },
     onDisconnect: reconnect.run,
-    onAccount: (a) => {
-      if (rt.alive) rt.ui.setAccount(a);
+    onSessionInfo: (s) => {
+      if (rt.alive) rt.ui.setSession(s);
     },
     onWork: (m) => {
       rt.works = applyWork(rt.works, m);

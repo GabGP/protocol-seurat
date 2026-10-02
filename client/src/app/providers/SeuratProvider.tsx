@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Account, SessionClient } from '@/entities/session';
+import type { SessionClient, SessionInfo } from '@/entities/session';
 import type { DeliverySink } from '@/entities/delivery';
 import type { ImageTelemetry } from '@/entities/telemetry';
 import type { Work } from '@/entities/work';
@@ -13,8 +13,8 @@ import { startSession } from './seurat/start-session';
 
 export interface SeuratState {
   status: string;
-  /** Who the current session is (POST /sesion); null until the first one is issued. */
-  account: Account | null;
+  /** What POST /sesion said about this browser; null until the first session is issued. */
+  session: SessionInfo | null;
   works: Work[];
   welcome: Welcome | null;
   opened: WorkOpened | null;
@@ -43,7 +43,7 @@ export function useSeurat(): SeuratState {
 /** Holds the session's state for React; the protocol work lives in `./seurat`. */
 export function SeuratProvider({ children }: { children: ReactNode }): JSX.Element {
   const [status, setStatus] = useState('boot');
-  const [account, setAccount] = useState<Account | null>(null);
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [works, setWorks] = useState<Work[]>([]);
   const [welcome, setWelcome] = useState<Welcome | null>(null);
   const [opened, setWorkOpened] = useState<WorkOpened | null>(null);
@@ -53,7 +53,7 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
   const [paintTick, setPaintTick] = useState(0);
   const rtRef = useRef<Runtime | null>(null);
   rtRef.current ??= createRuntime(
-    { setStatus, setAccount, setWorks, setWelcome, setWorkOpened, setConcession, setPlan, setLastError },
+    { setStatus, setSession, setWorks, setWelcome, setWorkOpened, setConcession, setPlan, setLastError },
     frameBatch(() => setPaintTick((t) => t + 1)),
   );
   const rt = rtRef.current;
@@ -75,11 +75,11 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
 
   const value = useMemo<SeuratState>(
     () => ({
-      status, account, works, welcome, opened, concession, plan, lastError, paintTick,
+      status, session, works, welcome, opened, concession, plan, lastError, paintTick,
       client: rt.client, sink: rt.sink, telemetry: rt.telemetry, gazeService: rt.gaze,
       retryConnect, closeWork: () => closeWork(rt), showPreviews: (ids) => showPreviews(rt, ids),
     }),
-    [status, account, works, welcome, opened, concession, plan, lastError, paintTick],
+    [status, session, works, welcome, opened, concession, plan, lastError, paintTick],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

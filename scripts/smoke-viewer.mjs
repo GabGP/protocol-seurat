@@ -3,7 +3,7 @@
 // Node >= 22 (global WebSocket) drives headless Chrome/Edge over the DevTools protocol.
 //
 //   node scripts/smoke-viewer.mjs --work <id> [--url http://localhost:8180] [--seconds 20]
-//                                [--zoom 3] [--pan 0] [--key <access key>] [--shot .seurat/smoke-viewer.png]
+//                                [--zoom 3] [--pan 0] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
 //                                [--max-tab-mib N] [--lose-context restore|giveup] [--sample S] [--breakdown 1]
 //                                [--throttle off|3g] [--settle-cap S] [--quiet S]
@@ -36,8 +36,8 @@
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
-// With --key it signs in first (seurat.conf auth.accounts) and reports the finest stratum reached
-// and the bands delivered there. Use a large work (1.6-31 GP): small ones never leave the sketch.
+// Reports the finest stratum reached and the bands delivered there.
+// Use a large work (1.6-31 GP): small ones never leave the sketch.
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -211,15 +211,11 @@ try {
   await cdp('Page.enable');
   await cdp('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: dpr, mobile: false });
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: hook });
-  if (args.key) {
-    await cdp('Page.addScriptToEvaluateOnNewDocument',
-      { source: `localStorage.setItem('seurat.accessKey', ${JSON.stringify(args.key)})` });
-  }
   if (args.cap) {
     await cdp('Page.addScriptToEvaluateOnNewDocument',
       { source: `localStorage.setItem('seurat.brushCap', ${JSON.stringify(String(Number(args.cap)))})` });
   }
-  await applyThrottle(cdp, throttle); // before the only navigation (the --key sign-in rides on it): everything is throttled
+  await applyThrottle(cdp, throttle); // before the only navigation: everything is throttled
   const navAt = Date.now();
   await cdp('Page.navigate', { url: `${base}/?render=${renderSwitches}#/visor/${encodeURIComponent(args.work)}` });
   const read = async () => JSON.parse((await cdp('Runtime.evaluate',

@@ -1,5 +1,4 @@
-import type { SessionClient } from '@/entities/session';
-import type { Account } from '@/entities/session';
+import type { SessionClient, SessionInfo } from '@/entities/session';
 import { HandleLedgers, type DeliverySink } from '@/entities/delivery';
 import type { ImageTelemetry } from '@/entities/telemetry';
 import type { Work } from '@/entities/work';
@@ -12,7 +11,7 @@ import type { Concession, PlanMsg, ProtocolError, Welcome, WorkOpened } from '@/
 /** The React state the provider shows: the only way the session modules reach the UI. */
 export interface Ui {
   setStatus(s: string): void;
-  setAccount(a: Account): void;
+  setSession(s: SessionInfo): void;
   setWorks(w: Work[]): void;
   setWelcome(b: Welcome): void;
   setWorkOpened(a: WorkOpened | null): void;

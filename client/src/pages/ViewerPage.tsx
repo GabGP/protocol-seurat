@@ -6,7 +6,6 @@ import { RenderSettingsPanel, TelemetryPanel, ViewerInfoPanel } from '@/widgets/
 import { ViewerTopBar } from '@/widgets/viewer-top-bar';
 import { LiveStatusPill } from '@/widgets/viewer-status';
 import { grantOf } from '@/features/cap-brushes';
-import { detailLabel } from '@/features/sign-in';
 import { buildPresets } from '@/features/zoom-view';
 import { sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect } from '@/entities/viewport';
 import { useSeurat } from '@/app/providers/SeuratProvider';
@@ -47,11 +46,9 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
     [pct, fitPct, effectiveMaxZoom],
   );
   const workTag = seurat.works[idx]?.tag;
-  const opened = seurat.opened;
-  const detail = opened ? detailLabel(opened.ceilingStratum, opened.ceilingBands) : undefined;
   const rows = useMemo(
-    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, workTag, detail),
-    [dims, mp, iw, ih, fitPct, seurat.status, workTag, detail],
+    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, workTag),
+    [dims, mp, iw, ih, fitPct, seurat.status, workTag],
   );
 
   const ctl = useViewerControls({ ui, seurat, api, view, go, back });
@@ -125,10 +122,8 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
       {ui.info && <ViewerInfoPanel rows={rows} onClose={ctl.closeInfo} />}
       {ui.settings && <RenderSettingsPanel
           onClose={ctl.closeSettings}
-          account={seurat.account}
           size={feeds.view}
           grant={grantOf(seurat.concession?.maxBrushes, seurat.welcome?.sessionMaxBrushes)}
-          ceiling={opened ? { stratum: opened.ceilingStratum, bands: opened.ceilingBands } : null}
         />}
       {ui.telemetry && <TelemetryPanel read={ctl.readTelemetry} onClose={ctl.closeTelemetry} />}
     </div>

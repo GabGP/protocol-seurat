@@ -24,7 +24,7 @@ function DotMark(): JSX.Element {
 
 export function GalleryPage(): JSX.Element {
   const ui = useUi();
-  const { works, account, showPreviews } = useSeurat();
+  const { works, session, showPreviews } = useSeurat();
   const items = useMemo(() => filterWorks(works, ui.filter), [works, ui.filter]);
   const slice = useMemo(() => paginate(items, ui.page, GALLERY_PAGE_SIZE), [items, ui.page]);
   const shown = useMemo(
@@ -58,7 +58,7 @@ export function GalleryPage(): JSX.Element {
         <div className={styles.headerRight}>
           <AddWorkButton
             works={works}
-            local={account?.local ?? false}
+            local={session?.local ?? false}
             transfer={transfer}
             onOpen={goViewer}
           />

@@ -1,5 +1,5 @@
 import type { Audit, Concession, PlanMsg, ProtocolError, Renew, Scrape, Welcome, WorkMessage, WorkOpened } from '@/shared/proto/messages';
-import type { Account } from '../access-key';
+import type { SessionInfo } from '../session-info';
 
 /** What the session tells the app: one callback per server message, plus the link's own news. */
 export interface SessionEvents {
@@ -18,8 +18,8 @@ export interface SessionEvents {
   onStatus(s: string): void;
   /** The connection died without a fatal error: the provider resumes (REANUDAR) within L. */
   onDisconnect?(): void;
-  /** POST /sesion answered: the account and role of the session about to start. */
-  onAccount?(a: Account): void;
+  /** POST /sesion answered: session info for the session about to start. */
+  onSessionInfo?(info: SessionInfo): void;
   /** Any frame arrived, before it is handled: spec 5.2.2 checks expiry with every incoming message. */
   onIncoming?(): void;
 }
