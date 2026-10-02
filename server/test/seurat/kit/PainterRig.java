@@ -36,7 +36,7 @@ public final class PainterRig {
         store.put(new BrushId(1, 1, 0), new byte[]{20}, new byte[]{21}, new byte[]{22}, new byte[]{23});
         painter = new Painter(regulator, new Metrics());
         var sessions = new Sessions();
-        session = new Session(1, "p", "autenticado", 256, 3, mapping, new byte[32]);
+        session = new Session(1, "p", 256, 3, mapping, new byte[32]);
         sessions.add(session);
         canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.session(session);

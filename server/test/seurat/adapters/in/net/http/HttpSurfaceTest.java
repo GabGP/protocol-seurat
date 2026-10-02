@@ -25,8 +25,7 @@ public final class HttpSurfaceTest {
         Files.createDirectories(web);
         Files.writeString(web.resolve("index.html"), "<html>viewer</html>");
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=18080\n"
-                + "auth.accounts=prof:k-prof:privilegiado, ana:k-ana:autenticado, bad:k-bad:root\n");
+        Files.writeString(conf, "http.port=18080\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Catalog catalog = new Catalog(new DiskArchive(root.resolve("obras")));
@@ -112,30 +111,33 @@ public final class HttpSurfaceTest {
         }
 
         var sessionResp = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
-                Map.of("authorization", "Bearer k-prof"), "{\"memMiB\":256}".getBytes(),
+                Map.of("authorization", "Bearer anything"), "{\"memMiB\":256}".getBytes(),
                 "example.edu:8080"));
         String created = new String(sessionResp.body());
         TestKit.check(sessionResp.code() == 201 && created.contains("\"token\":\"")
                 && created.contains("/seurat/v1/lienzo-ws"), "POST /sesion issues");
-        TestKit.check(created.contains("\"rol\":\"privilegiado\"") && created.contains("\"cuenta\":\"prof\""),
-                "POST /sesion names the account and its role");
-        TestKit.check(created.contains("\"local\":false"), "POST /sesion reports local:false");
+        TestKit.check(!created.contains("\"rol\"") && !created.contains("\"cuenta\"")
+                && created.contains("\"local\":false"),
+                "POST /sesion body contains no rol, no cuenta, and contains local");
+        TestKit.check(sessionResp.headers().containsKey("Set-Cookie"),
+                "without a cookie it sets the seurat_anon cookie");
+        String cookieVal = sessionResp.headers().get("Set-Cookie");
+        String cookieHeader = cookieVal.split(";")[0];
+        String anonId = cookieHeader.substring(cookieHeader.indexOf('=') + 1);
         String token = created.split("\"token\":\"")[1].split("\"")[0];
         var issued = sessions.consumeToken(token);
-        TestKit.check(issued != null && issued.role().equals("privilegiado")
-                && issued.principal().equals("user-prof"), "Bearer key -> its account's principal and role");
+        TestKit.check(issued != null && issued.principal().equals("viewer-" + anonId),
+                "principal is viewer- + anonId");
         TestKit.check(sessions.consumeToken(token) == null, "token single-use");
-        for (String bad : new String[]{"Bearer nope", "Bearer k-bad", "Basic k-prof"}) {
-            var refused = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
-                    Map.of("authorization", bad), new byte[0], "h"));
-            TestKit.check(refused.code() == 401, "401 for " + bad);
-        }
-        var anon = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion", Map.of(), new byte[0], "h"));
-        String anonToken = new String(anon.body()).split("\"token\":\"")[1].split("\"")[0];
-        TestKit.check(anon.code() == 201 && anon.headers().containsKey("Set-Cookie")
-                && sessions.consumeToken(anonToken).role().equals("anonimo"), "no Bearer: anonymous with its cookie");
-        TestKit.check(new String(anon.body()).contains("\"rol\":\"anonimo\"")
-                && !new String(anon.body()).contains("cuenta"), "anonymous: a role, no account");
+
+        var reused = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
+                Map.of("cookie", cookieHeader), new byte[0], "h"));
+        TestKit.check(reused.code() == 201 && !reused.headers().containsKey("Set-Cookie"),
+                "with a well-formed cookie no fresh cookie set");
+        String reusedToken = new String(reused.body()).split("\"token\":\"")[1].split("\"")[0];
+        var reusedIssued = sessions.consumeToken(reusedToken);
+        TestKit.check(reusedIssued != null && reusedIssued.principal().equals("viewer-" + anonId),
+                "with a well-formed cookie the principal is reused");
 
         var denied = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/x",
                 Map.of(), new byte[]{1, 2, 3}, "h"));

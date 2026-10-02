@@ -46,7 +46,7 @@ final class WsClient {
     static int serve(Path root, Catalog catalog) throws Exception {
         int port = freePort();
         Path conf = root.resolve("seurat.conf");
-        Files.writeString(conf, "http.port=" + port + "\nauth.accounts=loop:loopback:autenticado\n");
+        Files.writeString(conf, "http.port=" + port + "\n");
         SeuratConfig config = SeuratConfig.load(conf);
         Sessions sessions = new Sessions();
         Painter painter = new Painter(new Regulator(), new Metrics());
@@ -114,7 +114,7 @@ final class WsClient {
     static String postSession(int port) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             String body = "{\"memMiB\":128}";
-            String req = "POST /seurat/v1/sesion HTTP/1.1" + CRLF + "Host: x" + CRLF + "Authorization: Bearer loopback" + CRLF + "Content-Length: "
+            String req = "POST /seurat/v1/sesion HTTP/1.1" + CRLF + "Host: x" + CRLF + "Content-Length: "
                     + body.length() + CRLF + "Connection: close" + CRLF + CRLF + body;
             socket.getOutputStream().write(req.getBytes(StandardCharsets.UTF_8));
             byte[] response = socket.getInputStream().readAllBytes();

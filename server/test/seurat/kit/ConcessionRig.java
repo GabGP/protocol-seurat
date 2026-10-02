@@ -52,7 +52,7 @@ public final class ConcessionRig {
         catalog.register(work);
         var painter = new Painter(new Regulator(), new Metrics());
         grants = new GrantController(catalog, painter, sessions);
-        session = new Session(1, "p", WorkRecord.AUTHENTICATED, 256, 3, mapping, new byte[32]);
+        session = new Session(1, "p", 256, 3, mapping, new byte[32]);
         sessions.add(session);
         canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 2, 1, 768, 36864, 120));
         canvas.session(session);

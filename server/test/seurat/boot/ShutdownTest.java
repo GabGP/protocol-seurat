@@ -43,8 +43,8 @@ public final class ShutdownTest {
         Sessions sessions = new Sessions();
         RecordingMapping a = new RecordingMapping();
         RecordingMapping b = new RecordingMapping();
-        sessions.add(new Session(1, "p", "anonimo", 128, 0, a, new byte[32]));
-        sessions.add(new Session(2, "p", "anonimo", 128, 0, b, new byte[32]));
+        sessions.add(new Session(1, "p", 128, 0, a, new byte[32]));
+        sessions.add(new Session(2, "p", 128, 0, b, new byte[32]));
         ScheduledExecutorService clock = Executors.newSingleThreadScheduledExecutor();
         ExecutorService ingest = Executors.newSingleThreadExecutor();
         Painter painter = testPainter();

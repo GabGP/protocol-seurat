@@ -25,7 +25,7 @@ public final class Sessions {
     private final Map<Long, Resumable> resumable = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
-    public record Token(String principal, String role, long memMib, long expiresNs) {}
+    public record Token(String principal, long memMib, long expiresNs) {}
 
     /** The books adoptable under a previous session id; holder = whoever holds the canvases now. */
     public record Resumable(byte[] ticket, String principal, Session holder, long expiresNs) {}
@@ -40,13 +40,13 @@ public final class Sessions {
         return f;
     }
 
-    public String issueToken(String principal, String role, long memMib, long ttlMs) {
+    public String issueToken(String principal, long memMib, long ttlMs) {
         byte[] t = new byte[SeuratConstants.TOKEN_BYTES];
         random.nextBytes(t);
         String hex = HexFormat.of().formatHex(t);
         long now = System.nanoTime();
         tokens.values().removeIf(old -> old.expiresNs() < now); // unused tokens do not pile up
-        tokens.put(hex, new Token(principal, role, memMib, now + ttlMs * Units.NANOS_PER_MS));
+        tokens.put(hex, new Token(principal, memMib, now + ttlMs * Units.NANOS_PER_MS));
         return hex;
     }
 

@@ -44,7 +44,7 @@ public final class MasterIntakeTest {
                 new EditionSwap(catalog, sessions, grants)::substitute);
 
         RecordingMapping mapping = new RecordingMapping();
-        Session session = new Session(1, "alice", "autenticado", 256, 0, mapping, new byte[32]);
+        Session session = new Session(1, "alice", 256, 0, mapping, new byte[32]);
         sessions.add(session);
         WorkMeta ed1Meta = new WorkMeta("pic", "Pic", 512, 384, 256, 1, 2, 1, 0, 2);
         Canvas canvas = new Canvas(1, "pic", null, ed1Meta, new Concession(1, 1, 4, 1, 768, 36864, 120));

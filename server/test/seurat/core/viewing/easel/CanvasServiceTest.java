@@ -35,7 +35,7 @@ public final class CanvasServiceTest {
         GrantController grants = new GrantController(catalog, painter, sessions);
         EaselContext ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
         RecordingMapping mapping = new RecordingMapping();
-        Session session = new Session(1, "p", "anonimo", 128, 0, mapping, new byte[32]);
+        Session session = new Session(1, "p", 128, 0, mapping, new byte[32]);
         Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.session(session);
         session.canvases().put(1L, canvas);

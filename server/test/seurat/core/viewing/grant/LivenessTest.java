@@ -34,7 +34,7 @@ public final class LivenessTest {
     private static void testHeartbeatTimeout() throws Exception {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
-        Session s = new Session(1, "alice", "autenticado", 256, 0, mapping, new byte[32]);
+        Session s = new Session(1, "alice", 256, 0, mapping, new byte[32]);
         s.lastEchoNs = System.nanoTime() - 46_000_000_000L; // 3 x 15 s without ECO
         sessions.add(s);
         new Liveness(new GrantController(null, null, sessions), sessions).tick();
@@ -109,7 +109,7 @@ public final class LivenessTest {
     private static void testScrapeDeadline() throws Exception {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
-        Session s = new Session(3, "alice", "autenticado", 256, 0, mapping, new byte[32]);
+        Session s = new Session(3, "alice", 256, 0, mapping, new byte[32]);
         Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
                 new Concession(1, 0, 4, 1, 768, 36864, 120));
         canvas.session(s);
