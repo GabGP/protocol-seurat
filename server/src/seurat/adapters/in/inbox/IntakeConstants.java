@@ -17,5 +17,26 @@ public final class IntakeConstants {
     /** Format string for the 8-character random hex token in part file names. */
     public static final String HEX_FORMAT = "%08x";
 
+    /** Character count for surrounding quotes pair. */
+    public static final int SURROUNDING_QUOTES = 2;
+
+    /** Minimum inclusive HTTP success status code (200 OK). */
+    public static final int HTTP_OK = 200;
+
+    /** Maximum exclusive HTTP success status code (300 Multiple Choices). */
+    public static final int HTTP_MULTIPLE_CHOICES = 300;
+
+    /** Fallback file name stem when remote URL path segment is empty. */
+    public static final String DEFAULT_DOWNLOAD_STEM = "download";
+
+    /** Key for filename attribute in Content-Disposition header. */
+    public static final String CONTENT_DISPOSITION_FILENAME = "filename";
+
+    /** URL scheme for HTTP. */
+    public static final String SCHEME_HTTP = "http";
+
+    /** URL scheme for HTTPS. */
+    public static final String SCHEME_HTTPS = "https";
+
     private IntakeConstants() {}
 }
