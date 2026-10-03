@@ -1,25 +1,9 @@
 import { writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { IMAGE_PX } from './eviction-sim';
-import { TRACES } from './eviction-traces';
+import { ALL, DECODERS, LINKS, MIB, RECIBO_BYTES } from './flow-cases';
 import { adr08, asBuilt, today } from './flow-policies';
-import { simulateFlow, type Decoder, type FlowResult, type Link, type Policy } from './flow-sim';
+import { simulateFlow, type FlowResult, type Policy } from './flow-sim';
 
-const MIB = 1024 * 1024;
-const KIB = 1024;
-/** Estimated RECIBO overhead on the wire besides its ranges: frame header, handle, cola_ms, libre, renov_hasta. */
-const RECIBO_BYTES = 12;
-const LINKS: Link[] = [
-  { name: 'lan', bps: 40 * MIB, oneWayMs: 1, sndbuf: 256 * KIB },
-  { name: 'wan', bps: 4 * MIB, oneWayMs: 40, sndbuf: 256 * KIB },
-  { name: 'slow', bps: 1 * MIB, oneWayMs: 100, sndbuf: 128 * KIB },
-];
-const DECODERS: Decoder[] = [
-  { name: 'fast', parallel: 4, baseMs: 3, msPerKiB: 0.08 },
-  { name: 'slow', parallel: 2, baseMs: 10, msPerKiB: 0.5 },
-];
-const STILL = Array.from({ length: 400 }, () => ({ x: IMAGE_PX / 2, y: IMAGE_PX / 2, z: 1.5 }));
-const ALL = { still: STILL, ...TRACES };
 /** v1.0 with its 100 ms timer moved by 1 ms each way: how far the bench moves for no real change. */
 const NOISE = [asBuilt('v1.0-1ms', 99), asBuilt('v1.0+1ms', 101)];
 const ARMS: Policy[] = [today, ...NOISE, adr08];

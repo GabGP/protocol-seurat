@@ -29,14 +29,18 @@ export function asBuilt(name: string, timerMs: number): Policy {
 
 export const today = asBuilt('v1.0', 100);
 
-/** ADR-08 through the client's own functions: link and synthesis horizons, receipts by need. */
-export const adr08: Policy = {
-  name: 'ADR-08',
-  free: (c) => receiverWindow(c.memory, c.linkBps, c.avg, c.rttS, { parallel: c.parallel, jobMs: c.decodeMs }),
-  due(d) {
-    if (bandChanged(d.lastQueueMs, d.queueMs)) return true;
-    if (d.pending === 0) return false;
-    if (d.nowMs - d.oldestMs >= RECEIPT_MAX_AGE_MS) return true;
-    return d.landed && receiptDue(d.pending, d.free(), d.lastFree);
-  },
-};
+/** ADR-08 through the client's own functions: link and synthesis horizons, receipts by need. `maxAgeMs` ±1 measures noise. */
+export function byNeed(name: string, maxAgeMs: number): Policy {
+  return {
+    name,
+    free: (c) => receiverWindow(c.memory, c.linkBps, c.avg, c.rttS, { parallel: c.parallel, jobMs: c.decodeMs }),
+    due(d) {
+      if (bandChanged(d.lastQueueMs, d.queueMs)) return true;
+      if (d.pending === 0) return false;
+      if (d.nowMs - d.oldestMs >= maxAgeMs) return true;
+      return d.landed && receiptDue(d.pending, d.free(), d.lastFree);
+    },
+  };
+}
+
+export const adr08 = byNeed('ADR-08', RECEIPT_MAX_AGE_MS);
