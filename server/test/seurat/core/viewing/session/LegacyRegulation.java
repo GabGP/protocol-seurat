@@ -37,7 +37,7 @@ final class LegacyRegulation implements RegulationSim.Arm {
     }
 
     @Override
-    public void planned(RegulationViewer v, List<PlanEntry> full) {}
+    public void planned(RegulationViewer v, List<PlanEntry> full, boolean newGaze) {}
 
     @Override
     public void opened(RegulationViewer v, PlanEntry e, long bytes, long dwellNs, long sojournNs) {

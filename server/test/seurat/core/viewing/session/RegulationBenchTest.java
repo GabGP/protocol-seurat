@@ -3,6 +3,7 @@ package seurat.core.viewing.session;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import seurat.kit.TestKit;
 import seurat.core.viewing.plan.PlanEntry;
 
 /**
@@ -19,11 +20,29 @@ public final class RegulationBenchTest {
     public static void main(String[] args) {
         for (long cap : CAPS) {
             System.out.println("RegulationBench capacity " + (cap >> 20) + " MiB/s");
-            print(run(Unregulated::new, cap), cap);
-            print(run(() -> new LegacyRegulation(false), cap), cap);
-            print(run(() -> new LegacyRegulation(true), cap), cap);
+            Result none = run(Unregulated::new, cap);
+            print(none, cap);
+            Result built = run(() -> new LegacyRegulation(false), cap);
+            Result sojourn = run(() -> new LegacyRegulation(true), cap);
+            Result tiered = run(TieredRegulation::new, cap);
+            print(built, cap);
+            print(sojourn, cap);
+            print(tiered, cap);
+            gate(tiered.stats(), built.stats(), tiered.viewers());
+            gate(tiered.stats(), sojourn.stats(), tiered.viewers());
+            // Every byte here is a wanted plan entry: regulation only withholds, it never adds payload.
+            TestKit.check(tiered.stats().totalBytes() <= none.stats().totalBytes(), "no payload beyond the unregulated run");
         }
+        // 24 MiB/s: the 4-viewer phases fit, so every viewer is back at the normal cone within 500 ms.
+        TestKit.check(run(TieredRegulation::new, CAPS[0]).stats().coneBackMs() <= 500, "back at rung 3 within 500 ms");
         System.out.println("RegulationBench OK");
+    }
+
+    /** ADR-07 gate in the load step (phase 1): fair, shorter queues, more cores done. */
+    private static void gate(RegulationStats t, RegulationStats v1, List<RegulationViewer> viewers) {
+        TestKit.check(t.jain(1, viewers) >= 0.9, "Jain >= 0.9 in the step");
+        TestKit.check(t.p95DwellMs(1) <= v1.p95DwellMs(1), "p95 queue dwell <= v1.0");
+        TestKit.check(t.coreDone(1) >= v1.coreDone(1), "at least as many cores completed as v1.0");
     }
 
     record Result(String arm, RegulationStats stats, List<RegulationViewer> viewers) {}
@@ -44,11 +63,12 @@ public final class RegulationBenchTest {
 
     static void print(Result r, long cap) {
         RegulationStats s = r.stats();
-        System.out.printf("RegulationBench %-18s jain(step)=%.3f util=%.2f/%.2f/%.2f p95dwell=%d/%d/%dms"
+        System.out.printf("RegulationBench %-18s jain(step)=%.3f util=%.2f/%.2f/%.2f core-util=%.2f/%.2f/%.2f p95dwell=%d/%d/%dms"
                 + " p95core=%d/%d/%dms core=%d/%d/%d censored=%d/%d/%d rungChanges/viewer-min=%.1f"
                 + " rungBack=%dms coneBack=%dms bytes=%d%n",
                 r.arm(), s.jain(1, r.viewers()),
                 s.utilization(0, cap), s.utilization(1, cap), s.utilization(2, cap),
+                s.coreUtilization(0, cap), s.coreUtilization(1, cap), s.coreUtilization(2, cap),
                 s.p95DwellMs(0), s.p95DwellMs(1), s.p95DwellMs(2),
                 s.p95CoreMs(0), s.p95CoreMs(1), s.p95CoreMs(2),
                 s.coreDone(0), s.coreDone(1), s.coreDone(2),
@@ -64,7 +84,7 @@ public final class RegulationBenchTest {
         }
 
         @Override
-        public void planned(RegulationViewer v, List<PlanEntry> full) {}
+        public void planned(RegulationViewer v, List<PlanEntry> full, boolean newGaze) {}
 
         @Override
         public void opened(RegulationViewer v, PlanEntry e, long bytes, long dwellNs, long sojournNs) {}

@@ -17,6 +17,7 @@ final class RegulationStats {
     private final List<List<Long>> core = new ArrayList<>();
     private final long[] censored;
     private final long[] opened;
+    private final long[] coreOpened;
     private long rungChanges;
     private long lastCutNs;
     private long lastConeCutNs;
@@ -31,6 +32,7 @@ final class RegulationStats {
         }
         censored = new long[bounds.length - 1];
         opened = new long[bounds.length - 1];
+        coreOpened = new long[bounds.length - 1];
     }
 
     private int phase(long now) {
@@ -46,6 +48,9 @@ final class RegulationStats {
         bytesByViewer.computeIfAbsent(v.id, k -> new long[bounds.length - 1])[p] += item.bytes();
         dwell.get(p).add(now - item.readyNs());
         opened[p] += item.bytes();
+        if (item.entry().pass() <= 2) {
+            coreOpened[p] += item.bytes();
+        }
         totalBytes += item.bytes();
     }
 
@@ -88,6 +93,11 @@ final class RegulationStats {
 
     double utilization(int p, long capBytesPerS) {
         return opened[p] / (capBytesPerS * ((bounds[p + 1] - bounds[p]) / 1e9));
+    }
+
+    /** Share of the Painter's capacity spent on core entries (passes 1-2). */
+    double coreUtilization(int p, long capBytesPerS) {
+        return coreOpened[p] / (capBytesPerS * ((bounds[p + 1] - bounds[p]) / 1e9));
     }
 
     long p95DwellMs(int p) {

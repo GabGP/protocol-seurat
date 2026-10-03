@@ -51,6 +51,8 @@ final class RegulationViewer {
     int cutRung = 3;
     double stride;
     long seq;
+    /** The seq of the live plan's MIRADA; -1 before the first plan. */
+    long plannedSeq = -1;
     long x0;
     long y0;
     Plan plan;

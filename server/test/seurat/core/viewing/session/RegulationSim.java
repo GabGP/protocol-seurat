@@ -21,8 +21,8 @@ final class RegulationSim {
     interface Arm {
         String name();
 
-        /** A plan was issued; full is the uncut (rung 3) cone of the same MIRADA. */
-        void planned(RegulationViewer v, List<PlanEntry> full);
+        /** A plan was issued; full is the uncut (rung 3) cone of the same MIRADA; newGaze unless a replan. */
+        void planned(RegulationViewer v, List<PlanEntry> full, boolean newGaze);
 
         /** dwellNs counts from "lista" (head of its queue, spec 6.3), sojournNs from PLAN INICIO. */
         void opened(RegulationViewer v, PlanEntry e, long bytes, long dwellNs, long sojournNs);
@@ -97,7 +97,8 @@ final class RegulationSim {
             stats.coreCensored(now);
         }
         List<PlanEntry> cut = v.cone(v.rung);
-        arm.planned(v, v.rung == 3 ? cut : v.cone(3));
+        arm.planned(v, v.rung == 3 ? cut : v.cone(3), v.plannedSeq != v.seq);
+        v.plannedSeq = v.seq;
         if (v.queue.isEmpty()) {
             // Stride scheduling: a viewer that becomes active starts at the current pass.
             viewers.stream().filter(o -> !o.queue.isEmpty()).mapToDouble(o -> o.stride).min()
