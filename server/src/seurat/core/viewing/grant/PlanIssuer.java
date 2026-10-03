@@ -7,18 +7,24 @@ import java.util.Set;
 import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.msg.MsgGaze;
+import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.paint.Painter;
 import seurat.core.viewing.plan.BookView;
 import seurat.core.viewing.plan.ConePlanner;
 import seurat.core.viewing.plan.PlanEntry;
+import seurat.core.viewing.session.Allotment;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
+import seurat.core.viewing.session.TierDemand;
 
 /**
  * PLAN INICIO + hand-off to the Painter (spec 4.1.3). The new plan replaces the
  * pending one; an empty plan is finished at once. Callers hold the canvas lock.
  */
 final class PlanIssuer {
+    /** Rung 3: every tier granted, the uncut cone. */
+    private static final int UNCUT = Allotment.TIERS;
+
     private final Painter painter;
 
     PlanIssuer(Painter painter) {
@@ -34,9 +40,23 @@ final class PlanIssuer {
                         canvas.takeUnrecoverable().stream().map(BrushId::id).toList()).encode());
         painter.enqueue(canvas, entries, generation);
         if (entries.isEmpty()) {
+            canvas.plan().demand().clear();
             GrantController.send(canvas.session(), FrameType.PLAN,
                     MsgGaze.Plan.end(canvas.handle(), seq, first - 1).encode());
         }
+    }
+
+    /**
+     * The cone of gaze at the session's rung. The canvas demand becomes what the uncut
+     * cone wants, by tier, in bytes estimated from the stratum means (ADR-07 rule 2). Canvas lock.
+     */
+    ConePlanner.ConePlan cone(Canvas canvas, MsgGaze.Gaze gaze, Concession concession) {
+        Session s = canvas.session();
+        var planned = ConePlanner.plan(gaze, concession, view(canvas), canvas.meta(), s.rung, s.queueMs());
+        var full = s.rung >= UNCUT ? planned
+                : ConePlanner.plan(gaze, concession, view(canvas), canvas.meta(), UNCUT, s.queueMs());
+        canvas.plan().demand().plan(TierDemand.estimate(full.entries(), painter.meter()));
+        return planned;
     }
 
     /**
@@ -50,8 +70,7 @@ final class PlanIssuer {
             issue(canvas, 0, sketch, 0); // no MIRADA yet: the sketch is the plan
             return;
         }
-        Session s = canvas.session();
-        var planned = ConePlanner.plan(gaze, canvas.concession(), view(canvas), canvas.meta(), s.rung, s.queueMs());
+        var planned = cone(canvas, gaze, canvas.concession());
         issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
     }
 

@@ -36,7 +36,7 @@ final class Opener {
 
     /**
      * The session's own gates: (c), its (e) slots, rate and cola_ms. Cheap, leaf locks only
-     * (PaintQueue monitor). Waiting on these is flow control, not server queueing (spec 6.3).
+     * (PaintQueue monitor). Waiting on these is flow control, not server queueing (ADR-07 rule 1).
      */
     boolean eligible(Pending x) {
         Session s = x.canvas().session();
@@ -72,7 +72,7 @@ final class Opener {
             }
             e = ready;
             if (!eligible(x) || !session.takeSlot()) {
-                queue.pushFront(x.unready());
+                queue.pushFront(x);
                 return;
             }
             if (!globalSlots.tryAcquire()) {

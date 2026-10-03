@@ -10,6 +10,7 @@ import seurat.core.shared.proto.Ranges;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.plan.PlanEntry;
 import seurat.core.viewing.session.Canvas;
+import seurat.core.viewing.session.CapacityMeter;
 import seurat.core.viewing.session.Regulator;
 
 /**
@@ -18,14 +19,22 @@ import seurat.core.viewing.session.Regulator;
  * check (d) is gone (ADR-05). Up to 512 virtual writers copy bytes. Number + book BEFORE bytes.
  */
 public final class Painter implements Runnable {
-    private final PaintQueue queue = new PaintQueue();
+    private final CapacityMeter meter;
+    private final PaintQueue queue;
     private final Semaphore globalSlots = new Semaphore(SeuratConstants.GLOBAL_SLOTS);
     private final InFlightDeliveries inFlight = new InFlightDeliveries();
     private final Opener opener;
 
     public Painter(Regulator regulator, Metrics metrics) {
+        this.meter = regulator.meter();
+        this.queue = new PaintQueue(meter);
         DeliveryWriter writer = new DeliveryWriter(metrics, globalSlots, inFlight, queue::wake);
         this.opener = new Opener(regulator, globalSlots, inFlight, writer, queue);
+    }
+
+    /** ADR-07: capacity and the mean bytes per band of each stratum. */
+    public CapacityMeter meter() {
+        return meter;
     }
 
     /** Replaces the canvas's pending plan: its unopened entries are dropped (spec 4.1.3). */

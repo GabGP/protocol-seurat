@@ -12,7 +12,6 @@ import seurat.core.shared.proto.msg.MsgLoans;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.concession.Concessions;
 import seurat.core.viewing.paint.Painter;
-import seurat.core.viewing.plan.ConePlanner;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
 import seurat.core.works.catalog.WorkRecord;
@@ -45,8 +44,7 @@ final class WorkLifecycle {
             } else {
                 grants.narrow(canvas, next, cuts, null);
             }
-            var cone = seen ? ConePlanner.plan(canvas.gaze(), next, PlanIssuer.view(canvas), canvas.meta(),
-                    canvas.session().rung, canvas.session().queueMs()) : null;
+            var cone = seen ? grants.plans.cone(canvas, canvas.gaze(), next) : null;
             grants.plans.issue(canvas, seen ? canvas.gaze().seq() : 0,
                     PlanIssuer.merge(grants.sketch(canvas), cone == null ? List.of() : cone.entries()),
                     cone == null ? 0 : cone.throttle());

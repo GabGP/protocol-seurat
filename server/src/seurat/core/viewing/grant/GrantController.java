@@ -12,7 +12,6 @@ import seurat.core.shared.proto.msg.MsgLoans;
 import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.concession.Concessions;
 import seurat.core.viewing.paint.Painter;
-import seurat.core.viewing.plan.ConePlanner;
 import seurat.core.viewing.plan.ConeTiling;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
@@ -64,12 +63,12 @@ public final class GrantController {
             if ((gaze.flags() & MsgGaze.M_OCULTA) != 0) {
                 canvas.floored = true;
                 apply(canvas, Concessions.target(policy.ceiling(canvas), true, top), ProtoCodes.MOT_OCULTA, false);
+                canvas.plan().demand().clear(); // a hidden canvas wants nothing (ADR-07 rule 2)
                 return;
             }
             canvas.floored = !policy.lista(canvas); // BOCETO / PINTANDO: the floor stays until LISTA (spec 7.3)
             apply(canvas, Concessions.target(policy.ceiling(canvas), canvas.floored, top), ProtoCodes.MOT_MIRADA, true);
-            var planned = ConePlanner.plan(gaze, canvas.concession(), PlanIssuer.view(canvas),
-                    canvas.meta(), session.rung, session.queueMs());
+            var planned = plans.cone(canvas, gaze, canvas.concession());
             plans.issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
         }
     }

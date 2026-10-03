@@ -1,5 +1,8 @@
 package seurat.core.viewing.session;
 
+import java.util.List;
+import seurat.core.shared.codec.BrushId;
+import seurat.core.viewing.plan.PlanEntry;
 import seurat.kit.TestKit;
 
 /** Tests for {@link TierDemand}. */
@@ -24,6 +27,14 @@ public final class TierDemandTest {
         TestKit.check(sumAfter[0] == 1L
                 && sumAfter[1] == 1L
                 && sumAfter[2] == 1L, "clear resets demand");
+
+        CapacityMeter meter = new CapacityMeter();
+        List<PlanEntry> entries = List.of(
+                new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1),
+                new PlanEntry(new BrushId(2, 0, 0), 1, 4, 3));
+        long[] estimated = TierDemand.estimate(entries, meter);
+        TestKit.check(estimated[0] == 16384L && estimated[1] == 0L && estimated[2] == 24576L,
+                "fresh capacity meter estimates demand by tier");
 
         System.out.println("TierDemandTest OK");
     }

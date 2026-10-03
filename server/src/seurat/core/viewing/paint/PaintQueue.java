@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import seurat.core.viewing.session.Canvas;
+import seurat.core.viewing.session.CapacityMeter;
 import seurat.core.viewing.session.Session;
 
 /**
@@ -16,7 +17,12 @@ import seurat.core.viewing.session.Session;
  * stride. Only leaf locks (book, atomics) are touched under this monitor.
  */
 final class PaintQueue {
+    private final CapacityMeter meter;
     private final Map<Canvas, ArrayDeque<Pending>> byCanvas = new LinkedHashMap<>();
+
+    PaintQueue(CapacityMeter meter) {
+        this.meter = meter;
+    }
 
     synchronized void replace(Canvas canvas, List<Pending> entries) {
         if (!byCanvas.containsKey(canvas) && !entries.isEmpty()) {
@@ -76,9 +82,9 @@ final class PaintQueue {
     }
 
     /**
-     * Blocks until a canvas passes eligible, a global slot is free and it has a head entry;
-     * pops the best head. An eligible head is stamped ready (CoDel dwell start) even while
-     * it loses to other sessions or waits for a global slot: that wait is server queueing.
+     * Blocks until a canvas passes eligible, a global slot is free and it has a head entry, and
+     * pops the best head. Every decision tells the meter whether a ready entry is left waiting
+     * (ADR-07 rule 1: Painter busy time). Waiting on a session's own gates is not busy.
      */
     synchronized Pending take(Predicate<Pending> eligible, BooleanSupplier slotFree, long recheckMs)
             throws InterruptedException {
@@ -86,22 +92,20 @@ final class PaintQueue {
             long now = System.nanoTime();
             boolean slot = slotFree.getAsBoolean();
             Pending best = null;
+            int ready = 0;
             for (var e : byCanvas.entrySet()) {
                 ArrayDeque<Pending> q = e.getValue();
                 Pending head = q.peekFirst();
                 if (head == null || !eligible.test(head)) {
                     continue;
                 }
-                if (!head.isReady()) {
-                    q.pollFirst();
-                    head = head.readyAt(now);
-                    q.addFirst(head);
-                }
+                ready++;
                 if (slot && better(head, best, now)) {
                     best = head;
                 }
             }
             if (best != null) {
+                meter.backlog(ready > 1, now);
                 ArrayDeque<Pending> q = byCanvas.get(best.canvas());
                 q.pollFirst();
                 if (q.isEmpty()) {
@@ -110,8 +114,10 @@ final class PaintQueue {
                 return best;
             }
             if (byCanvas.isEmpty()) {
+                meter.backlog(false, now);
                 wait();
             } else {
+                meter.backlog(ready > 0, now);
                 wait(recheckMs);
             }
         }
