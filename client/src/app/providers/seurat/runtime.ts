@@ -6,7 +6,7 @@ import type { GazeSender } from '@/features/send-gaze';
 import type { PreviewManager } from '@/features/preview-works';
 import { MAX_RETIRED_HANDLES } from '@/shared/config/constants';
 import type { frameBatch } from '@/shared/lib/frame-batch';
-import type { Concession, PlanMsg, ProtocolError, Welcome, WorkOpened } from '@/shared/proto/messages';
+import type { Concession, PlanMsg, ProtocolError, Regulation, Welcome, WorkOpened } from '@/shared/proto/messages';
 
 /** The React state the provider shows: the only way the session modules reach the UI. */
 export interface Ui {
@@ -38,12 +38,15 @@ export interface Runtime {
   resuming: number | null;
   /** Unsubscribe of the open sink's brush-cap listener (Settings > Max brushes applies live). */
   offBrushCap: (() => void) | null;
+  /** The last REGULACION (ADR-07); null while unregulated. ADR-08 caps RECIBO.libre with its budget. */
+  regulation: Regulation | null;
   bumpPaint: ReturnType<typeof frameBatch>;
 }
 
 export function createRuntime(ui: Ui, bumpPaint: ReturnType<typeof frameBatch>): Runtime {
   return {
     alive: true, ui, client: null, sink: null, telemetry: null, gaze: null, preview: null, concession: null,
-    works: new Map(), previewIds: [], ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, offBrushCap: null, bumpPaint,
+    works: new Map(), previewIds: [], ledgers: new HandleLedgers(MAX_RETIRED_HANDLES), resuming: null, offBrushCap: null,
+    regulation: null, bumpPaint,
   };
 }

@@ -15,6 +15,7 @@ import {
   receiptDecode,
   releaseDecode,
   inventoryDecode,
+  type Regulation,
 } from '@/shared/proto/messages';
 import { concat, viDecode } from '@/shared/proto/varint';
 import type { SeuratTransport } from '@/shared/api/transport';
@@ -155,5 +156,36 @@ describe('SessionClient', () => {
     const inv = inventoryDecode(sentControl[3]!.slice(2));
     expect(inv.brushCount).toBe(5);
     expect(inv.kib).toBe(200);
+  });
+
+  it('routes a frame of type 0x40 REGULACION (ADR-07) and does not fail the session', () => {
+    const { t } = mockTransport();
+    let reg: Regulation | null = null;
+    let failed = false;
+
+    const events = {
+      onWelcome: () => {},
+      onWork: () => {},
+      onWorkOpened: () => {},
+      onConcession: () => {},
+      onPlan: () => {},
+      onScrape: () => {},
+      onRenew: () => {},
+      onAudit: () => {},
+      onProtocolError: () => { failed = true; },
+      onDelivery: () => {},
+      onStatus: () => {},
+      onRegulation: (g: Regulation) => { reg = g; },
+    };
+    const client = new SessionClient(events);
+    (client as unknown as { transport: SeuratTransport }).transport = t;
+    (client as unknown as { wire(t: SeuratTransport): void }).wire(t);
+
+    const payload = Uint8Array.from([0x01, 0x48, 0x00, 0x80, 0x00, 0x60, 0x00, 0x10]);
+    t.onControl?.(encodeFrame(0x40, payload));
+
+    expect(failed).toBe(false);
+    expect(client.failed).toBe(false);
+    expect(reg).toEqual({ rung: 1, budgetKibS: 2048, capacityKibS: 24576, sessions: 16 });
   });
 });

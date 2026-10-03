@@ -9,6 +9,7 @@ import {
   heartbeatCore,
   openedDecode,
   planDecode,
+  regulationDecode,
   renewDecode,
   scrapeDecode,
   welcomeDecode,
@@ -116,6 +117,9 @@ export class ControlRouter {
         break;
       case T.AUDITAR:
         ev.onAudit(auditDecode(payload));
+        break;
+      case T.REGULACION:
+        ev.onRegulation?.(regulationDecode(payload));
         break;
       default:
         // C->S types (SALUDO, MIRADA, RECIBO…) are as invalid here as unknown ones below 0x40.

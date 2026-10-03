@@ -1,6 +1,6 @@
 import { clearResume, type SessionEvents } from '@/entities/session';
 import { applyWork, sortWorks } from '@/entities/work';
-import { ErrorCode } from '@/shared/config/constants';
+import { ErrorCode, RUNG_NORMAL } from '@/shared/config/constants';
 import { T } from '@/shared/proto/messages';
 import { showPreviews } from './preview-cards';
 import type { Reconnect } from './reconnect';
@@ -20,7 +20,9 @@ export function createEvents(rt: Runtime, reconnect: Reconnect): SessionEvents {
   return {
     ...bookEvents(rt),
     ...deliveryEvents(rt),
+    onRegulation: (g) => { rt.regulation = g.budgetKibS === 0 && g.rung === RUNG_NORMAL ? null : g; },
     onWelcome: (b) => {
+      rt.regulation = null;
       reconnect.welcomed();
       const kept = rt.resuming !== null && b.resumed.includes(rt.resuming) && rt.sink?.handle === rt.resuming;
       rt.resuming = null;

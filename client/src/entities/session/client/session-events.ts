@@ -1,4 +1,4 @@
-import type { Audit, Concession, PlanMsg, ProtocolError, Renew, Scrape, Welcome, WorkMessage, WorkOpened } from '@/shared/proto/messages';
+import type { Audit, Concession, PlanMsg, ProtocolError, Regulation, Renew, Scrape, Welcome, WorkMessage, WorkOpened } from '@/shared/proto/messages';
 import type { SessionInfo } from '../session-info';
 
 /** What the session tells the app: one callback per server message, plus the link's own news. */
@@ -12,6 +12,8 @@ export interface SessionEvents {
   onRenew(r: Renew): void;
   onAudit(a: Audit): void;
   onProtocolError(e: ProtocolError): void;
+  /** REGULACION (ADR-07): the server regulates this session; budget 0 lifts the budget. */
+  onRegulation?(g: Regulation): void;
   onPreviewWorkOpened?(id: string, a: WorkOpened): void;
   onPreviewError?(id: string, e: ProtocolError): void;
   onDelivery(bytes: Uint8Array): void;

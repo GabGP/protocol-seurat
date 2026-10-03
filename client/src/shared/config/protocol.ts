@@ -21,6 +21,8 @@ export const SKETCH_MIN = 7;
 export const SKETCH_DELIVERIES = 44;
 /** A type below this is mandatory: unknown is fatal ERROR 1; at or above it is skipped (spec 3.2). */
 export const MANDATORY_TYPE_LIMIT = 0x40;
+/** REGULACION peldaño of an unregulated session: the normal cone (ADR-07). */
+export const RUNG_NORMAL = 3;
 /** SOLTAR motivo (spec 3.3). 1 is the spec's LRU slot: the client fills it with Horizon eviction. */
 export const ReleaseReason = {
   EVICTED: 1, DECODE_FAILED: 2, EXPIRED: 3, BUDGET: 4, CRC: 6, REPLACED: 7,

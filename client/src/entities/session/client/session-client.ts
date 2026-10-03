@@ -4,7 +4,7 @@ import { HEARTBEAT_S } from '@/shared/config/session';
 import { hexToBytes } from '@/shared/lib/hex';
 import { RateMeter } from '@/shared/lib/rate-meter';
 import { encodeFrame } from '@/shared/proto/frame';
-import { CAP_DATAGRAMAS, CAP_REANUDAR, T, helloCore, helloTlvs, type Welcome } from '@/shared/proto/messages';
+import { CAP_DATAGRAMAS, CAP_REANUDAR, CAP_REGULACION, T, helloCore, helloTlvs, type Welcome } from '@/shared/proto/messages';
 import { sessionInfoOf } from '../session-info';
 import { declareMemMib, loadResume } from '../store';
 import { authenticate, connectTransport } from './connect';
@@ -61,7 +61,7 @@ export class SessionClient extends Outbound {
     const claim = resume && claims && claims.length > 0
       ? { previousSession: resume.sessionId, ticket: resume.ticket, claims }
       : undefined;
-    const s = { minVersion: PROTO_VERSION, maxVersion: PROTO_VERSION, caps: CAP_DATAGRAMAS | CAP_REANUDAR, memMib: this.memMib, token, resume: claim };
+    const s = { minVersion: PROTO_VERSION, maxVersion: PROTO_VERSION, caps: CAP_DATAGRAMAS | CAP_REANUDAR | CAP_REGULACION, memMib: this.memMib, token, resume: claim };
     t.sendControl(encodeFrame(T.SALUDO, helloCore(s), helloTlvs(s)));
     this.events.onStatus('hello');
   }

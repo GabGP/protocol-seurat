@@ -31,3 +31,13 @@ export function goodbyeDecode(payload: Uint8Array): Goodbye {
   const r = new Reader(payload);
   return { code: r.vi(), msg: r.str() };
 }
+
+/** REGULACION (ADR-07): the server's load rung for this session and its byte budget; 0 budget = none, 0 capacity = unbounded. */
+export interface Regulation { rung: number; budgetKibS: number; capacityKibS: number; sessions: number }
+export function regulationCore(g: Regulation): Uint8Array {
+  return concat([g.rung], viEncode(g.budgetKibS), viEncode(g.capacityKibS), viEncode(g.sessions));
+}
+export function regulationDecode(payload: Uint8Array): Regulation {
+  const r = new Reader(payload);
+  return { rung: r.u8(), budgetKibS: r.vi(), capacityKibS: r.vi(), sessions: r.vi() };
+}
