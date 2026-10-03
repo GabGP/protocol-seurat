@@ -194,7 +194,7 @@ normal cone back within 500 ms.
 
 - Seurat/1 regulates by admission, not by probing. It never cuts unless the Painter has measured itself saturated
   in the last 10 s.
-- The client learns its rung and budget (`REGULACION`), which ADR-08 uses to stop asking for more than the server
-  will spend.
+- The client learns its rung and budget (`REGULACION`). ADR-08 measured capping the credit by the budget and found
+  it changes nothing (the window never binds while the Painter is the bottleneck), so it stays informational.
 - The open question of the proposal (max-min sharing inside a tier) is gone. The cut tier admits whole demands in
   stride order, which the spec already uses (§6.2).
