@@ -9,14 +9,20 @@ interface Sample {
 /**
  * Tracks the minimum round-trip time between MIRADA and the server's first PLAN response.
  *
- * Both credit horizons (spec §6.1, ADR-08) add the lowest sample of the window: the round trip
- * with no queueing behind earlier deliveries in it, so high-latency links stay full.
+ * Samples are only those with no delivery arriving between MIRADA and PLAN, so the minimum is
+ * the round trip of the path, never of the client's own queue (ADR-08 amendment).
  * The CREDIT_RTT_WINDOW_MS window lets it re-learn if network conditions change.
  */
 export class MinRtt {
   private readonly pending = new Map<number, number>();
   private samples: Sample[] = [];
   private mostRecent: number | null = null;
+  private lastFlowMs = -Infinity;
+
+  /** A delivery arrived. A PLAN answering a MIRADA sent before it was queued behind it in the same stream. */
+  arrived(now = performance.now()): void {
+    this.lastFlowMs = now;
+  }
 
   /** Remembers when a MIRADA seq was sent (bounded to RTT_PENDING_MAX, oldest dropped). */
   sent(seq: number, now = performance.now()): void {
@@ -38,6 +44,7 @@ export class MinRtt {
     const sentAt = this.pending.get(seq);
     if (sentAt === undefined) return;
     this.pending.delete(seq);
+    if (this.lastFlowMs >= sentAt) return;
     const rttS = Math.max(0, now - sentAt) / MS_PER_S;
     this.mostRecent = rttS;
     const cutoff = now - CREDIT_RTT_WINDOW_MS;

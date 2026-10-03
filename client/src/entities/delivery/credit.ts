@@ -3,6 +3,7 @@ import {
   CREDIT_BATCH_GAIN,
   CREDIT_MIN,
   CREDIT_QUEUE_TARGET_MS,
+  CREDIT_UNMEASURED,
   CREDIT_WINDOW_S,
   KIB_PER_BRUSH,
   MS_PER_S,
@@ -21,8 +22,8 @@ export function synthesisHorizon(parallel: number, jobMs: number, rttS: number):
 
 /**
  * RECIBO.libre (ADR-08): the smaller of the link horizon (what the link carries in CREDIT_WINDOW_S
- * plus one round trip) and the synthesis horizon, inside the memory window. Unmeasured links get
- * the memory window (the server starts at 8).
+ * plus one round trip) and the synthesis horizon, inside the memory window. Before the link is
+ * measured, libre is CREDIT_UNMEASURED (or memory if smaller), matching the server's opening credit (§4.1 c).
  */
 export function receiverWindow(
   memory: number,
@@ -31,10 +32,19 @@ export function receiverWindow(
   rttS = 0,
   synthesis?: { parallel: number; jobMs: number },
 ): number {
-  if (linkBps <= 0 || avgDelivery <= 0) return memory;
+  if (linkBps <= 0 || avgDelivery <= 0) return Math.min(memory, CREDIT_UNMEASURED);
   const link = Math.ceil((linkBps * (CREDIT_WINDOW_S + rttS)) / avgDelivery);
   const bound = synthesis ? Math.min(link, synthesisHorizon(synthesis.parallel, synthesis.jobMs, rttS)) : link;
   return Math.min(memory, Math.max(CREDIT_MIN, bound));
+}
+
+/**
+ * The link rate the window is sized by: the busiest second, unless deliveries arriving back to back show a lower
+ * rate. A second can hold one delivery more than the link carried in it (deliveries are counted when they end), so
+ * when one delivery is a large part of a second the busiest second overstates the link (ADR-08 amendment).
+ */
+export function linkRate(peakBps: number, arrivalBps: number): number {
+  return arrivalBps > 0 ? Math.min(peakBps, arrivalBps) : peakBps;
 }
 
 /**

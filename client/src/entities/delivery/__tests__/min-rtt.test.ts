@@ -92,4 +92,31 @@ describe('MinRtt estimator', () => {
     rtt.answered(-5, 1500);
     expect(rtt.seconds(1500)).toBe(0);
   });
+
+  it('records no sample when a delivery arrived since its MIRADA but forgets the pending seq', () => {
+    const rtt = new MinRtt();
+    rtt.sent(1, 1000);
+    expect(rtt.pendingCount).toBe(1);
+    rtt.arrived(1100); // a delivery arrived after MIRADA 1 was sent: its PLAN queued behind it
+    rtt.answered(1, 3000);
+
+    // The 2 s queue is no sample: still unmeasured, and the seq is forgotten.
+    expect(rtt.seconds(3000)).toBe(0);
+    expect(rtt.pendingCount).toBe(0);
+
+    rtt.sent(2, 4000);
+    rtt.answered(2, 4050); // nothing arrived meanwhile: the path's own 50 ms
+    expect(rtt.seconds(4050)).toBeCloseTo(0.05, 5);
+  });
+
+  it('records sample when delivery arrived before the MIRADA was sent', () => {
+    const rtt = new MinRtt();
+    rtt.arrived(900); // delivery arrived before MIRADA
+    rtt.sent(1, 1000);
+    expect(rtt.pendingCount).toBe(1);
+    rtt.answered(1, 1150); // 0.15 s
+
+    expect(rtt.seconds(1150)).toBeCloseTo(0.15, 5);
+    expect(rtt.pendingCount).toBe(0);
+  });
 });

@@ -13,6 +13,7 @@ import { SynthQueue } from '../synth-queue';
 import type { WorkerFactory, WorkerPool } from '../worker-pool';
 import type { SynthRequest } from '@/workers/protocol';
 import type { DeliveryPort, Grant, PendingScrape } from './port';
+import { ArrivalRate } from '../arrival-rate';
 import { MinRtt } from './min-rtt';
 
 /** A delivery waiting for its parent's planes before it can be synthesized. */
@@ -69,6 +70,7 @@ export class SinkState {
   readonly gaze = new GazeMotion();
   readonly heat = new AttentionHeat();
   readonly rtt = new MinRtt();
+  readonly arrivals = new ArrivalRate();
   receiptTimer = 0;
   releaseTimer = 0;
   expiredQueue: number[] = [];

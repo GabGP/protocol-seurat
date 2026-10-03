@@ -1,5 +1,11 @@
 /** RECIBO.libre keeps about this much link time of unconfirmed deliveries in flight. */
 export const CREDIT_WINDOW_S = 1;
+/** Before the link is measured: the server's own opening credit (§4.1 c), not the whole memory window, so a slow link is not handed the first plan at once (ADR-08 amendment). */
+export const CREDIT_UNMEASURED = 8;
+/** Arrival gaps kept for the link rate. */
+export const ARRIVAL_SAMPLES = 16;
+/** Fewer gaps measure nothing yet. */
+export const ARRIVAL_MIN_SAMPLES = 8;
 /** Never advertise fewer: one delivery arriving while the next is confirmed keeps the link busy. */
 export const CREDIT_MIN = 2;
 /** Bounded number of pending MIRADA seqs remembered for RTT measurement. */

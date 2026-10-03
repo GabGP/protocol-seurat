@@ -79,7 +79,7 @@ describe('brush cap', () => {
     setBrushCap(40);
     sink.relieveNow();
     expect(client.sentRelease).toEqual([{ handle: 1, reason: 1, ranges: [31, 32, 33, 34, 35, 36] }]);
-    expect(client.sentReceipt.at(-1)?.free).toBe(10);
+    expect(client.sentReceipt.at(-1)?.free).toBe(8);
     sink.dispose();
   });
 
@@ -87,7 +87,7 @@ describe('brush cap', () => {
     const client = fakeClient();
     const sink = makeSink({ client, maxBrushes: 768 });
     for (let bx = 0; bx < 36; bx++) sink.book.byDelivery.set(bx + 1, rec(bx + 1, bx));
-    setBrushCap(40);
+    setBrushCap(24);
     sink.relieveNow();
     const narrow = client.sentReceipt.at(-1)?.free ?? 0;
     setBrushCap(512);

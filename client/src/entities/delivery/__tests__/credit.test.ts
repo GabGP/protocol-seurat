@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byteRoom, coming, receiverWindow, synthesisHorizon } from '../credit';
+import { byteRoom, coming, linkRate, receiverWindow, synthesisHorizon } from '../credit';
 import { KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
 
 describe('receiverWindow (RECIBO.libre)', () => {
@@ -16,7 +16,7 @@ describe('receiverWindow (RECIBO.libre)', () => {
   });
 
   it('uses the memory window before the link is measured, and never exceeds it', () => {
-    expect(receiverWindow(768, 0, 26_000)).toBe(768);
+    expect(receiverWindow(768, 0, 26_000)).toBe(8);
     expect(receiverWindow(1, 64_000, 26_000)).toBe(1);
   });
 
@@ -29,7 +29,15 @@ describe('receiverWindow (RECIBO.libre)', () => {
     // Still capped by memory when Little's law exceeds it
     expect(receiverWindow(3, 50_000, 46_000, 2)).toBe(3);
     // Unmeasured links return memory even if rtt is provided
-    expect(receiverWindow(10, 0, 46_000, 2)).toBe(10);
+    expect(receiverWindow(10, 0, 46_000, 2)).toBe(8);
+  });
+
+  it('sizes the link by the lower of the peak second and arrival spacing', () => {
+    expect(linkRate(53_000, 33_000)).toBe(33_000);
+    expect(receiverWindow(768, 33_000, 26_000, 0.05)).toBe(2);
+    expect(receiverWindow(768, 53_000, 26_000, 0.05)).toBe(3);
+    expect(linkRate(4_000_000, 9_000_000)).toBe(4_000_000);
+    expect(linkRate(50_000, 0)).toBe(50_000);
   });
 });
 
