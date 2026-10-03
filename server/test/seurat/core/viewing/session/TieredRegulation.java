@@ -3,7 +3,9 @@ package seurat.core.viewing.session;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.core.shared.config.Units;
+import seurat.core.shared.proto.ProtoCodes;
 import seurat.core.viewing.plan.PlanEntry;
 
 /**
@@ -16,7 +18,8 @@ final class TieredRegulation implements RegulationSim.Arm {
     private final Map<RegulationViewer, TierDemand> demand = new HashMap<>();
 
     private Session session(RegulationViewer v) {
-        return sessions.computeIfAbsent(v, k -> new Session(k.id, "v", 128, 0, null, new byte[32]));
+        return sessions.computeIfAbsent(v, k -> new Session(k.id, "v", 128, ProtoCodes.CAP_REGULACION,
+                new RecordingMapping(), new byte[32]));
     }
 
     private TierDemand demand(RegulationViewer v) {
@@ -56,6 +59,18 @@ final class TieredRegulation implements RegulationSim.Arm {
         }
         regulator.tick(wanted, nowNs);
         active.forEach(v -> v.rung = session(v).rung);
+    }
+
+    /** REGULACION frames sent to every viewer, in bytes. */
+    @Override
+    public long controlBytes() {
+        long sum = 0;
+        for (Session s : sessions.values()) {
+            for (byte[] frame : ((RecordingMapping) s.mapping()).control) {
+                sum += frame.length;
+            }
+        }
+        return sum;
     }
 
     @Override

@@ -32,6 +32,11 @@ final class RegulationSim {
 
         void tick(List<RegulationViewer> active, long nowNs);
 
+        /** Control bytes the arm put on the wire (REGULACION). */
+        default long controlBytes() {
+            return 0;
+        }
+
         /** Whether a rung rise replans at once (at the tick) rather than at the 1 s liveness tick. */
         boolean replansOnRise();
     }

@@ -45,7 +45,7 @@ public final class RegulationBenchTest {
         TestKit.check(t.coreDone(1) >= v1.coreDone(1), "at least as many cores completed as v1.0");
     }
 
-    record Result(String arm, RegulationStats stats, List<RegulationViewer> viewers) {}
+    record Result(String arm, RegulationStats stats, List<RegulationViewer> viewers, long controlBytes) {}
 
     static Result run(Supplier<RegulationSim.Arm> arm, long cap) {
         List<RegulationViewer> viewers = new ArrayList<>();
@@ -58,14 +58,14 @@ public final class RegulationBenchTest {
         RegulationStats stats = new RegulationStats(0, 10 * S, 20 * S, 30 * S);
         RegulationSim.Arm a = arm.get();
         new RegulationSim(a, viewers, cap, stats).run(30 * S);
-        return new Result(a.name(), stats, viewers);
+        return new Result(a.name(), stats, viewers, a.controlBytes());
     }
 
     static void print(Result r, long cap) {
         RegulationStats s = r.stats();
         System.out.printf("RegulationBench %-18s jain(step)=%.3f util=%.2f/%.2f/%.2f core-util=%.2f/%.2f/%.2f p95dwell=%d/%d/%dms"
                 + " p95core=%d/%d/%dms core=%d/%d/%d censored=%d/%d/%d rungChanges/viewer-min=%.1f"
-                + " rungBack=%dms coneBack=%dms bytes=%d%n",
+                + " rungBack=%dms coneBack=%dms bytes=%d control=%d%n",
                 r.arm(), s.jain(1, r.viewers()),
                 s.utilization(0, cap), s.utilization(1, cap), s.utilization(2, cap),
                 s.coreUtilization(0, cap), s.coreUtilization(1, cap), s.coreUtilization(2, cap),
@@ -73,7 +73,7 @@ public final class RegulationBenchTest {
                 s.p95CoreMs(0), s.p95CoreMs(1), s.p95CoreMs(2),
                 s.coreDone(0), s.coreDone(1), s.coreDone(2),
                 s.censored(0), s.censored(1), s.censored(2),
-                s.rungChangesPerViewerMinute(r.viewers()), s.rungBackMs(), s.coneBackMs(), s.totalBytes());
+                s.rungChangesPerViewerMinute(r.viewers()), s.rungBackMs(), s.coneBackMs(), s.totalBytes(), r.controlBytes());
     }
 
     /** Reference: no regulation, every plan at rung 3. */
