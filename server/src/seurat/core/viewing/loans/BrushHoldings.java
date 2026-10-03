@@ -38,6 +38,20 @@ final class BrushHoldings {
         return byBrush.containsKey(new Key(p, edition));
     }
 
+    /** First band at or above `from` that a held delivery covers in `edition`; MAX_VALUE if none. */
+    int heldFrom(BrushId p, long edition, int from) {
+        TreeMap<Integer, Delivery> group = byBrush.get(new Key(p, edition));
+        if (group == null) {
+            return Integer.MAX_VALUE;
+        }
+        var below = group.floorEntry(from);
+        if (below != null && below.getValue().through() > from) {
+            return from;
+        }
+        Integer above = group.ceilingKey(from);
+        return above == null ? Integer.MAX_VALUE : above;
+    }
+
     /** Bands held contiguously from 0 in `edition`; seed: all or none. */
     int bands(BrushId p, long edition) {
         TreeMap<Integer, Delivery> group = byBrush.get(new Key(p, edition));

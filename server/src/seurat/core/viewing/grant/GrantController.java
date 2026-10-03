@@ -50,7 +50,7 @@ public final class GrantController {
     }
 
     List<seurat.core.viewing.plan.PlanEntry> sketch(Canvas canvas) {
-        return ConeTiling.sketch(canvas.meta(), canvas.concession().minStratum(), canvas::plannedBands);
+        return ConeTiling.sketch(canvas.meta(), canvas.concession().minStratum(), PlanIssuer.view(canvas));
     }
 
     /** MIRADA (spec 4.1.1-3): the highest seq wins; lift the floor if LISTA, then replan. */
@@ -68,7 +68,7 @@ public final class GrantController {
             }
             canvas.floored = !policy.lista(canvas); // BOCETO / PINTANDO: the floor stays until LISTA (spec 7.3)
             apply(canvas, Concessions.target(policy.ceiling(canvas), canvas.floored, top), ProtoCodes.MOT_MIRADA, true);
-            var planned = ConePlanner.plan(gaze, canvas.concession(), canvas::plannedBands,
+            var planned = ConePlanner.plan(gaze, canvas.concession(), PlanIssuer.view(canvas),
                     canvas.meta(), session.share, session.queueMs());
             plans.issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
         }

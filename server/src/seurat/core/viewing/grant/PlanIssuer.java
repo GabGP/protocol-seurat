@@ -8,6 +8,7 @@ import seurat.core.shared.codec.BrushId;
 import seurat.core.shared.proto.FrameType;
 import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.viewing.paint.Painter;
+import seurat.core.viewing.plan.BookView;
 import seurat.core.viewing.plan.ConePlanner;
 import seurat.core.viewing.plan.PlanEntry;
 import seurat.core.viewing.session.Canvas;
@@ -50,8 +51,23 @@ final class PlanIssuer {
             return;
         }
         Session s = canvas.session();
-        var planned = ConePlanner.plan(gaze, canvas.concession(), canvas::plannedBands, canvas.meta(), s.share, s.queueMs());
+        var planned = ConePlanner.plan(gaze, canvas.concession(), view(canvas), canvas.meta(), s.share, s.queueMs());
         issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
+    }
+
+    /** The planner's view of a canvas: unusable brushes count as held, entries stop at held bands (ADR-06). */
+    static BookView view(Canvas canvas) {
+        return new BookView() {
+            @Override
+            public int bands(BrushId p) {
+                return canvas.plannedBands(p);
+            }
+
+            @Override
+            public int heldFrom(BrushId p, int from) {
+                return canvas.book().heldFrom(p, from);
+            }
+        };
     }
 
     /** Edition swap: the sketch is repainted first, then what the cone adds on top of it. */

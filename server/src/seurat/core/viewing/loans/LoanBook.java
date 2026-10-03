@@ -30,6 +30,11 @@ public final class LoanBook {
     /** Edition new deliveries are stamped with and bands() counts. */
     public synchronized void edition(long value) { edition = value; }
 
+    /** First band at or above `from` already covered by a held delivery (ADR-06); MAX_VALUE if none. */
+    public synchronized int heldFrom(BrushId p, int from) {
+        return holdings.heldFrom(p, edition, from);
+    }
+
     /** Bands held contiguously from 0 in the current edition; seed: all or none. */
     public synchronized int bands(BrushId p) {
         return holdings.bands(p, edition);

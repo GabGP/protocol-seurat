@@ -14,6 +14,14 @@ import seurat.core.shared.config.SeuratConstants;
 final class ConePasses {
     private ConePasses() {}
 
+    /** [from, through) cut at the first band the book already holds above `from` (ADR-06). */
+    private static void add(List<PlanEntry> pass, BookView book, BrushId brush, int from, int through, int n) {
+        int end = Math.min(through, book.heldFrom(brush, from));
+        if (from < end) {
+            pass.add(new PlanEntry(brush, from, end, n));
+        }
+    }
+
     static ConePlanner.ConePlan split(Map<BrushId, Integer> want, List<BrushId> focus,
             BookView book, long cx, long cy, int flags, int top) {
         var core = new HashSet<BrushId>(focus);
@@ -40,15 +48,10 @@ final class ConePasses {
                 continue;
             }
             if (core.contains(brush)) {
-                if (have < Math.min(wantBands, 2)) {
-                    pass1.add(new PlanEntry(brush, have, Math.min(wantBands, 2), 1));
-                    have = Math.min(wantBands, 2);
-                }
-                if (have < wantBands) {
-                    pass2.add(new PlanEntry(brush, Math.max(have, 2), wantBands, 2));
-                }
+                add(pass1, book, brush, have, Math.min(wantBands, 2), 1);
+                add(pass2, book, brush, Math.max(have, 2), wantBands, 2);
             } else {
-                pass3.add(new PlanEntry(brush, have, wantBands, 3));
+                add(pass3, book, brush, have, wantBands, 3);
             }
             held.put(brush, wantBands);
         }
