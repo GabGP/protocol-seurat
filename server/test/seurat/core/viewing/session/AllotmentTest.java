@@ -4,86 +4,79 @@ import java.util.List;
 import java.util.Map;
 import seurat.kit.TestKit;
 
-/** Tests for {@link Allotment}. */
+/** ADR-07 rules 3-4: tiers fill coarsest first; inside the tier that does not fit, whole demands by rank. */
 public final class AllotmentTest {
+    /** Rank by key name: "A" goes first. */
+    private static final Allotment.Rank<String> BY_NAME = (k, tier, wanted) -> k.charAt(0);
+
     public static void main(String[] args) {
         unboundedRoom();
         everythingFits();
         ringsDoNotFit();
         coreDoesNotFit();
-        fairness();
+        rankDecides();
+        smallerOneStillFits();
         emptyDemand();
         System.out.println("AllotmentTest OK");
     }
 
+    private static void check(Allotment.Grant g, int tier, long bytes, String what) {
+        TestKit.check(g.tier() == tier && g.bytes() == bytes, what + ": got tier " + g.tier() + " bytes " + g.bytes());
+    }
+
     private static void unboundedRoom() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {10, 20, 30},
-            "B", new long[] {40, 50, 60}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, CapacityMeter.UNBOUNDED);
-        TestKit.check(grants.get("A").tier() == Allotment.TIERS
-                && grants.get("A").bytes() == CapacityMeter.UNBOUNDED, "A unbounded");
-        TestKit.check(grants.get("B").tier() == Allotment.TIERS
-                && grants.get("B").bytes() == CapacityMeter.UNBOUNDED, "B unbounded");
+        var grants = Allotment.fill(Map.of("A", new long[] {10, 20, 30}, "B", new long[] {40, 50, 60}),
+                CapacityMeter.UNBOUNDED, BY_NAME);
+        check(grants.get("A"), 3, CapacityMeter.UNBOUNDED, "A unbounded");
+        check(grants.get("B"), 3, CapacityMeter.UNBOUNDED, "B unbounded");
     }
 
     private static void everythingFits() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {10, 20, 30},
-            "B", new long[] {10, 20, 30}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, 1000L);
-        TestKit.check(grants.get("A").tier() == Allotment.TIERS
-                && grants.get("A").bytes() == 60L, "A fits tier 3");
-        TestKit.check(grants.get("B").tier() == Allotment.TIERS
-                && grants.get("B").bytes() == 60L, "B fits tier 3");
+        var grants = Allotment.fill(Map.of("A", new long[] {10, 20, 30}, "B", new long[] {10, 20, 30}), 1000, BY_NAME);
+        check(grants.get("A"), 3, 60, "A fits");
+        check(grants.get("B"), 3, 60, "B fits");
     }
 
+    /** Tiers 1-2 take 40 of 100; A's rings (100) do not fit in 60 and are cut, B's (10) do. */
     private static void ringsDoNotFit() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {10, 10, 100},
-            "B", new long[] {10, 10, 10}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, 100L);
-        TestKit.check(grants.get("A").tier() == 2 && grants.get("A").bytes() == 70L, "A tier 2, 70B");
-        TestKit.check(grants.get("B").tier() == 3 && grants.get("B").bytes() == 30L, "B tier 3, 30B");
+        var grants = Allotment.fill(Map.of("A", new long[] {10, 10, 100}, "B", new long[] {10, 10, 10}), 100, BY_NAME);
+        check(grants.get("A"), 2, 20, "A cut at the rings");
+        check(grants.get("B"), 3, 30, "B whole");
     }
 
+    /** No partial share: what is cut gets nothing of that tier; a key with no core demand keeps tier 1. */
     private static void coreDoesNotFit() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {100, 0, 0},
-            "B", new long[] {30, 0, 0},
-            "C", new long[] {0, 0, 50}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, 90L);
-        TestKit.check(grants.get("A").tier() == 0 && grants.get("A").bytes() == 60L, "A tier 0, 60B");
-        TestKit.check(grants.get("B").tier() == 1 && grants.get("B").bytes() == 30L, "B tier 1, 30B");
-        TestKit.check(grants.get("C").tier() == 1 && grants.get("C").bytes() == 0L, "C tier 1, 0B");
-        long total = grants.get("A").bytes() + grants.get("B").bytes() + grants.get("C").bytes();
-        TestKit.check(total <= 90L, "total does not exceed room: " + total);
+        var grants = Allotment.fill(Map.of(
+                "A", new long[] {100, 0, 0}, "B", new long[] {30, 0, 0}, "C", new long[] {0, 0, 50}), 90, BY_NAME);
+        check(grants.get("A"), 0, 0, "A's core does not fit");
+        check(grants.get("B"), 1, 30, "B's core does");
+        check(grants.get("C"), 1, 0, "C wanted no core; the filling stops at tier 1");
     }
 
-    private static void fairness() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {100, 0, 0},
-            "B", new long[] {100, 0, 0},
-            "C", new long[] {100, 0, 0},
-            "D", new long[] {100, 0, 0}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, 200L);
+    /** Equal demands: the rank decides who goes first, and the room is never exceeded. */
+    private static void rankDecides() {
+        var grants = Allotment.fill(Map.of("A", new long[] {100, 0, 0}, "B", new long[] {100, 0, 0},
+                "C", new long[] {100, 0, 0}, "D", new long[] {100, 0, 0}), 200, BY_NAME);
+        check(grants.get("A"), 1, 100, "A first");
+        check(grants.get("B"), 1, 100, "B second");
+        check(grants.get("C"), 0, 0, "C cut");
+        check(grants.get("D"), 0, 0, "D cut");
+        long total = 0;
         for (String k : List.of("A", "B", "C", "D")) {
-            TestKit.check(grants.get(k).tier() == 0 && grants.get(k).bytes() == 50L,
-                    k + " gets 50 at tier 0");
+            total += grants.get(k).bytes();
         }
+        TestKit.check(total <= 200, "the room is never exceeded");
+    }
+
+    /** First fit: a later, smaller demand still takes the room an earlier one could not use. */
+    private static void smallerOneStillFits() {
+        var grants = Allotment.fill(Map.of("A", new long[] {80, 0, 0}, "B", new long[] {20, 0, 0}), 50, BY_NAME);
+        check(grants.get("A"), 0, 0, "A does not fit");
+        check(grants.get("B"), 1, 20, "B does");
     }
 
     private static void emptyDemand() {
-        Map<String, long[]> demand = Map.of(
-            "A", new long[] {0, 0, 0}
-        );
-        Map<String, Allotment.Grant> grants = Allotment.fill(demand, 100L);
-        TestKit.check(grants.get("A").tier() == Allotment.TIERS
-                && grants.get("A").bytes() == 0L, "empty demand tier 3, 0B");
+        var grants = Allotment.fill(Map.of("A", new long[] {0, 0, 0}), 100, BY_NAME);
+        check(grants.get("A"), 3, 0, "empty demand");
     }
 }

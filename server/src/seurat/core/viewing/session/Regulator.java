@@ -5,33 +5,47 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import seurat.core.shared.config.Units;
 
 /**
  * ADR-07 tiered sharpness filling. Every tick it measures the capacity in busy time, sums each
- * session's demand by tier, allots the next horizon coarsest tier first, and moves each session's
- * rung, which drops at once and climbs after 2 ticks.
+ * session's demand rate by tier, allots the capacity coarsest tier first, and moves each session's
+ * rung, which drops at once and climbs after 2 ticks. Rates and capacity are both bytes per second.
  */
 public final class Regulator {
-    /** The allotment covers the next second (ADR-07 H). */
-    private static final int HORIZON_S = 1;
     /** A session climbs only after a higher tier fit this many ticks in a row. */
     private static final int RISE_TICKS = 2;
 
+    /** Seconds of a tier's demand an admitted session may be ahead (in stride) and keep its place. */
+    private static final double STICKY_S = 4;
+    /**
+     * Inside the tier that does not fit, the session served least so far (spec 6.2 stride) goes
+     * first; one already granted the tier keeps its place until it is STICKY_S of that tier ahead.
+     */
+    private static final Allotment.Rank<Session> LEAST_SERVED =
+            (s, tier, wanted) -> s.stride - (s.rung > tier ? wanted * STICKY_S : 0);
     private final CapacityMeter meter = new CapacityMeter();
+    /** Start of the tick being closed; -1 before the first. */
+    private long lastTickNs = -1;
 
     public CapacityMeter meter() {
         return meter;
     }
 
     /**
-     * The server tick. Every session's demand is summed over its canvases.
-     * Returns the sessions whose rung rose.
+     * The server tick. Each canvas folds its new want into its rate, and every session's rate is
+     * summed over its canvases. Returns the sessions whose rung rose.
      */
     public List<Session> tick(Collection<Session> sessions, long nowNs) {
+        double tickS = lastTickNs < 0 ? 0 : (double) (nowNs - lastTickNs) / Units.NANOS_PER_S;
+        lastTickNs = nowNs;
         Map<Session, long[]> demand = new HashMap<>();
         for (Session session : sessions) {
             long[] sum = new long[Allotment.TIERS];
             for (Canvas canvas : session.canvases().values()) {
+                if (tickS > 0) {
+                    canvas.plan().demand().tick(tickS);
+                }
                 canvas.plan().demand().addTo(sum);
             }
             demand.put(session, sum);
@@ -39,12 +53,10 @@ public final class Regulator {
         return tick(demand, nowNs);
     }
 
-    /** Allots capacity across tiers and settles session rungs. */
+    /** Allots the capacity to the demand rates (bytes per second by tier) and settles the rungs. */
     public List<Session> tick(Map<Session, long[]> demand, long nowNs) {
-        long capacity = meter.sample(nowNs);
-        long room = capacity == CapacityMeter.UNBOUNDED ? CapacityMeter.UNBOUNDED : capacity * HORIZON_S;
         List<Session> rose = new ArrayList<>();
-        for (Map.Entry<Session, Allotment.Grant> entry : Allotment.fill(demand, room).entrySet()) {
+        for (Map.Entry<Session, Allotment.Grant> entry : Allotment.fill(demand, meter.sample(nowNs), LEAST_SERVED).entrySet()) {
             if (settle(entry.getKey(), entry.getValue().tier())) {
                 rose.add(entry.getKey());
             }

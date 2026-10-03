@@ -22,6 +22,8 @@ public final class ConeDemandTest {
         rigA.grants.gaze(rigA.session, rigA.canvas, gaze);
         rigB.grants.gaze(rigB.session, rigB.canvas, gaze);
 
+        rigA.canvas.plan().demand().tick(0.25); // the regulation tick folds the new want into the rate
+        rigB.canvas.plan().demand().tick(0.25);
         long[] sumA = new long[Allotment.TIERS];
         rigA.canvas.plan().demand().addTo(sumA);
         long[] sumB = new long[Allotment.TIERS];

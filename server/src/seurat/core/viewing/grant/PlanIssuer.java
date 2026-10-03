@@ -47,15 +47,16 @@ final class PlanIssuer {
     }
 
     /**
-     * The cone of gaze at the session's rung. The canvas demand becomes what the uncut
-     * cone wants, by tier, in bytes estimated from the stratum means (ADR-07 rule 2). Canvas lock.
+     * The cone of gaze at the session's rung. What the uncut cone wants, by tier, in bytes estimated
+     * from the stratum means, is the canvas's new demand (ADR-07 rule 2). Canvas lock.
      */
     ConePlanner.ConePlan cone(Canvas canvas, MsgGaze.Gaze gaze, Concession concession) {
         Session s = canvas.session();
         var planned = ConePlanner.plan(gaze, concession, view(canvas), canvas.meta(), s.rung, s.queueMs());
         var full = s.rung >= UNCUT ? planned
                 : ConePlanner.plan(gaze, concession, view(canvas), canvas.meta(), UNCUT, s.queueMs());
-        canvas.plan().demand().plan(TierDemand.estimate(full.entries(), painter.meter()));
+        // plan().seq() is still the live plan's: a different seq is a new MIRADA.
+        canvas.plan().demand().plan(TierDemand.estimate(full.entries(), painter.meter()), gaze.seq() != canvas.plan().seq());
         return planned;
     }
 

@@ -5,16 +5,19 @@ import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.config.Units;
 
 /**
- * ADR-07 rule 1: the bytes per second the Painter can open,
- * measured in busy time, and the mean bytes per band of each stratum.
+ * ADR-07 rule 1: the bytes per second the Painter can open, measured in busy time, and the mean
+ * bytes per band of each stratum. Only saturated ticks measure it; their median holds while one
+ * of the last MEMORY_NS was saturated, so a cut that empties the queue does not unbound it again.
  */
 public final class CapacityMeter {
-    /** The Painter was not the bottleneck, so nobody is cut. */
+    /** No saturated tick in memory: the Painter is not the bottleneck, so nobody is cut. */
     public static final long UNBOUNDED = Long.MAX_VALUE;
     /** The busy fraction at or above which the Painter is the bottleneck. */
     private static final double SATURATED = 0.5;
     /** The saturated ticks kept; the capacity is their median. */
     private static final int SAMPLES = 5;
+    /** A saturated tick counts this long. */
+    private static final long MEMORY_NS = 10 * Units.NANOS_PER_S;
     /** The weight of a new delivery in a stratum mean. */
     private static final double MEAN_GAIN = 1.0 / 8;
     /** The mean bytes per band before a stratum has a delivery. */
@@ -22,6 +25,7 @@ public final class CapacityMeter {
 
     private final double[] bandBytes = new double[SeuratConstants.SEED_STRATUM + 1];
     private final long[] samples = new long[SAMPLES];
+    private final long[] sampledNs = new long[SAMPLES];
     private int count;
     private int next;
     private boolean waiting;
@@ -59,8 +63,8 @@ public final class CapacityMeter {
     }
 
     /**
-     * Closes a tick and returns the capacity in bytes per second,
-     * or UNBOUNDED when the Painter was busy less than half of it.
+     * Closes a tick and returns the capacity in bytes per second: the median of the saturated
+     * ticks (busy at least half the tick) of the last MEMORY_NS, or UNBOUNDED when there is none.
      */
     public synchronized long sample(long nowNs) {
         backlog(waiting, nowNs);
@@ -70,14 +74,23 @@ public final class CapacityMeter {
         long bytes = openedBytes;
         busyNs = 0;
         openedBytes = 0;
-        if (tickLength <= 0 || busy < SATURATED * tickLength) {
+        if (tickLength > 0 && busy >= SATURATED * tickLength) {
+            samples[next] = (long) ((double) bytes * Units.NANOS_PER_S / busy);
+            sampledNs[next] = nowNs;
+            next = (next + 1) % SAMPLES;
+            count = Math.min(count + 1, SAMPLES);
+        }
+        long[] recent = new long[count];
+        int n = 0;
+        for (int i = 0; i < count; i++) {
+            if (nowNs - sampledNs[i] < MEMORY_NS) {
+                recent[n++] = samples[i];
+            }
+        }
+        if (n == 0) {
             return UNBOUNDED;
         }
-        samples[next] = (long) ((double) bytes * Units.NANOS_PER_S / busy);
-        next = (next + 1) % SAMPLES;
-        count = Math.min(count + 1, SAMPLES);
-        long[] copy = Arrays.copyOf(samples, count);
-        Arrays.sort(copy);
-        return copy[count / 2];
+        Arrays.sort(recent, 0, n);
+        return recent[n / 2];
     }
 }

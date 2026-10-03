@@ -11,6 +11,7 @@ public final class CapacityMeterTest {
         lessThanHalfBusy();
         median();
         bandMeans();
+        memory();
         System.out.println("CapacityMeterTest OK");
     }
 
@@ -90,5 +91,18 @@ public final class CapacityMeterTest {
         meter.opened(3, 2, 2 * 16384);
         double expected = 8192.0 + (16384.0 - 8192.0) / 8.0;
         TestKit.check(Math.abs(meter.bandBytes(3) - expected) < 1e-9, "updated bandBytes");
+    }
+
+    /** A cut that empties the queue keeps the measured capacity; 10 s without a saturated tick unbounds it. */
+    private static void memory() {
+        CapacityMeter meter = new CapacityMeter();
+        meter.sample(0);
+        meter.backlog(true, 0);
+        meter.opened(1, 2, 2_000_000);
+        TestKit.check(meter.sample(250_000_000L) == 8_000_000L, "saturated tick measured");
+        meter.backlog(false, 250_000_000L);
+        TestKit.check(meter.sample(500_000_000L) == 8_000_000L, "an idle tick keeps the capacity");
+        TestKit.check(meter.sample(10_000_000_000L) == 8_000_000L, "still within 10 s");
+        TestKit.check(meter.sample(10_250_000_000L) == CapacityMeter.UNBOUNDED, "10 s on, nothing saturated: unbounded");
     }
 }
