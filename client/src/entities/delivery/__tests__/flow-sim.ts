@@ -45,7 +45,8 @@ export interface FlowResult {
   /** Bytes of brushes that arrived and were never on screen (a view's core or its ancestors) afterwards. */
   unseen: number;
 }
-export interface FlowOpts { planner?: () => Planner; quietMs?: number }
+/** `onReceipt`: each RECIBO's delivery set as it leaves (ADR-09 bench). */
+export interface FlowOpts { planner?: () => Planner; quietMs?: number; onReceipt?: (numbers: number[]) => void }
 
 const KIB = 1024;
 const MEMORY = 200;
@@ -124,6 +125,7 @@ export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, 
     const queue = Math.round(decode.ms);
     if (pending.length === 0 && free === lastFree && queue === lastQueue) return;
     const done = pending.map((p) => p.id);
+    o.onReceipt?.(done);
     pending = [];
     lastFree = free;
     lastQueue = queue;

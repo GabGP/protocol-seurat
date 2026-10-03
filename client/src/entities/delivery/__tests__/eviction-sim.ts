@@ -44,6 +44,12 @@ export interface SimResult {
   evicted: number;
 }
 
+/**
+ * The delivery sets the replay would put on the wire (ADR-09 bench): `soltar` per eviction pass or
+ * lease sweep, `held` the whole book at each renewal (what RENOVAR, INVENTARIO or a claim carries).
+ */
+export type SetRecorder = (kind: 'soltar' | 'held', numbers: number[]) => void;
+
 export function viewOf(f: Frame): EvictView {
   const scale = 2 ** f.z;
   const hw = (SIM.screenW / 2) * scale;
@@ -75,6 +81,14 @@ class SimBook {
   private readonly byKey = new Map<string, number>();
   private next = 1;
   fetched = 0;
+  /** Numbers removed since the last `takeRemoved`. */
+  private removed: number[] = [];
+
+  takeRemoved(): number[] {
+    const out = this.removed;
+    this.removed = [];
+    return out;
+  }
 
   get size(): number {
     return this.book.byDelivery.size;
@@ -110,6 +124,7 @@ class SimBook {
     for (const kid of [...(this.book.childrenOf.get(delivery) ?? [])]) this.remove(kid);
     const rec = this.book.byDelivery.get(delivery);
     if (!rec) return;
+    this.removed.push(delivery);
     this.book.byDelivery.delete(delivery);
     this.byKey.delete(brushKey(rec.brushId, rec.edition));
     const parent = this.book.parentOf.get(delivery);
@@ -136,8 +151,12 @@ function ancestry(s: number, bx: number, by: number): Array<[number, number, num
 }
 
 /** `cap` = max_pinceladas: 128 is the spec's no-API default, 256 a Chromium desktop. */
-export function simulate(trace: readonly Frame[], rank: Ranker, cap: number): SimResult {
+export function simulate(trace: readonly Frame[], rank: Ranker, cap: number, rec?: SetRecorder): SimResult {
   const sim = new SimBook();
+  const released = (): void => {
+    const out = sim.takeRemoved();
+    if (out.length > 0) rec?.('soltar', out);
+  };
   const gaze = new GazeMotion();
   const heat = new AttentionHeat();
   let stalls = 0;
@@ -155,6 +174,7 @@ export function simulate(trace: readonly Frame[], rank: Ranker, cap: number): Si
         evicted++;
       }
     }
+    released();
     heat.prune(new Set(ownedBrushes(sim.book).keys()));
   };
   trace.forEach((f, i) => {
@@ -167,6 +187,7 @@ export function simulate(trace: readonly Frame[], rank: Ranker, cap: number): Si
     gaze.observe(tS, f.x, f.y, f.z, Math.hypot(v.x1 - v.x0, v.y1 - v.y0) / 2);
     relieve(v, tS);
     sim.sweep(nowMs);
+    released();
     for (const [bx, by] of tilesIn(v, v.focus, 1)) {
       for (const [s, ax, ay] of ancestry(v.focus, bx, by)) {
         if (sim.has(s, ax, ay)) continue;
@@ -177,6 +198,7 @@ export function simulate(trace: readonly Frame[], rank: Ranker, cap: number): Si
     const ring = tilesIn(v, v.focus, SIM.ring);
     if (i % Math.round(SIM.renewEveryS / SIM.stepS) === 0) {
       for (const [bx, by] of ring) for (const [s, ax, ay] of ancestry(v.focus, bx, by)) sim.renew(s, ax, ay, nowMs + LEASE_S * 1000);
+      rec?.('held', [...sim.book.byDelivery.keys()]);
     }
     for (const [bx, by] of ring) {
       if (sim.size >= EVICT_TARGET * cap) break;
