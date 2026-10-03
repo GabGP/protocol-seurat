@@ -1,6 +1,6 @@
 import { brushKey, splitBrushId, type BrushHead } from '@/shared/proto/brush';
 import { toKib } from '@/shared/config/constants';
-import { rangesEqual } from '@/shared/proto/ranges';
+import { setsEqual } from '@/shared/proto/teselas';
 
 export interface DeliveryRecord {
   delivery: number;
@@ -119,7 +119,7 @@ export function tallyHeld(b: DeliveryLedger, ids: number[]): { scraped: number; 
 
 export function confirmScraped(keep: number[], through: number, expected: number[]): boolean {
   const got = keep.filter((n) => n <= through);
-  return rangesEqual(got, expected);
+  return setsEqual(got, expected);
 }
 
 export function effectiveExpiry(rec: DeliveryRecord, parentVence: number | null): number {

@@ -33,3 +33,6 @@ export const ScrapePredicate = { LOW_STRATUM: 1, OUTSIDE: 2, BANDS: 3, LIST: 4, 
 export const ErrorCode = { PROTOCOL: 1, NO_SUCH_WORK: 4, RESUME_REJECTED: 12 } as const;
 /** TLV tags (spec 3.5, ADR-06): SALUDO 0x01 REANUDAR, BIENVENIDA 0x02 FICHA and 0x03 REANUDADAS, PLAN 0x04 IRRECUPERABLES. */
 export const TlvTag = { RESUME: 0x01, TICKET: 0x02, RESUMED: 0x03, UNRECOVERABLE: 0x04 } as const;
+
+/** Numbers one Teselas set may name (ADR-09): more than any book holds, far below a DoS. Same as the server. */
+export const TESELAS_MAX_NUMBERS = 1 << 20;

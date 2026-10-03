@@ -1,6 +1,6 @@
 import { TlvTag } from '../../config/constants';
 import { parseTlvs, tlvEncode } from '../frame';
-import { rangesEncode } from '../ranges';
+import { teselasEncode } from '../teselas';
 import { Reader } from '../reader';
 import { concat, u64Encode, viEncode } from '../varint';
 
@@ -64,7 +64,7 @@ export function planCore(p: PlanMsg): Uint8Array {
     return core;
   }
   if (p.event === 1) return concat(head, viEncode(p.last));
-  return concat(head, rangesEncode(p.cancelled));
+  return concat(head, teselasEncode(p.cancelled));
 }
 export function planDecode(payload: Uint8Array): PlanMsg {
   const r = new Reader(payload);
@@ -92,5 +92,5 @@ export function planDecode(payload: Uint8Array): PlanMsg {
     return out;
   }
   if (event === 1) return { handle, gazeSeq, event, last: r.vi() };
-  return { handle, gazeSeq, event: 2, cancelled: r.ranges() };
+  return { handle, gazeSeq, event: 2, cancelled: r.teselas() };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { concat, viEncode } from '@/shared/proto/varint';
-import { rangesEncode } from '@/shared/proto/ranges';
+import { teselasEncode } from '@/shared/proto/teselas';
 import { makeBrushId } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
 import { fakeClient } from '../testing/fake-port';
@@ -120,7 +120,7 @@ describe('DeliverySink', () => {
     expect(sink.matchesScrape(recE8, 3, new Uint8Array([1, 1]))).toBe(false);
 
     // Predicate 4: LISTA
-    const listParams = rangesEncode([5, 10]);
+    const listParams = teselasEncode([5, 10]);
     expect(sink.matchesScrape(recE1, 4, listParams)).toBe(true);
     expect(sink.matchesScrape(recE8, 4, listParams)).toBe(false);
 

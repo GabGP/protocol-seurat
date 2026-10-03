@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { concat, u64Decode, u64Encode, viDecode, viDecodeBig, viEncode } from '@/shared/proto/varint';
-import { rangesDecode, rangesEncode, rangesEqual } from '@/shared/proto/ranges';
+import { setsEqual, teselasDecode, teselasEncode } from '@/shared/proto/teselas';
 import { decodeFrame, encodeFrame, FatalProtocolError } from '@/shared/proto/frame';
 import {
   T,
@@ -45,30 +45,30 @@ describe('varint (QUIC minimal encode)', () => {
   });
 });
 
-describe('ranges (SACK)', () => {
-  it('mayor 0 = empty, still 3 varints (00 00 00, as the server)', () => {
-    expect(hex(rangesEncode([]))).toBe('000000');
-    const r = rangesDecode(Uint8Array.from([0x00, 0x00, 0x00]), 0);
+describe('Teselas sets (ADR-09)', () => {
+  it('empty set = 0000', () => {
+    expect(hex(teselasEncode([]))).toBe('0000');
+    const r = teselasDecode(Uint8Array.from([0x00, 0x00]), 0);
     expect(r.values).toEqual([]);
-    expect(r.next).toBe(3);
+    expect(r.next).toBe(2);
   });
-  it('RECIBO with nothing new = 01 000000 28 42c4 00 (Java MsgLoans.Receipt bytes)', () => {
+  it('RECIBO with nothing new = 01 0000 28 42c4 00', () => {
     const r = { handle: 1, completed: [], queueMs: 40, free: 708, renewThrough: 0 };
-    expect(hex(receiptCore(r))).toBe('010000002842c400');
+    expect(hex(receiptCore(r))).toBe('0100002842c400');
     expect(receiptDecode(receiptCore(r))).toEqual(r);
   });
-  it('RECIBO [45,51]+[53,60] = 3c 01 07 00 06', () => {
-    const enc = rangesEncode([...rangeList(45, 51), ...rangeList(53, 60)]);
-    expect(hex(enc)).toBe('3c01070006');
-    expect(rangesDecode(enc, 0).values).toEqual([...rangeList(45, 51), ...rangeList(53, 60)]);
+  it('RECIBO [45,51]+[53,60] = 2d 01 06 00 07', () => {
+    const enc = teselasEncode([...rangeList(45, 51), ...rangeList(53, 60)]);
+    expect(hex(enc)).toBe('2d01060007');
+    expect(teselasDecode(enc, 0).values).toEqual([...rangeList(45, 51), ...rangeList(53, 60)]);
   });
-  it('RASPADO [1,256] = 41 00 00 40 ff', () => {
-    const enc = rangesEncode(rangeList(1, 256));
-    expect(hex(enc)).toBe('41000040ff');
+  it('RASPADO [1,256] = 01 00 40 ff', () => {
+    const enc = teselasEncode(rangeList(1, 256));
+    expect(hex(enc)).toBe('010040ff');
   });
   it('exact equality', () => {
-    expect(rangesEqual([1, 2, 3], [3, 2, 1])).toBe(true);
-    expect(rangesEqual([1, 2], [1, 2, 3])).toBe(false);
+    expect(setsEqual([1, 2, 3], [3, 2, 1])).toBe(true);
+    expect(setsEqual([1, 2], [1, 2, 3])).toBe(false);
   });
 });
 
@@ -132,27 +132,27 @@ describe('spec 3.4 goldens', () => {
   });
   it('RECIBO [45,51]+[53,60] exact', () => {
     const frame = VECTORS.receipt();
-    expect(hex(frame)).toBe('260a013c010700062842c400');
+    expect(hex(frame)).toBe('260a012d010600072842c400');
     const back = receiptDecode(frame.slice(2));
     expect(back.completed.length).toBe(15);
     expect(back).toMatchObject({ queueMs: 40, free: 708 });
   });
-  it('RASPADO [1,256] exact', () => {
+  it('RASPADO [1,256] exact (ADR-09)', () => {
     const frame = VECTORS.scrapedFull();
-    expect(hex(frame)).toBe('250d01030341211c40d841000040ff');
+    expect(hex(frame)).toBe('250c01030341211c40d8010040ff');
     const back = scrapedDecode(frame.slice(2));
     expect(back).toMatchObject({ order: 3, epoch: 3, through: 289, scrapedCount: 28, freedKib: 216 });
     expect(back.kept.length).toBe(rangeList(1, 256).length);
   });
   it('RENOVAR exact', () => {
     const frame = VECTORS.renew();
-    expect(hex(frame)).toBe('280b010c40784150012e2040ff');
+    expect(hex(frame)).toBe('280a010c4078010140ff202e');
     expect(renewDecode(frame.slice(2))).toMatchObject({ order: 12, leaseS: 120 });
   });
-  it('SALUDO REANUDAR largo 89 with TLV 0x01/0x31', () => {
+  it('SALUDO REANUDAR largo 88 with TLV 0x01/0x30', () => {
     const frame = VECTORS.helloResume();
-    expect(hex(frame.slice(0, 3))).toBe('014059');
-    expect(frame.length).toBe(3 + 89);
+    expect(hex(frame.slice(0, 3))).toBe('014058');
+    expect(frame.length).toBe(3 + 88);
     const back = helloDecode(frame.slice(3));
     expect(back.resume?.claims[0]?.ranges.length).toBe(303);
   });

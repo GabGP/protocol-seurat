@@ -28,10 +28,10 @@ public final class ScrapeGoldensTest {
     }
 
     private static void planCancelled() {
-        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("41210004")));
+        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("411d0004")));
         var plan = MsgGaze.Plan.cancelled(1, 12, ranges);
         byte[] frame = new Frame(FrameType.PLAN, plan.encode()).encode();
-        byte[] expect = TestKit.unhex("2307010c0241210004");
+        byte[] expect = TestKit.unhex("2307010c02411d0004");
         TestKit.check(Arrays.equals(frame, expect), "PLAN CANCELADAS:\n" + TestKit.hex(frame));
         TestKit.check(ranges.contains(285) && ranges.contains(289)
                 && !ranges.contains(284), "[285,289]");
@@ -45,10 +45,10 @@ public final class ScrapeGoldensTest {
     }
 
     private static void scraped() {
-        var kept = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("41000040ff")));
+        var kept = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("010040ff")));
         var scrapedMsg = new MsgLoans.Scraped(1, 3, 3, 289, 28, 216, kept);
         byte[] frame = new Frame(FrameType.RASPADO, scrapedMsg.encode()).encode();
-        byte[] expect = TestKit.unhex("250d01030341211c40d841000040ff");
+        byte[] expect = TestKit.unhex("250c01030341211c40d8010040ff");
         TestKit.check(Arrays.equals(frame, expect), "RASPADO:\n" + TestKit.hex(frame));
         var back = MsgLoans.Scraped.parse(
                 Frame.decode(ByteBuffer.wrap(frame)).payload());
@@ -57,10 +57,10 @@ public final class ScrapeGoldensTest {
     }
 
     private static void renew() {
-        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("4150012e2040ff")));
+        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("010140ff202e")));
         var renewMsg = new MsgAudit.Renew(1, 12, 120, ranges);
         byte[] frame = new Frame(FrameType.RENOVAR, renewMsg.encode()).encode();
-        byte[] expect = TestKit.unhex("280b010c40784150012e2040ff");
+        byte[] expect = TestKit.unhex("280a010c4078010140ff202e");
         TestKit.check(Arrays.equals(frame, expect), "RENOVAR:\n" + TestKit.hex(frame));
     }
 
@@ -70,17 +70,17 @@ public final class ScrapeGoldensTest {
         byte[] ticket = new byte[32];
         Arrays.fill(ticket, (byte) 0x7A);
         var claim = new MsgHello.Claim(1,
-                Ranges.decode(ByteBuffer.wrap(TestKit.unhex("4150012e2040ff"))));
+                Ranges.decode(ByteBuffer.wrap(TestKit.unhex("010140ff202e"))));
         var resumeReq = new MsgHello.ResumeRequest(0x3A915E0C77D214B8L, ticket,
                 java.util.List.of(claim));
         var hello = new MsgHello.Hello(1, 1, 3, 256, token, resumeReq);
         byte[] payload = hello.encode();
-        TestKit.check(payload.length == 89, "REANUDAR payload 89, got " + payload.length);
+        TestKit.check(payload.length == 88, "REANUDAR payload 88, got " + payload.length);
         byte[] frame = new Frame(FrameType.SALUDO, payload).encode();
-        TestKit.check(frame[0] == 0x01 && frame[1] == 0x40 && frame[2] == 0x59,
-                "SALUDO head 01 4059");
+        TestKit.check(frame[0] == 0x01 && frame[1] == 0x40 && frame[2] == 0x58,
+                "SALUDO head 01 4058");
         int at = 1 + 1 + 1 + 2 + 1 + 32;
-        TestKit.check(payload[at] == 0x01 && payload[at + 1] == 0x31, "REANUDAR TLV 01 31");
+        TestKit.check(payload[at] == 0x01 && payload[at + 1] == 0x30, "REANUDAR TLV 01 30");
         var back = MsgHello.Hello.parse(payload);
         TestKit.check(back.resume() != null && back.resume().claims().size() == 1
                 && Arrays.equals(back.resume().ticket(), ticket), "REANUDAR fields");

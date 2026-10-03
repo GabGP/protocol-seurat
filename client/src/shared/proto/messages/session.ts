@@ -1,6 +1,6 @@
 import { TlvTag } from '../../config/constants';
 import { parseTlvs, tlvEncode } from '../frame';
-import { rangesEncode } from '../ranges';
+import { teselasEncode } from '../teselas';
 import { Reader } from '../reader';
 import { concat, u64Encode, viEncode } from '../varint';
 
@@ -32,7 +32,7 @@ export function helloTlvs(s: Hello): Uint8Array[] {
     s.resume.ticket,
     viEncode(s.resume.claims.length),
   ];
-  for (const c of s.resume.claims) parts.push(viEncode(c.handle), rangesEncode(c.ranges));
+  for (const c of s.resume.claims) parts.push(viEncode(c.handle), teselasEncode(c.ranges));
   return [tlvEncode(TlvTag.RESUME, concat(...parts))];
 }
 
@@ -41,7 +41,7 @@ function resumeDecode(value: Uint8Array): NonNullable<Hello['resume']> {
   const previousSession = r.u64();
   const ticket = r.take(TICKET_BYTES);
   const claims: ResumeClaim[] = [];
-  for (let i = 0, n = r.vi(); i < n; i++) claims.push({ handle: r.vi(), ranges: r.ranges() });
+  for (let i = 0, n = r.vi(); i < n; i++) claims.push({ handle: r.vi(), ranges: r.teselas() });
   return { previousSession, ticket, claims };
 }
 

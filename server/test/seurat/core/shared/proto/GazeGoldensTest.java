@@ -72,10 +72,10 @@ public final class GazeGoldensTest {
     }
 
     private static void receipt() {
-        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("3c01070006")));
+        var ranges = Ranges.decode(ByteBuffer.wrap(TestKit.unhex("2d01060007")));
         var receiptMsg = new MsgLoans.Receipt(1, ranges, 40, 708, 0);
         byte[] frame = new Frame(FrameType.RECIBO, receiptMsg.encode()).encode();
-        byte[] expect = TestKit.unhex("260a013c010700062842c400");
+        byte[] expect = TestKit.unhex("260a012d010600072842c400");
         TestKit.check(java.util.Arrays.equals(frame, expect), "RECIBO:\n"
                 + TestKit.hex(frame));
     }

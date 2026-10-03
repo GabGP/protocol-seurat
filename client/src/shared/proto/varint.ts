@@ -14,6 +14,35 @@ export function viEncode(v: number | bigint): number[] {
   return out;
 }
 
+/** viEncode for a safe integer, appended to `out` without BigInt or a temporary array (hot encoders). */
+export function viPush(out: number[], v: number): void {
+  if (v < 0 || !Number.isSafeInteger(v)) throw new Error('vi: out of range');
+  if (v < 64) {
+    out.push(v);
+    return;
+  }
+  if (v < 16384) {
+    out.push(0x40 | (v >> 8), v & 0xff);
+    return;
+  }
+  if (v < 1073741824) {
+    out.push(0x80 | (v >>> 24), (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
+    return;
+  }
+  const hi = Math.floor(v / 2 ** 32);
+  const lo = v >>> 0;
+  out.push(
+    0xc0 | ((hi >>> 24) & 0x3f),
+    (hi >>> 16) & 0xff,
+    (hi >>> 8) & 0xff,
+    hi & 0xff,
+    (lo >>> 24) & 0xff,
+    (lo >>> 16) & 0xff,
+    (lo >>> 8) & 0xff,
+    lo & 0xff,
+  );
+}
+
 export function viDecodeBig(bytes: Uint8Array, pos: number): { value: bigint; next: number } {
   const first = bytes[pos];
   if (first === undefined) throw new Error('vi: truncated');

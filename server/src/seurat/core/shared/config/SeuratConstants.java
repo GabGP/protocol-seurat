@@ -54,8 +54,8 @@ public final class SeuratConstants {
     public static final int INPUT_QUEUE_FRAMES = 256;
     /** Cap on one plan's entries (the cone is proportional to the focus, never near this). */
     public static final int PLAN_MAX_ENTRIES = 16_384;
-    /** Numbers one Rangos may name: more than any book can hold, far below a DoS. */
-    public static final int RANGES_MAX_NUMBERS = 1 << 20;
+    /** Numbers one Teselas set may name (ADR-09): more than any book can hold, far below a DoS. */
+    public static final int TESELAS_MAX_NUMBERS = 1 << 20;
     /** cola_ms thresholds (spec 6.1): amber halves max_en_vuelo, red stops new flows until < amber. */
     public static final long QUEUE_AMBER_MS = 150;
     public static final long QUEUE_RED_MS = 400;

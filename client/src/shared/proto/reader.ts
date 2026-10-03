@@ -1,5 +1,5 @@
 import { FatalProtocolError } from './frame';
-import { rangesDecode } from './ranges';
+import { teselasDecode } from './teselas';
 import { strDecode, u64Decode, viDecode } from './varint';
 
 /** A cursor over a payload: each read returns the field and moves past it. */
@@ -34,8 +34,9 @@ export class Reader {
     return r.value;
   }
 
-  ranges(): number[] {
-    const r = rangesDecode(this.bytes, this.pos);
+  /** A Teselas set (ADR-09), ascending. */
+  teselas(): number[] {
+    const r = teselasDecode(this.bytes, this.pos);
     this.pos = r.next;
     return r.values;
   }

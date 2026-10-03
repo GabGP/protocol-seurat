@@ -1,6 +1,6 @@
 import { ScrapePredicate, SKETCH_MIN, TILE } from '@/shared/config/constants';
 import { splitBrushId } from '@/shared/proto/brush';
-import { rangesDecode } from '@/shared/proto/ranges';
+import { teselasDecode } from '@/shared/proto/teselas';
 import { viDecode } from '@/shared/proto/varint';
 import type { DeliveryRecord } from './store';
 
@@ -20,7 +20,7 @@ export function matchesScrape(rec: DeliveryRecord, predicate: number, params: Ui
     }
     case ScrapePredicate.LIST: {
       try {
-        return rangesDecode(params, 0).values.includes(rec.delivery);
+        return teselasDecode(params, 0).values.includes(rec.delivery);
       } catch {
         return false;
       }
