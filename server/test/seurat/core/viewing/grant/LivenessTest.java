@@ -72,14 +72,14 @@ public final class LivenessTest {
 
     private static void testReplan() throws Exception {
         var s = ConcessionRig.create();
-        s.session.share = 0.3; // e_i in [1/4, 1/2): the plan is cut (spec 6.3)
+        s.session.rung = 1; // the plan is cut (spec 6.3)
         s.grants.gaze(s.session, s.canvas, new MsgGaze.Gaze(1, 5, 0, 0, 512, 384, 512, 384, 0));
         TestKit.check((lastStart(s).throttle() & ProtoCodes.REG_CARGA) != 0, "cut plan says CARGA");
         s.mapping.control.clear();
         Liveness liveness = new Liveness(s.grants, s.sessions);
         liveness.tick();
         TestKit.check(lastStart(s) == null, "no recovery, no new plan");
-        s.session.share = 1.0;
+        s.session.rung = 3;
         liveness.tick();
         MsgGaze.Plan again = lastStart(s);
         TestKit.check(again != null && again.gazeSeq() == 5 && (again.throttle() & ProtoCodes.REG_CARGA) == 0,

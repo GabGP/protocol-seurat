@@ -16,7 +16,6 @@ import seurat.core.shared.proto.msg.MsgGaze;
 import seurat.core.viewing.concession.Concessions;
 import seurat.core.viewing.loans.CanvasOrders;
 import seurat.core.viewing.loans.Delivery;
-import seurat.core.viewing.plan.ConePlanner;
 import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
@@ -72,7 +71,7 @@ public final class Liveness {
             }
             MsgGaze.Gaze gaze = canvas.gaze();
             boolean hidden = gaze != null && (gaze.flags() & MsgGaze.M_OCULTA) != 0;
-            if (!canvas.retiring && !hidden && canvas.plan().stale(ConePlanner.rung(session.share))) {
+            if (!canvas.retiring && !hidden && canvas.plan().stale(session.rung)) {
                 grants.plans.replan(canvas, grants.sketch(canvas)); // spec 6.3, 8
             }
             if (now - canvas.renewNs > SeuratConstants.RENEW_S * Units.NANOS_PER_S) {

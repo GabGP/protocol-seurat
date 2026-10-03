@@ -69,7 +69,7 @@ public final class GrantController {
             canvas.floored = !policy.lista(canvas); // BOCETO / PINTANDO: the floor stays until LISTA (spec 7.3)
             apply(canvas, Concessions.target(policy.ceiling(canvas), canvas.floored, top), ProtoCodes.MOT_MIRADA, true);
             var planned = ConePlanner.plan(gaze, canvas.concession(), PlanIssuer.view(canvas),
-                    canvas.meta(), session.share, session.queueMs());
+                    canvas.meta(), session.rung, session.queueMs());
             plans.issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
         }
     }

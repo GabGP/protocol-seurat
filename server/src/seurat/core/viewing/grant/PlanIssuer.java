@@ -28,7 +28,7 @@ final class PlanIssuer {
     void issue(Canvas canvas, long seq, List<PlanEntry> entries, int throttle) {
         long first = canvas.book().lastNumber() + 1;
         long generation = canvas.plan().start(seq, entries.size());
-        canvas.plan().cutTo(ConePlanner.rung(canvas.session().share));
+        canvas.plan().cutTo(canvas.session().rung);
         GrantController.send(canvas.session(), FrameType.PLAN,
                 MsgGaze.Plan.start(canvas.handle(), seq, first, entries.size(), throttle,
                         canvas.takeUnrecoverable().stream().map(BrushId::id).toList()).encode());
@@ -51,7 +51,7 @@ final class PlanIssuer {
             return;
         }
         Session s = canvas.session();
-        var planned = ConePlanner.plan(gaze, canvas.concession(), view(canvas), canvas.meta(), s.share, s.queueMs());
+        var planned = ConePlanner.plan(gaze, canvas.concession(), view(canvas), canvas.meta(), s.rung, s.queueMs());
         issue(canvas, gaze.seq(), planned.entries(), planned.throttle());
     }
 

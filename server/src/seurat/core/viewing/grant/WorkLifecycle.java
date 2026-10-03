@@ -46,7 +46,7 @@ final class WorkLifecycle {
                 grants.narrow(canvas, next, cuts, null);
             }
             var cone = seen ? ConePlanner.plan(canvas.gaze(), next, PlanIssuer.view(canvas), canvas.meta(),
-                    canvas.session().share, canvas.session().queueMs()) : null;
+                    canvas.session().rung, canvas.session().queueMs()) : null;
             grants.plans.issue(canvas, seen ? canvas.gaze().seq() : 0,
                     PlanIssuer.merge(grants.sketch(canvas), cone == null ? List.of() : cone.entries()),
                     cone == null ? 0 : cone.throttle());

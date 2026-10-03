@@ -48,7 +48,7 @@ public final class ConePlannerTest {
         var meta = new seurat.core.works.store.WorkMeta("slide-0421", "s", WIDTH, HEIGHT, 256, 11,
                 3, 2, 0, 2);
         var out = ConePlanner.plan(gaze, concession, p -> held.getOrDefault(p, 0),
-                meta, 1.0, 0);
+                meta, 3, 0);
         TestKit.check(out.throttle() == 0, "no regulation");
         TestKit.check(out.entries().size() == 212, "212 deliveries, got "
                 + out.entries().size());

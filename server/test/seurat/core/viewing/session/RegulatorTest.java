@@ -38,6 +38,14 @@ public final class RegulatorTest {
         regulator.tick(List.of(session));
         double cut = session.share;
         TestKit.check(cut < 1.0, "marked tick cuts, got " + cut);
+        while (session.rung == 3) {
+            for (int i = 0; i < 40; i++) {
+                regulator.onStart(session, 50_000_000L);
+            }
+            regulator.tick(List.of(session));
+        }
+        TestKit.check(session.rung < 3, "a cut share lowers the rung");
+        cut = session.share;
         for (int i = 0; i < 40; i++) {
             regulator.onStart(session, 50_000_000L);
         }
@@ -53,5 +61,6 @@ public final class RegulatorTest {
             regulator.tick(List.of(session));
         }
         TestKit.check(Math.abs(session.share - 1.0) < 1e-9, "28 additive ticks recover");
+        TestKit.check(session.rung == 3, "recovered share is rung 3");
     }
 }

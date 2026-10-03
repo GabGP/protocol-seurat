@@ -13,10 +13,6 @@ import seurat.core.viewing.concession.Concession;
 
 /** Stateless cone: MIRADA + concession + book -> 3-pass delivery list. */
 public final class ConePlanner {
-    /** Spec 6.3 rungs: minimum share e_i for 3 (normal), 2 (no ring 2), 1 (focus <= 2 bands). */
-    private static final double SHARE_NORMAL = 0.75;
-    private static final double SHARE_NO_RING2 = 0.5;
-    private static final double SHARE_FOCUS_CAPPED = 0.25;
     private static final int FULL_BANDS = Geometry.BANDS;
     private static final int CAPPED_BANDS = 2;
     private static final int RING1_BANDS = 2;
@@ -27,13 +23,8 @@ public final class ConePlanner {
 
     public record ConePlan(List<PlanEntry> entries, int throttle) {}
 
-    /** Spec 6.3's staircase on e_i: 3 normal, 2 no ring 2, 1 focus <= 2 bands, 0 focus one stratum coarser. */
-    public static int rung(double share) {
-        return share >= SHARE_NORMAL ? 3 : share >= SHARE_NO_RING2 ? 2 : share >= SHARE_FOCUS_CAPPED ? 1 : 0;
-    }
-
     public static ConePlan plan(MsgGaze.Gaze gaze, Concession concession, BookView book,
-            seurat.core.works.store.WorkMeta meta, double share, long queueMs) {
+            seurat.core.works.store.WorkMeta meta, int rung, long queueMs) {
         int top = meta.strata() - 1;
         if (top <= 0) {
             return new ConePlan(List.of(), 0);
@@ -56,7 +47,6 @@ public final class ConePlanner {
         boolean ring2 = true;
         int ring1Bands = RING1_BANDS;
         int focusCap = FULL_BANDS;
-        int rung = rung(share);
         if (rung < 3) {
             flags |= ProtoCodes.REG_CARGA;
             ring2 = false;

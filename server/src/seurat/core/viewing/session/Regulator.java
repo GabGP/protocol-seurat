@@ -11,8 +11,16 @@ public final class Regulator {
     private static final double SHARE_MIN = 0.125;
     private static final double SHARE_MAX = 1.0;
     private static final double SHARE_STEP = 1.0 / 32;
+    /** Spec 6.3 rungs: minimum share e_i for 3 (normal), 2 (no ring 2), 1 (focus up to 2 bands). */
+    private static final double SHARE_NORMAL = 0.75;
+    private static final double SHARE_NO_RING2 = 0.5;
+    private static final double SHARE_FOCUS_CAPPED = 0.25;
     private long minDwell = Long.MAX_VALUE;
     private volatile boolean congested;
+
+    private static int rung(double share) {
+        return share >= SHARE_NORMAL ? 3 : share >= SHARE_NO_RING2 ? 2 : share >= SHARE_FOCUS_CAPPED ? 1 : 0;
+    }
 
     public synchronized void onStart(Session session, long dwellNs) {
         minDwell = Math.min(minDwell, dwellNs);
@@ -32,6 +40,7 @@ public final class Regulator {
             session.alpha = (1 - ALPHA_GAIN) * session.alpha + f * ALPHA_GAIN;
             session.share = f > 0 ? Math.max(SHARE_MIN, session.share * (1 - session.alpha / 2))
                     : Math.min(SHARE_MAX, session.share + SHARE_STEP);
+            session.rung = rung(session.share);
             session.tickDeliveries = 0;
             session.tickMarked = 0;
         }

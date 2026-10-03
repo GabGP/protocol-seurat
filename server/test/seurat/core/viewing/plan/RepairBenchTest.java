@@ -83,7 +83,7 @@ public final class RepairBenchTest {
                 return book.heldFrom(p, from);
             }
         };
-        return ConePlanner.plan(g, FULL, view, META, 1.0, 0).entries();
+        return ConePlanner.plan(g, FULL, view, META, 3, 0).entries();
     }
 
     private static int bands(List<PlanEntry> entries) {
