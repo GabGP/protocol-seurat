@@ -63,7 +63,8 @@ final class SessionHandshake {
             Log.warn(LogTags.SESSION, "handshake rejected: token invalid or expired");
             throw new FatalProtocol(ProtoCodes.ERR_AUTENTICACION, f.type(), "token");
         }
-        long offered = ProtoCodes.CAP_REANUDAR | (mapping.datagrams() ? ProtoCodes.CAP_DATAGRAMAS : 0);
+        long offered = ProtoCodes.CAP_REANUDAR | ProtoCodes.CAP_REGULACION
+                | (mapping.datagrams() ? ProtoCodes.CAP_DATAGRAMAS : 0);
         long caps = hello.caps() & offered;
         Session session = new Session(ctx.sessions().reserveId(), token.principal(),
                 token.memMib(), caps, mapping, ctx.sessions().newTicket(), ctx.rateBytesPerS());

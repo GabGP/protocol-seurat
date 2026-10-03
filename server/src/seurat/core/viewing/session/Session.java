@@ -23,6 +23,9 @@ public final class Session {
     /** ADR-07 rule 5: consecutive ticks granted above the rung, and the lowest such grant; Regulator tick thread only. */
     int rise;
     int riseTo;
+    /** ADR-07 rule 6: the rung and budget last sent in REGULACION; Regulator tick thread only. */
+    int sentRung = 3;
+    long sentBudgetKibS;
     public volatile double stride;
     public volatile long lastGazeNs;
     public volatile long lastEchoNs = System.nanoTime();

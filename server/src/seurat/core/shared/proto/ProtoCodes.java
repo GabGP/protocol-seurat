@@ -6,6 +6,8 @@ public final class ProtoCodes {
 
     public static final int CAP_DATAGRAMAS = 0x01;
     public static final int CAP_REANUDAR = 0x02;
+    /** ADR-07, the client reads REGULACION. */
+    public static final int CAP_REGULACION = 0x04;
 
     public static final int OBRA_LISTADO = 0;
     public static final int OBRA_ALTA = 1;

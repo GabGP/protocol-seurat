@@ -25,6 +25,8 @@ public final class FrameType {
     public static final long RENOVAR = 0x28;
     public static final long AUDITAR = 0x2A;
     public static final long INVENTARIO = 0x2B;
+    // ADR-07, optional (>= 0x40)
+    public static final long REGULACION = 0x40;
 
     public static String name(long type) {
         if (type == SALUDO) return "SALUDO";
@@ -48,6 +50,7 @@ public final class FrameType {
         if (type == RENOVAR) return "RENOVAR";
         if (type == AUDITAR) return "AUDITAR";
         if (type == INVENTARIO) return "INVENTARIO";
+        if (type == REGULACION) return "REGULACION";
         return "UNKNOWN_0x" + Long.toHexString(type);
     }
 }

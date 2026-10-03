@@ -55,13 +55,34 @@ public final class Regulator {
 
     /** Allots the capacity to the demand rates (bytes per second by tier) and settles the rungs. */
     public List<Session> tick(Map<Session, long[]> demand, long nowNs) {
+        long capacity = meter.sample(nowNs);
+        long active = countActive(demand);
+        long capacityKibS = capacity == CapacityMeter.UNBOUNDED ? 0 : Math.max(1, capacity / Units.BYTES_PER_KIB);
         List<Session> rose = new ArrayList<>();
-        for (Map.Entry<Session, Allotment.Grant> entry : Allotment.fill(demand, meter.sample(nowNs), LEAST_SERVED).entrySet()) {
-            if (settle(entry.getKey(), entry.getValue().tier())) {
-                rose.add(entry.getKey());
+        for (Map.Entry<Session, Allotment.Grant> entry : Allotment.fill(demand, capacity, LEAST_SERVED).entrySet()) {
+            Session session = entry.getKey();
+            Allotment.Grant grant = entry.getValue();
+            if (settle(session, grant.tier())) {
+                rose.add(session);
             }
+            // Only a cut session has a budget: one granted every tier is not regulated (ADR-07 rule 6).
+            long budgetKibS = grant.tier() == Allotment.TIERS ? 0 : Math.max(1, grant.bytes() / Units.BYTES_PER_KIB);
+            RegulationNotice.maybeSend(session, budgetKibS, capacityKibS, active);
         }
         return rose;
+    }
+
+    private static long countActive(Map<Session, long[]> demand) {
+        long active = 0;
+        for (long[] rates : demand.values()) {
+            for (long r : rates) {
+                if (r > 0) {
+                    active++;
+                    break;
+                }
+            }
+        }
+        return active;
     }
 
     /**
