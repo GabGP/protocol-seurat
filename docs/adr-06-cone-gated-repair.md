@@ -1,6 +1,6 @@
 # ADR-06 — Failure recovery: cone-gated repair (replaces Selective Repeat)
 
-Status: proposed. Date: 2026-10-02. Series: ADR-06 to ADR-10 make failure recovery, congestion
+Status: accepted. Date: 2026-10-02. Series: ADR-06 to ADR-10 make failure recovery, congestion
 control and flow control normative parts of Seurat/1, using algorithms of our own.
 
 ## Context
@@ -39,9 +39,12 @@ Normative rules (replace the rows `DECODIFICACION` and `CRC` of §5.3, extend §
 3. **Bad band on the server's disk** (CRC checked on read): the valid prefix is served, as today.
    If band 0 itself is bad, the brush is unrecoverable at once. The plan is marked due for a
    replan, so the 1 s liveness tick announces it within a second.
-4. **Partial delivery** (`RESET_STREAM`, connection loss): unchanged. `PLAN CANCELADAS`, and the
+4. **Only the hole is refilled.** A plan entry stops at the first band the book already holds
+   above its start (`BookView.heldFrom`). When a lower delivery fails while an upper one of the
+   same brush is still held, the repair resends the lost bands only, never the held ones.
+5. **Partial delivery** (`RESET_STREAM`, connection loss): unchanged. `PLAN CANCELADAS`, and the
    next plan wants it again with a new number (§8). This was already re-wanting, not retransmission.
-5. **Resume after connection loss**: unchanged (`REANUDAR`, §8, and the client's capped
+6. **Resume after connection loss**: unchanged (`REANUDAR`, §8, and the client's capped
    backoff, which is not on the professor's list). A server "come back at" hint was considered
    and dropped: a server that shuts down cannot know when it will be back, and any guessed wait
    would make clients reconnect later than today.
@@ -69,7 +72,7 @@ A new TLV, which §3.5 allows in a minor version (unknown tags are skipped). No 
 | Control bytes | 0 per repair | One `PLAN INICIO` + `PLAN FIN` (≈ 10–20 B) per failure `SOLTAR`, not per delivery. `IRRECUPERABLES` costs 9 B per brush given up, once. |
 | Server memory | `retried` and `unusable` sets per canvas, plus the `RESEND` entry | The same two sets; the out-of-plan entry is gone |
 | Client memory | — | Unrecoverable ids, bounded by failures (a second failure per brush) |
-| Latency | The resend jumps the queue (`pushFront`), so coarse work waits behind it | The repair takes its place in coarse-first order. The focus finishes after the same bytes as today, and coarse work is no longer delayed. |
+| Latency | The resend jumps the queue (`pushFront`) | Still view: the same order (the original plan was already coarse-first). After a pan: the new view's coarse entries no longer wait behind resends of the old view. |
 | CPU | O(1) per failed delivery | One replan per failure `SOLTAR` (the cost of one `MIRADA`) |
 
 The only cost that grows is the PLAN pair (≈ 20 B) and one replan per failure `SOLTAR`. Failures
@@ -89,9 +92,29 @@ resends every failed delivery, so its cost is the bytes of those deliveries. Com
 
 The numbers go into this ADR before it is accepted.
 
+## Evidence
+
+`server/test/seurat/core/viewing/plan/RepairBenchTest.java`: the spec's slide-0421 view (§3.4),
+the real planner over a real `LoanBook`, one failure every 25 deliveries (8 failures, 13 bands).
+Bytes use a model of 8 KiB per band.
+
+| Scenario | Selective Repeat | Cone-gated repair |
+|---|---|---|
+| A. Gaze stays | 13 bands (104 KiB) | 13 bands (104 KiB): the exact hole, nothing held is resent |
+| B. Gaze panned before the failures arrived | 13 bands (104 KiB) | 0 bands |
+| C. After the pan: coarser new-view entries delayed behind the repair | 141 | 0 |
+| D. Cost per failure `SOLTAR` | 0 control bytes, 1 out-of-plan queue entry | 12 control bytes (`PLAN INICIO` 7 + `PLAN FIN` 5), 0 queue entries |
+
+Without rule 4 (no `heldFrom` stop) scenario A resent 17 bands instead of 13: the replan asked
+for whole brushes whose upper delivery was still held. The rule is what keeps the still view at
+parity. The gate holds: payload ≤ in every case, strictly lower after a pan, no ordering
+regression, and the only growth is the 12 control bytes per failure report.
+
 ## Implementation
 
 - Server: `LoanHandlers` counts the failure and calls the replan (`GrantController.repair`).
+  `LoanBook.heldFrom` and `BookView.heldFrom` stop plan entries at held bands (`ConePasses`), and
+  `PlanIssuer.view` feeds the real book to every planner call.
   Remove `GrantController.resend`, `Painter.resend` and `Pending.RESEND`. `Canvas` keeps the
   brushes to announce, `PlanIssuer` emits `IRRECUPERABLES`, and `Opener` gives up a brush whose band
   0 is bad. Codec in `core/shared/proto/msg/MsgGaze.Plan`.
