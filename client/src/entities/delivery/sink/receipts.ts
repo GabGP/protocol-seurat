@@ -1,20 +1,30 @@
-import { MS_PER_S, RECEIPT_EVERY_MS, RECEIPT_EVERY_N } from '@/shared/config/constants';
+import { MS_PER_S, RECEIPT_MAX_AGE_MS } from '@/shared/config/constants';
+import { bandChanged, receiptDue } from '../receipt-need';
 import { free } from './credit-window';
 import { relieve } from './eviction';
 import { flushRelease } from './release';
 import type { SinkState } from './state';
 
-/** A small window (slow link) is refilled per brush so the link never drains; big ones batch. */
+/** ADR-08 (b): cola_ms changed band in a direction the server acts on; tell it now. */
+export function onQueueChange(s: SinkState): void {
+  if (bandChanged(s.lastQueue, s.decode.ms)) flushReceipt(s);
+}
+
+/**
+ * RECIBO by need (ADR-08): a quarter of the window waiting, or a moved window;
+ * otherwise the oldest unconfirmed delivery waits at most RECEIPT_MAX_AGE_MS.
+ */
 export function maybeFlushReceipt(s: SinkState): void {
-  if (s.book.pendingReceipt.length >= RECEIPT_EVERY_N || free(s) <= RECEIPT_EVERY_N) {
+  const pending = s.book.pendingReceipt.length;
+  if (pending > 0 && receiptDue(pending, free(s), s.lastFree)) {
     flushReceipt(s);
     return;
   }
-  if (s.receiptTimer === 0 && s.book.pendingReceipt.length > 0) {
+  if (s.receiptTimer === 0 && pending > 0) {
     s.receiptTimer = setTimeout(() => {
       s.receiptTimer = 0;
       flushReceipt(s);
-    }, RECEIPT_EVERY_MS) as unknown as number;
+    }, RECEIPT_MAX_AGE_MS) as unknown as number;
   }
 }
 
@@ -26,6 +36,8 @@ export function flushReceipt(s: SinkState): void {
   const queue = Math.round(s.decode.ms);
   // Nothing the server acts on changed: no new receipts, window, backlog or renewal to confirm.
   if (q.length === 0 && window === s.lastFree && queue === s.lastQueue && s.renewThrough === s.lastRenew) return;
+  clearTimeout(s.receiptTimer);
+  s.receiptTimer = 0;
   s.book.pendingReceipt = [];
   s.lastFree = window;
   s.lastQueue = queue;

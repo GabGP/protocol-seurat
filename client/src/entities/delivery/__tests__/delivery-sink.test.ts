@@ -65,8 +65,8 @@ describe('DeliverySink', () => {
     worker.onmessage?.(result);
     await Promise.resolve();
     await Promise.resolve();
-    expect(sink.book.pendingReceipt).toEqual([11]);
-    sink.flushReceipt();
+    expect(client.sentReceipt).toHaveLength(1);
+    expect(client.sentReceipt[0]?.completed).toEqual([11]);
     worker.onmessage?.(result);
     await Promise.resolve();
     await Promise.resolve();

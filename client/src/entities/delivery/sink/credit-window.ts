@@ -11,7 +11,7 @@ export function byteWindow(s: SinkState): number {
 }
 
 /**
- * RECIBO.libre: the memory window (brushes and max_kib), sized by link rate and min RTT (spec §6.1)
+ * RECIBO.libre: link and synthesis horizons (ADR-08) inside the memory window (brushes and max_kib),
  * so high-latency links stay full without queuing excessive deliveries ahead of a new MIRADA.
  */
 export function free(s: SinkState): number {
@@ -20,5 +20,8 @@ export function free(s: SinkState): number {
   // Only a second that carried at least one brush measures the link; idle keeps the last rate,
   // so the next view starts with a full window instead of re-ramping from CREDIT_MIN.
   if (s.avgDelivery > 0 && peak >= s.avgDelivery) s.linkBps = peak;
-  return receiverWindow(memory, s.linkBps, s.avgDelivery, s.rtt.seconds(performance.now()));
+  return receiverWindow(memory, s.linkBps, s.avgDelivery, s.rtt.seconds(performance.now()), {
+    parallel: s.decode.workers,
+    jobMs: s.decode.jobMs,
+  });
 }

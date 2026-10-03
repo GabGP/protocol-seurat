@@ -1,4 +1,3 @@
-import { COLA_BUSY_MS } from '@/shared/config/constants';
 import { splitBrushId } from '@/shared/proto/brush';
 import { STALE_PARENT, type SynthResult } from '@/workers/protocol';
 import { nextImageId } from '../store';
@@ -7,7 +6,7 @@ import { onRebuilt, retryWithBytes } from './parent-recovery';
 import { onPixelsRestored } from './pixel-residency';
 import { settlePlanes } from './plane-keep';
 import { adoptPlanes } from './plane-origin';
-import { flushReceipt, maybeFlushReceipt } from './receipts';
+import { maybeFlushReceipt, onQueueChange } from './receipts';
 import { failSynthesis, replaceOlderEditions } from './removal';
 import { endRestore } from './restore-queue';
 import { freeSuperseded } from './superseded';
@@ -77,8 +76,8 @@ export function onResult(s: SinkState, index: number, ev: MessageEvent): void {
   const out = ev.data as SynthResult;
   s.decode.answered(out.elapsedMs);
   s.pool?.complete(index);
-  // The server plans nothing while the last cola_ms said we were busy (spec §6.1): tell it we caught up.
-  if (s.lastQueue >= COLA_BUSY_MS && s.decode.ms < COLA_BUSY_MS) flushReceipt(s);
+  // cola_ms changed band (ADR-08): back to green lets the server plan again (spec §6.1).
+  onQueueChange(s);
   pump(s);
   if (s.activeSynthesis.get(out.delivery) !== out.synthesisId) {
     out.bitmap?.close();

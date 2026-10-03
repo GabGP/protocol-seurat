@@ -7,6 +7,7 @@ import { sweepExpiry } from './lease-expiry';
 import type { Grant } from './port';
 import { refuse } from './refusal';
 import { release } from './release';
+import { onQueueChange } from './receipts';
 import { settle } from './scrape-flow';
 import { startSynthesis } from './synth-start';
 import type { SinkState } from './state';
@@ -78,6 +79,7 @@ function accept(s: SinkState, h: BrushHead, bytes: Uint8Array, now: () => number
   s.book.inFlight.add(h.delivery);
   s.revision++;
   startSynthesis(s, rec);
+  onQueueChange(s);
 }
 
 export function ingest(s: SinkState, bytes: Uint8Array, now: () => number, onPaint: () => void, leaseS: number): void {

@@ -1,12 +1,40 @@
-import { BYTES_PER_KIB, CREDIT_MIN, CREDIT_WINDOW_S, KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
+import {
+  BYTES_PER_KIB,
+  CREDIT_BATCH_GAIN,
+  CREDIT_MIN,
+  CREDIT_QUEUE_TARGET_MS,
+  CREDIT_WINDOW_S,
+  KIB_PER_BRUSH,
+  MS_PER_S,
+  WIRE_FLOWS,
+} from '@/shared/config/constants';
 
 /**
- * RECIBO.libre: the memory window, sized via Little's law (spec §6.1: in flight = rate × (RTT + transmission))
- * to rate × (CREDIT_WINDOW_S + rttS) / avgDelivery. Unmeasured links get the memory window (the server starts at 8).
+ * ADR-08 synthesis horizon: what the workers drain in one round trip plus CREDIT_QUEUE_TARGET_MS,
+ * grown by CREDIT_BATCH_GAIN for the deliveries waiting for their RECIBO. Granting no more keeps
+ * the client's own credit from pushing cola_ms to amber.
  */
-export function receiverWindow(memory: number, linkBps: number, avgDelivery: number, rttS = 0): number {
+export function synthesisHorizon(parallel: number, jobMs: number, rttS: number): number {
+  if (jobMs <= 0) return Infinity;
+  return Math.ceil((CREDIT_BATCH_GAIN * (CREDIT_QUEUE_TARGET_MS + rttS * MS_PER_S) * parallel) / jobMs);
+}
+
+/**
+ * RECIBO.libre (ADR-08): the smaller of the link horizon (what the link carries in CREDIT_WINDOW_S
+ * plus one round trip) and the synthesis horizon, inside the memory window. Unmeasured links get
+ * the memory window (the server starts at 8).
+ */
+export function receiverWindow(
+  memory: number,
+  linkBps: number,
+  avgDelivery: number,
+  rttS = 0,
+  synthesis?: { parallel: number; jobMs: number },
+): number {
   if (linkBps <= 0 || avgDelivery <= 0) return memory;
-  return Math.min(memory, Math.max(CREDIT_MIN, Math.ceil((linkBps * (CREDIT_WINDOW_S + rttS)) / avgDelivery)));
+  const link = Math.ceil((linkBps * (CREDIT_WINDOW_S + rttS)) / avgDelivery);
+  const bound = synthesis ? Math.min(link, synthesisHorizon(synthesis.parallel, synthesis.jobMs, rttS)) : link;
+  return Math.min(memory, Math.max(CREDIT_MIN, bound));
 }
 
 /**

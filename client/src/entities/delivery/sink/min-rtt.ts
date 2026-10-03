@@ -9,8 +9,8 @@ interface Sample {
 /**
  * Tracks the minimum round-trip time between MIRADA and the server's first PLAN response.
  *
- * Sizing the receiver window with min RTT (spec §6.1, like BBR's min_rtt) keeps the link full on
- * high-latency connections while filtering out queueing delay behind earlier deliveries.
+ * Both credit horizons (spec §6.1, ADR-08) add the lowest sample of the window: the round trip
+ * with no queueing behind earlier deliveries in it, so high-latency links stay full.
  * The CREDIT_RTT_WINDOW_MS window lets it re-learn if network conditions change.
  */
 export class MinRtt {

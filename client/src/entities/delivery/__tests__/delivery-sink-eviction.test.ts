@@ -25,7 +25,7 @@ describe('DeliverySink eviction, decode and revisions', () => {
     for (let n = 0; n < 40; n++) {
       worker.onmessage?.({ data: { delivery: 999, synthesisId: -1, ok: false, rgba: null, planes: null, elapsedMs: 5 } } as MessageEvent);
     }
-    expect(client.sentReceipt).toHaveLength(2);
+    expect(client.sentReceipt).toHaveLength(3);
     expect(client.sentReceipt.at(-1)?.queueMs).toBeLessThan(150);
     sink.dispose();
     vi.unstubAllGlobals();

@@ -31,4 +31,14 @@ export class DecodeQueue {
   get ms(): number {
     return ((this.inWorker + this.waiting) * this.avgMs) / this.parallel;
   }
+
+  /** The moving average of one synthesis job (ms). */
+  get jobMs(): number {
+    return this.avgMs;
+  }
+
+  /** The number of workers draining the queue. */
+  get workers(): number {
+    return this.parallel;
+  }
 }

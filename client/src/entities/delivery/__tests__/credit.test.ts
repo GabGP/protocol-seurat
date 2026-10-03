@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byteRoom, coming, receiverWindow } from '../credit';
+import { byteRoom, coming, receiverWindow, synthesisHorizon } from '../credit';
 import { KIB_PER_BRUSH, WIRE_FLOWS } from '@/shared/config/constants';
 
 describe('receiverWindow (RECIBO.libre)', () => {
@@ -51,5 +51,29 @@ describe('byte window (max_kib)', () => {
   it('counts the wire and the unused part of the last grant as still coming', () => {
     expect(coming(20, 5)).toBe(WIRE_FLOWS + 15);
     expect(coming(3, 8)).toBe(WIRE_FLOWS);
+  });
+});
+
+describe('synthesis horizon (ADR-08)', () => {
+  it('drains jobs according to pool size, job duration, and RTT', () => {
+    expect(synthesisHorizon(4, 6, 0)).toBe(67);
+    expect(synthesisHorizon(2, 25, 0.08)).toBe(17);
+    expect(synthesisHorizon(4, 0, 0)).toBe(Infinity);
+  });
+
+  it('binds receiverWindow when synthesis is slower than link rate', () => {
+    expect(receiverWindow(768, 25_000_000, 30_000, 0, { parallel: 2, jobMs: 25 })).toBe(8);
+  });
+
+  it('leaves the link binding when the link is slower than synthesis', () => {
+    expect(receiverWindow(768, 64_000, 26_000, 0, { parallel: 4, jobMs: 5 })).toBe(3);
+  });
+
+  it('never drops below CREDIT_MIN even when synthesis is very slow', () => {
+    expect(receiverWindow(768, 25_000_000, 30_000, 0, { parallel: 1, jobMs: 1000 })).toBe(2);
+  });
+
+  it('never exceeds available client memory', () => {
+    expect(receiverWindow(5, 25_000_000, 30_000, 0, { parallel: 8, jobMs: 1 })).toBe(5);
   });
 });

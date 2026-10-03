@@ -13,12 +13,22 @@ export const KIB_PER_BRUSH = 48;
 export const RELEASE_BATCH_MS = 100;
 export const QUEUE_AMBER_MS = 150;
 export const QUEUE_RED_MS = 400;
+/** ADR-08: the synthesis backlog the credit aims for, half of amber. */
+export const CREDIT_QUEUE_TARGET_MS = QUEUE_AMBER_MS / 2;
+/** ADR-08: the synthesis horizon grows by a third, so a quarter of the window (RECEIPT_BATCH) may wait unconfirmed. */
+export const CREDIT_BATCH_GAIN = 4 / 3;
+/** ADR-08: a RECIBO goes once this share of the last RECIBO.libre waits unconfirmed. */
+export const RECEIPT_BATCH = 0.25;
+/** ADR-08: a RECIBO.libre that moved by this share of the last one sent is announced... */
+export const RECEIPT_MOVE = 0.25;
+/** ...or by at least this many deliveries. */
+export const RECEIPT_MOVE_MIN = 2;
+/** ADR-08: no delivery waits longer than this for its RECIBO. */
+export const RECEIPT_MAX_AGE_MS = 250;
 /** Synthesis pool: keep one core free for main thread + compositor, cap for VRAM/link. */
 export const SYNTH_POOL_MIN = 2;
 export const SYNTH_POOL_MAX = 8;
 export const SYNTH_POOL_FALLBACK_CORES = 4;
-/** cola_ms from which the server caps or stops plans (ConePlanner: 150 / 400). */
-export const COLA_BUSY_MS = 150;
 /** Early (future-epoch) deliveries held at most: max_en_vuelo. */
 export const MAX_EARLY_DELIVERIES = 12;
 /** Moving average of the delivery size: the previous value keeps this weight, the new one the other. */
