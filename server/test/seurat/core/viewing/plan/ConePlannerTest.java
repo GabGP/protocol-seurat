@@ -20,7 +20,7 @@ public final class ConePlannerTest {
         System.out.println("ConePlannerTest OK");
     }
 
-    static Map<BrushId, Integer> sketchBook() {
+    public static Map<BrushId, Integer> sketchBook() {
         Map<BrushId, Integer> held = new HashMap<>();
         held.put(new BrushId(10, 0, 0), 4);
         for (int bx = 0; bx < 2; bx++) {
