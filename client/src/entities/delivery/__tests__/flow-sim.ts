@@ -1,5 +1,6 @@
 import { QUEUE_AMBER_MS, QUEUE_RED_MS } from '@/shared/config/constants';
 import { RateMeter } from '@/shared/lib/rate-meter';
+import { ArrivalRate } from '../arrival-rate';
 import { DecodeQueue } from '../decode-queue';
 import { MinRtt } from '../sink/min-rtt';
 import { BANDS, simplePlanner, sizeOf, type Cone, type PlanItem, type Planner } from './cone-plan';
@@ -19,14 +20,19 @@ export interface Decoder { name: string; parallel: number; baseMs: number; msPer
 
 /** What the client knows when it computes RECIBO.libre (decodeMs: the measured mean synthesis job). */
 export interface CreditIn {
-  linkBps: number; avg: number; rttS: number; queueMs: number; parallel: number; decodeMs: number; memory: number;
+  linkBps: number; arrivalBps: number; avg: number; rttS: number; queueMs: number; parallel: number; decodeMs: number; memory: number;
 }
 /** What the client knows when it decides whether a RECIBO goes now. */
 export interface DueIn {
   nowMs: number; landed: boolean; pending: number; oldestMs: number;
   lastFree: number; free: () => number; queueMs: number; lastQueueMs: number;
 }
-export interface Policy { name: string; free(c: CreditIn): number; due(d: DueIn, st: { timerAt: number }): boolean }
+export interface Policy {
+  name: string;
+  cleanRtt?: boolean;
+  free(c: CreditIn): number;
+  due(d: DueIn, st: { timerAt: number }): boolean;
+}
 
 export interface FlowResult {
   /** Delivery bytes that arrived, and those outside the view's plan when they arrived. */
@@ -44,6 +50,9 @@ export interface FlowResult {
   peakTransit: number;
   /** Bytes of brushes that arrived and were never on screen (a view's core or its ancestors) afterwards. */
   unseen: number;
+  /** MIRADA to its PLAN: the queue a new view waits behind. */
+  planLagMs: number;
+  plans: number;
 }
 /** `onReceipt`: each RECIBO's delivery set as it leaves (ADR-09 bench). */
 export interface FlowOpts { planner?: () => Planner; quietMs?: number; onReceipt?: (numbers: number[]) => void }
@@ -60,6 +69,7 @@ interface Chunk { msg: Msg; bytes: number; last: boolean }
 export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, policy: Policy, o: FlowOpts = {}): FlowResult {
   const r: FlowResult = {
     bytes: 0, stale: 0, stallFrames: 0, idleMs: 0, receipts: 0, deliveries: 0, amber: 0, red: 0, starvedMs: 0, peakTransit: 0, unseen: 0,
+    planLagMs: 0, plans: 0,
   };
   const srv = (o.planner ?? simplePlanner)();
   const cli = (o.planner ?? simplePlanner)();
@@ -83,6 +93,7 @@ export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, 
   const decode = new DecodeQueue();
   decode.setParallelism(dec.parallel);
   const rtt = new MinRtt();
+  const arrivals = new ArrivalRate();
   const meter = new RateMeter();
   const waiting: Msg[] = [];
   const workers: Array<{ m: Msg; doneAt: number; start: number }> = [];
@@ -98,12 +109,14 @@ export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, 
   let cone: Cone = { items: [], core: [], seen: [] };
   let wantSet = new Set<string>();
   let seq = 0;
+  const sentAt = new Map<number, number>();
   let lastSent = '';
   let movedAt = 0;
   let quietSent = true;
   const look = (now: number, quiet: boolean): void => {
     const view = viewOf(trace[Math.min(trace.length - 1, now / (SIM.stepS * 1000))]!);
     const s = ++seq;
+    sentAt.set(s, now);
     rtt.sent(s, now);
     at(now + link.oneWayMs, () => {
       plan = srv.plan(view, (now + link.oneWayMs) / 1000, quiet).items.filter((i) => booked(i.tile) < i.to);
@@ -116,7 +129,7 @@ export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, 
     const peak = meter.peak(now);
     if (avg > 0 && peak >= avg) linkBps = peak;
     return policy.free({
-      linkBps, avg, rttS: rtt.seconds(now), queueMs: decode.ms, parallel: decode.workers,
+      linkBps, arrivalBps: arrivals.bps(), avg, rttS: rtt.seconds(now), queueMs: decode.ms, parallel: decode.workers,
       decodeMs: decode.jobMs, memory: MEMORY,
     });
   };
@@ -203,8 +216,18 @@ export function simulateFlow(trace: readonly Frame[], link: Link, dec: Decoder, 
       if (!c.last) continue;
       const m = c.msg;
       at(now + link.oneWayMs, () => {
-        if (!m.tile) { rtt.answered(m.seq, now + link.oneWayMs); return; }
         const t = now + link.oneWayMs;
+        if (!m.tile) {
+          const sent = sentAt.get(m.seq);
+          if (sent !== undefined) {
+            r.planLagMs += t - sent;
+            r.plans++;
+          }
+          rtt.answered(m.seq, t);
+          return;
+        }
+        if (policy.cleanRtt) rtt.arrived(t);
+        arrivals.note(m.bytes, t);
         meter.record(m.bytes, t);
         avg = avg === 0 ? m.bytes : 0.8 * avg + 0.2 * m.bytes;
         r.bytes += m.bytes;

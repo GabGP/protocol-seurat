@@ -12,6 +12,13 @@ export const LINKS: Link[] = [
   { name: 'wan', bps: 4 * MIB, oneWayMs: 40, sndbuf: 256 * KIB },
   { name: 'slow', bps: 1 * MIB, oneWayMs: 100, sndbuf: 128 * KIB },
 ];
+/** The credit bench also replays a throttled 3G link (Chrome's 3G profile as measured: 33 kB/s of WebSocket payload,
+ * no added WebSocket latency, everything the server writes queued in the browser) and a fast link with a long round trip. */
+export const CREDIT_LINKS: Link[] = [
+  ...LINKS,
+  { name: 'dt3g', bps: 33_000, oneWayMs: 25, sndbuf: 4 * MIB },
+  { name: 'far', bps: 2 * MIB, oneWayMs: 300, sndbuf: MIB },
+];
 export const DECODERS: Decoder[] = [
   { name: 'fast', parallel: 4, baseMs: 3, msPerKiB: 0.08 },
   { name: 'slow', parallel: 2, baseMs: 10, msPerKiB: 0.5 },
