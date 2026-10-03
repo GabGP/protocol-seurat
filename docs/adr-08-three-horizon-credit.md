@@ -174,3 +174,36 @@ The gate the bench asserts on every run:
   250 ms-old delivery.
 - Stale bytes are now bounded mainly by the server's open flows, which a client window cannot reach; a
   later change on the server side (cancelling queued flows of a superseded plan) is where more would come from.
+
+## Amendment (2026-10-03): Slow-link responsiveness and clean inputs (ADR-08a)
+
+On slow, throttled links (such as the 33 kB/s 3G DevTools profile on ultra-high-resolution images), a pan
+experienced 3.2–9.4 s of delay before refining. The formula `⌈rate · (1 s + rtt) / avg⌉` remained mathematically
+sound, but the inputs fed into it were contaminated:
+1. **Unmeasured opening credit**: before the link was measured, `libre` defaulted to the whole memory window
+   (`L_mem`), causing the server to dump an entire plan onto a link that could not carry it without seconds of queuing.
+2. **Rate overstatement from blockiness**: measuring peak bytes in a rolling 1-second window counts deliveries when they
+   finish; when a delivery is 25–48 KiB on a 33 kB/s link, a single boundary crossing overstates the true link rate.
+3. **Queue-polluted RTT**: round-trip time sampled from `MIRADA` to `PLAN` was measuring its own standing link queue,
+   hitting the 4 s cap and causing credit inflation.
+
+### Decision
+
+Keep the ADR-08 credit and synthesis formulas unchanged; fix the three inputs:
+- **`CREDIT_UNMEASURED = 8`**: before the link is measured, `libre = min(L_mem, 8)`, matching the server's own opening
+  credit (§4.1 c) so slow links are not handed excessive credit at the start.
+- **`ArrivalRate` / `linkRate`**: track the median inter-arrival spacing (`bytes / gap`) over the last 16 deliveries
+  (`ARRIVAL_SAMPLES`), requiring at least 8 (`ARRIVAL_MIN_SAMPLES`). `linkRate` uses `min(peakBps, arrivalBps)`.
+- **Clean RTT samples**: only sample RTT from views dispatched when no standing delivery queue is in flight, avoiding
+  self-induced delay spikes.
+
+### Evidence & Benchmarks
+
+Benchmarked in `credit-bench.test.ts` (with `flow-sim.ts` and `credit.json`):
+- **3G links (`dt3g/fast`, `dt3g/slow`)**:
+  - `planLagMs` reduced from 3287 ms / 3264 ms to 2525 ms / 2506 ms (**−23.2 %, −760 ms**).
+  - Stale bytes reduced from 4.2 MB to 3.3 MB (**−20.3 % to −22.3 %, −0.9 MB**).
+  - First-zoom delay in browser testing fell from 6.33 s to **0.52 s** (`init=8`).
+- **All other links (`far`, `lan`, `slow`, `wan`)**:
+  - Strict invariants preserved; zero degradation on stalls, starved time, or transit across all fast/slow decoder profiles.
+
