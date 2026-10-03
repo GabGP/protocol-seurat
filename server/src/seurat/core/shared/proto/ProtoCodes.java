@@ -46,7 +46,8 @@ public final class ProtoCodes {
     public static final int PRED_LISTA = 4;
     public static final int PRED_TODO = 5;
 
-    public static final int SOLTAR_LRU = 1;
+    /** Voluntary eviction, in Horizon order (spec §5.2.3 as amended by ADR-02 and ADR-10). */
+    public static final int SOLTAR_DESALOJO = 1;
     public static final int SOLTAR_DECODIFICACION = 2;
     public static final int SOLTAR_CADUCADA = 3;
     public static final int SOLTAR_PRESUPUESTO = 4;

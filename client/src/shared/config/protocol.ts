@@ -23,7 +23,7 @@ export const SKETCH_DELIVERIES = 44;
 export const MANDATORY_TYPE_LIMIT = 0x40;
 /** REGULACION peldaño of an unregulated session: the normal cone (ADR-07). */
 export const RUNG_NORMAL = 3;
-/** SOLTAR motivo (spec 3.3). 1 is the spec's LRU slot: the client fills it with Horizon eviction. */
+/** SOLTAR motivo (spec 3.3). 1 is DESALOJO (ADR-10): a voluntary release, ordered by Horizon when it relieves memory. */
 export const ReleaseReason = {
   EVICTED: 1, DECODE_FAILED: 2, EXPIRED: 3, BUDGET: 4, CRC: 6, REPLACED: 7,
 } as const;
