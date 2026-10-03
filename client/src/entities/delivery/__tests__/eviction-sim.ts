@@ -44,7 +44,7 @@ export interface SimResult {
   evicted: number;
 }
 
-function viewOf(f: Frame): EvictView {
+export function viewOf(f: Frame): EvictView {
   const scale = 2 ** f.z;
   const hw = (SIM.screenW / 2) * scale;
   const hh = (SIM.screenH / 2) * scale;
@@ -53,7 +53,7 @@ function viewOf(f: Frame): EvictView {
 }
 
 /** Tiles of `stratum` overlapping the view grown `grow`× about its centre, nearest first. */
-function tilesIn(v: EvictView, stratum: number, grow: number): Array<[number, number]> {
+export function tilesIn(v: EvictView, stratum: number, grow: number): Array<[number, number]> {
   const side = TILE * 2 ** stratum;
   const n = Math.ceil(IMAGE_PX / side);
   const cx = (v.x0 + v.x1) / 2;
