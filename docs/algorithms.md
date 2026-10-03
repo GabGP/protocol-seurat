@@ -64,7 +64,8 @@ forward on the server and inverse on the client. They are listed once per side a
 | Algorithm | How it works | Where | Function | Seurat/1 |
 |---|---|---|---|---|
 | **QUIC variable-length integer**<br>*Known* (RFC 9000 §16) | The 2 top bits give the length (1/2/4/8 bytes), the rest is big-endian. | `core/shared/proto/VarInt.java` | Integer field encoding in every Seurat/1 frame. | ● §3.2 |
-| **ACK-range set encoding**<br>*Adapted* (RFC 9000 ACK frame) | A set of numbers is written as `largest, gap_count, first_range` followed by `(gap, len)` pairs, from high to low. In memory it is a sorted `TreeSet<Long>` of numbers, and runs of consecutive numbers are grouped into spans when encoding. | `core/shared/proto/RangesCodec.java`, `core/shared/proto/Ranges.java` | Compact sets for `RECIBO`, `RASPADO`, `INVENTARIO` and `SOLTAR`, even with thousands of numbers. | ● §3.3 |
+| **Teselas set codec**<br>*Adapted* (run-length intervals; containers after Roaring bitmaps, Chambi, Lemire et al. 2016) | A set of delivery numbers goes in the shorter of two forms; on a tie, the run form. Run form, ascending: `menor · n_saltos · primer_largo · (salto · largo)×`. Block form: 64-number blocks counted from `menor`, each piece a stretch of empty blocks (`SALTO`), a stretch of full blocks (`LLENO`), a 64-bit `MAPA`, or up to 3 `TRAMOS` (`desde · largo − 1`). Equal sets give equal bytes. Empty is `00 00`. | `core/shared/proto/TeselasCodec.java`, `core/shared/proto/TeselasRunWalker.java`, `core/shared/proto/TeselasBlockWalker.java`, `core/shared/proto/TeselasBlocks.java` | Sets in `RECIBO`, `SOLTAR`, `RENOVAR`, `RASPADO`, `INVENTARIO`, `PLAN CANCELADAS`, `RASPAR LISTA` and the `REANUDAR` claim. Never longer than v1.0 `Rangos` (the run form is its ascending mirror); on the eviction traces, `SOLTAR` sets shrink by 17–41 % and held-book sets by 11–27 %. | ◐ ADR-09 |
+| **Block bitmap set**<br>*Adapted* (bitmap index with sparse block keys) | Sorted block keys `n >>> 6` with one `long` bitmap per non-empty block. Membership is a binary search plus a bit test, iteration walks trailing zeros, and the builder ORs one mask per block, so a range of numbers costs one step per 64. | `core/shared/proto/Ranges.java`, `core/shared/proto/RangesBits.java` | Every delivery set the server holds or builds (renewals, audits, cancellations, claims): 16 B per non-empty block of 64 numbers instead of a `TreeSet<Long>` node and a boxed `Long` per number. | — |
 | **TLV extensions**<br>*Known* | Each extension is tag, length, value. Unknown tags are skipped by length. | `core/shared/proto/Tlv.java` | Forward-compatible message extensions (spec §3, hard rule 1). | ● §3.2 |
 | **WebSocket framing and handshake**<br>*Known* (RFC 6455) | Unmasks client payloads (XOR with a 4-byte key) and reassembles fragments, with size caps. Handshake: `Sec-WebSocket-Accept = Base64(SHA-1(key + GUID))`, plus an Origin check. | `adapters/in/net/ws/WsFraming.java`, `adapters/in/net/ws/WsHandshake.java` | Message transport over the HTTP socket. Rejects cross-origin pages. | ● §3.1 |
 | **Strict two-priority output queue**<br>*Known* (strict priority queueing) | Control frames always go before deliveries. Repeated PONGs collapse into one. A delivery can be cancelled only before its first byte is written. | `adapters/in/net/ws/WsOutbound.java` | Keeps control (ACKs, revocations, heartbeats) fast while large deliveries are being written. | — |
@@ -175,8 +176,8 @@ forward on the server and inverse on the client. They are listed once per side a
 
 | Algorithm | How it works | Where | Function | Seurat/1 |
 |---|---|---|---|---|
-| **QUIC variable-length integer**<br>*Known* (RFC 9000 §16) | Same as the server. The 8-byte form goes through `BigInt`. | `shared/proto/varint.ts` | Frame field codec. | ● §3.2 |
-| **ACK-range set encoding**<br>*Adapted* (RFC 9000) | Same layout as the server. | `shared/proto/ranges.ts` | `RECIBO`, `SOLTAR`, `RASPADO`, `INVENTARIO` sets. | ● §3.3 |
+| **QUIC variable-length integer**<br>*Known* (RFC 9000 §16) | Same as the server. The 8-byte form goes through `BigInt`; `viPush` appends a safe integer without it, for the set encoder. | `shared/proto/varint.ts` | Frame field codec. | ● §3.2 |
+| **Teselas set codec**<br>*Adapted* (run-length intervals; Roaring-style containers) | Same format and choice as the server. Words are two 32-bit halves, so neither direction uses `BigInt`; varints go through `viPush`. | `shared/proto/teselas.ts`, `shared/proto/teselas-blocks.ts` | `RECIBO`, `SOLTAR`, `RASPADO`, `INVENTARIO` sets and the `REANUDAR` claim. | ◐ ADR-09 |
 | **Scrape predicate evaluation**<br>*Project* | ALL, LOW_STRATUM, BANDS, LIST, and OUTSIDE (rectangle intersection test). | `entities/delivery/scrape.ts` | Finds the deliveries a `RASPAR` matches, so the reply is an exact set. | ● §3.3, §4.2 |
 | **Cumulative-ACK floor**<br>*Adapted* (TCP cumulative ACK) | A floor below which every number is settled, plus a sparse set above it. When a number arrives, the floor advances while the next number is in the set. | `entities/delivery/settlement.ts` | Says when every delivery up to N has arrived or been cancelled, as `RASPADO`/`INVENTARIO` require, in memory proportional to the gaps. | ● §4.2, §8 |
 | **Receipts by need**<br>*Project* (ADR-08) | A `RECIBO` goes on a landing once a quarter of the last `libre` waits unconfirmed or `libre` moved by a quarter (at least 2); when `cola_ms` enters amber or red or returns to green; when the oldest unconfirmed delivery is 250 ms old; and, as before, with a `RENOVAR` or ahead of a `SOLTAR`, `RASPADO` or `INVENTARIO`. | `entities/delivery/receipt-need.ts` (`receiptDue`, `bandChanged`), `entities/delivery/sink/receipts.ts` | Each `RECIBO` carries news the server acts on; with fast workers about half the frames of the old "every 8 or 100 ms" rule. | ◐ ADR-08 |
@@ -254,7 +255,7 @@ These come in pairs: the server runs the forward or encode direction and the cli
 inverse or decode. They must stay bit-exact with each other and with the spec's wire goldens
 (§3.4.1–3.4.4).
 
-Every row of this table is marked `●` in the Seurat/1 column of sections 1 and 2.
+Every row of this table is marked `●` in the Seurat/1 column of sections 1 and 2, or `◐` where an ADR replaced the rule (Teselas sets, ADR-09).
 
 | Algorithm | Server (forward / encode) | Client (inverse / decode) |
 |---|---|---|
@@ -268,6 +269,6 @@ Every row of this table is marked `●` in the Seurat/1 column of sections 1 and
 | DEFLATE raw | `core/shared/codec/Deflate.java` | `shared/codec/inflate.ts` |
 | CRC-32C | `core/shared/codec/BrushEncoder.java`, `adapters/out/disk/BandReader.java` | `shared/codec/crc32c.ts` |
 | QUIC varint | `core/shared/proto/VarInt.java` | `shared/proto/varint.ts` |
-| ACK ranges | `core/shared/proto/RangesCodec.java` | `shared/proto/ranges.ts` |
+| Teselas sets (ADR-09) | `core/shared/proto/TeselasCodec.java`, `TeselasRunWalker.java`, `TeselasBlockWalker.java`, `TeselasBlocks.java` | `shared/proto/teselas.ts`, `shared/proto/teselas-blocks.ts` |
 | Fractional LOD (stratum/bands) | `core/viewing/plan/ConePlanner.java` | `entities/viewport/math.ts` |
 | Morton / brush id | `core/shared/codec/Morton.java`, `core/shared/codec/BrushId.java` | `shared/proto/brush.ts` |
