@@ -82,7 +82,14 @@ function accept(s: SinkState, h: BrushHead, bytes: Uint8Array, now: () => number
   onQueueChange(s);
 }
 
-export function ingest(s: SinkState, bytes: Uint8Array, now: () => number, onPaint: () => void, leaseS: number): void {
+export function ingest(
+  s: SinkState,
+  bytes: Uint8Array,
+  now: () => number,
+  onPaint: () => void,
+  leaseS: number,
+  replayed = false,
+): void {
   s.repaint = (): void => { onPaint(); };
   let h: BrushHead;
   try {
@@ -90,12 +97,15 @@ export function ingest(s: SinkState, bytes: Uint8Array, now: () => number, onPai
   } catch {
     return;
   }
-  s.rtt.arrived(now());
-  s.arrivals.note(bytes.length, now());
   if (h.handle !== s.handle) return;
+  if (!replayed) {
+    const t = now();
+    s.rtt.arrived(t);
+    s.arrivals.note(bytes.length, t);
+  }
   if (s.grant !== null && h.epoch > s.grant.epoch && s.early.length < MAX_EARLY_DELIVERIES) {
     // Spec 5.4 / 4.2: a newer epoch than any CONCESION seen is held until that CONCESION arrives.
-    s.early.push(() => ingest(s, bytes, now, onPaint, leaseS));
+    s.early.push(() => ingest(s, bytes, now, onPaint, leaseS, true));
     return;
   }
   sweepExpiry(s, now); // spec 5.2.2: expiry is checked with every incoming message

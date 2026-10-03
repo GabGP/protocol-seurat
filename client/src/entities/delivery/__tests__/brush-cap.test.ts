@@ -87,12 +87,15 @@ describe('brush cap', () => {
     const client = fakeClient();
     const sink = makeSink({ client, maxBrushes: 768 });
     for (let bx = 0; bx < 36; bx++) sink.book.byDelivery.set(bx + 1, rec(bx + 1, bx));
+    // Cap 24 evicts to 18 (75%), leaving 6 slots (< CREDIT_UNMEASURED 8).
     setBrushCap(24);
     sink.relieveNow();
     const narrow = client.sentReceipt.at(-1)?.free ?? 0;
+    expect(narrow).toBe(6);
+    // Widening to 512 reopens the window to 8 without further eviction (exactly 1 release sent total).
     setBrushCap(512);
     sink.relieveNow();
-    expect(client.sentRelease.length).toBeLessThanOrEqual(1);
+    expect(client.sentRelease.length).toBe(1);
     expect(client.sentReceipt.at(-1)?.free).toBeGreaterThan(narrow);
     sink.dispose();
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DeliverySink } from '../sink/delivery-sink';
 import { makeBrushId } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
@@ -45,11 +45,18 @@ describe('checks on arrival (spec 5.4)', () => {
   it('holds a delivery of an epoch whose CONCESION has not arrived, then applies it', () => {
     const client = fakeClient();
     const s = sink(client);
+    const internal = (s as unknown as { s: { arrivals: { note: (b: number, t: number) => void }; rtt: { arrived: (t: number) => void } } }).s;
     s.concede({ epoch: 1, minStratum: 7, maxBands: 4 });
+    const noteSpy = vi.spyOn(internal.arrivals, 'note');
+    const rttSpy = vi.spyOn(internal.rtt, 'arrived');
     ingest(s, delivery(1, 10, 2));
     expect(s.book.byDelivery.has(1)).toBe(false);
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(rttSpy).toHaveBeenCalledTimes(1);
     s.concede({ epoch: 2, minStratum: 7, maxBands: 4 });
     expect(s.book.byDelivery.has(1)).toBe(true);
+    expect(noteSpy).toHaveBeenCalledTimes(1);
+    expect(rttSpy).toHaveBeenCalledTimes(1);
     s.dispose();
   });
 

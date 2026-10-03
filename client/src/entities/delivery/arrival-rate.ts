@@ -12,7 +12,7 @@ export class ArrivalRate {
   note(bytes: number, nowMs: number): void {
     if (this.lastMs !== null) {
       const gap = nowMs - this.lastMs;
-      if (gap > 0) {
+      if (gap > 0 && bytes > 0) {
         this.samples.push((bytes * MS_PER_S) / gap);
         if (this.samples.length > ARRIVAL_SAMPLES) {
           this.samples.shift();
