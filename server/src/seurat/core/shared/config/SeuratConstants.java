@@ -16,8 +16,8 @@ public final class SeuratConstants {
     /** Receiver window (unconfirmed deliveries) a canvas gets before its first RECIBO.libre. */
     public static final int INITIAL_CREDIT = 8;
     public static final int GLOBAL_SLOTS = 512;
-    public static final long CODEL_TARGET_NS = 25_000_000L;
-    public static final long CODEL_TICK_MS = 250;
+    /** ADR-07: the regulation tick. */
+    public static final long REGULATION_TICK_MS = 250;
     public static final int FRAME_MAX = 64 * Units.BYTES_PER_KIB;
     public static final int DATAGRAM_MAX = 1200;
     public static final int TOKEN_BYTES = 32;

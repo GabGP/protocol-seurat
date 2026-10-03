@@ -19,8 +19,9 @@ public final class Timers {
     public static ScheduledExecutorService start(Regulator regulator, Sessions sessions, Liveness liveness,
             DiskReaper reaper, GazeGate gazes) {
         ScheduledExecutorService clock = Executors.newSingleThreadScheduledExecutor();
-        clock.scheduleAtFixedRate(() -> regulator.tick(sessions.all()), SeuratConstants.CODEL_TICK_MS,
-                SeuratConstants.CODEL_TICK_MS, TimeUnit.MILLISECONDS);
+        clock.scheduleAtFixedRate(
+                guarded(() -> regulator.tick(sessions.all(), System.nanoTime()).forEach(liveness::climbed)),
+                SeuratConstants.REGULATION_TICK_MS, SeuratConstants.REGULATION_TICK_MS, TimeUnit.MILLISECONDS);
         clock.scheduleAtFixedRate(guarded(liveness::tick), 1, 1, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(guarded(reaper::sweep), 1, 1, TimeUnit.SECONDS);
         clock.scheduleAtFixedRate(guarded(gazes::tick), SeuratConstants.GAZE_TICK_MS,

@@ -25,8 +25,8 @@ public final class PainterGatesTest {
     }
 
     /**
-     * Spec 6.3: dwell starts when the entry is "lista" (its turn, its session's gates open).
-     * An entry parked behind its own RECIBO.libre for 400 ms opens with ~0 dwell: no CoDel mark.
+     * ADR-07 rule 1: an entry parked behind its own RECIBO.libre is not Painter busy time,
+     * so the capacity stays unbounded.
      */
     private static void windowWaitIsNotCongestion() throws Exception {
         PainterRig rig = PainterRig.create();
@@ -38,14 +38,14 @@ public final class PainterGatesTest {
                 new PlanEntry(new BrushId(1, 0, 0), 0, 2, 1),
                 new PlanEntry(new BrushId(1, 1, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
         rig.awaitDeliveries(1);
-        rig.regulator.tick(List.of(rig.session)); // closes the first entry's tick
+        rig.regulator.meter().sample(System.nanoTime()); // the measured tick starts: the entry is parked
         Thread.sleep(400);
         rig.canvas.book().settle(seurat.core.shared.proto.Ranges.of(2));
         rig.painter.unpark(rig.canvas);
         rig.awaitDeliveries(2);
         TestKit.check(rig.mapping.deliveries.size() == 2, "credit releases the parked entry");
-        rig.regulator.tick(List.of(rig.session));
-        TestKit.check(!rig.regulator.congested(), "waiting on its own window is not server queueing");
+        TestKit.check(rig.regulator.meter().sample(System.nanoTime()) == seurat.core.viewing.session.CapacityMeter.UNBOUNDED,
+                "400 ms waiting on its own window is not Painter busy time");
         thread.interrupt();
     }
 

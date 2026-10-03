@@ -104,8 +104,9 @@ final class Opener {
         Delivery delivery;
         try {
             int bytes = (int) Math.min(Integer.MAX_VALUE, canvas.store().bytes(e.brush(), e.from(), e.through()));
-            regulator.onStart(session, System.nanoTime() - x.readyNs());
             delivery = canvas.book().log(e.brush(), e.from(), e.through(), bytes, canvas.concession().epoch());
+            regulator.meter().opened(e.brush().stratum(), e.through() - e.from(), delivery.bytes());
+            canvas.plan().demand().opened(e.pass(), delivery.bytes());
         } catch (Exception ex) {
             Log.warn(LogTags.PAINT, canvas.subject() + " open failed brush=" + e.brush() + ": " + LogUnits.cause(ex));
             session.releaseSlot();

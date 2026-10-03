@@ -15,6 +15,8 @@ public final class PlanProgress {
     private int rung = Integer.MAX_VALUE;
     /** Spec 8 "Entrega parcial": one of its deliveries was cut before its FIN. */
     private boolean lost;
+    /** ADR-07 rule 2: what the live cone still wants, by tier. */
+    private final TierDemand demand = new TierDemand();
 
     /** A new PLAN INICIO replaces the pending plan; returns its generation. */
     public long start(long gazeSeq, long expectedCount) {
@@ -39,6 +41,10 @@ public final class PlanProgress {
     /** Spec 6.3 and 8: the live MIRADA is due to be planned again. */
     public boolean stale(int loadRung) {
         return lost || loadRung > rung;
+    }
+
+    public TierDemand demand() {
+        return demand;
     }
 
     public long seq() {

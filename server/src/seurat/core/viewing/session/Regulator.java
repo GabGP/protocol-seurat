@@ -1,52 +1,78 @@
 package seurat.core.viewing.session;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import seurat.core.shared.config.SeuratConstants;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-/** CoDel over the Painter queue + per-session DCTCP response. */
+/**
+ * ADR-07 tiered sharpness filling. Every tick it measures the capacity in busy time, sums each
+ * session's demand by tier, allots the next horizon coarsest tier first, and moves each session's
+ * rung, which drops at once and climbs after 2 ticks.
+ */
 public final class Regulator {
-    /** DCTCP gain g = 1/16 for the marked-fraction average alpha. */
-    private static final double ALPHA_GAIN = 1.0 / 16;
-    /** Share never drops below 1/8 of the base rate, never rises above the full rate, and recovers 1/32 per tick. */
-    private static final double SHARE_MIN = 0.125;
-    private static final double SHARE_MAX = 1.0;
-    private static final double SHARE_STEP = 1.0 / 32;
-    /** Spec 6.3 rungs: minimum share e_i for 3 (normal), 2 (no ring 2), 1 (focus up to 2 bands). */
-    private static final double SHARE_NORMAL = 0.75;
-    private static final double SHARE_NO_RING2 = 0.5;
-    private static final double SHARE_FOCUS_CAPPED = 0.25;
-    private long minDwell = Long.MAX_VALUE;
-    private volatile boolean congested;
+    /** The allotment covers the next second (ADR-07 H). */
+    private static final int HORIZON_S = 1;
+    /** A session climbs only after a higher tier fit this many ticks in a row. */
+    private static final int RISE_TICKS = 2;
 
-    private static int rung(double share) {
-        return share >= SHARE_NORMAL ? 3 : share >= SHARE_NO_RING2 ? 2 : share >= SHARE_FOCUS_CAPPED ? 1 : 0;
+    private final CapacityMeter meter = new CapacityMeter();
+
+    public CapacityMeter meter() {
+        return meter;
     }
 
-    public synchronized void onStart(Session session, long dwellNs) {
-        minDwell = Math.min(minDwell, dwellNs);
-        session.tickDeliveries++;
-        if (congested) {
-            session.tickMarked++;
-        }
-    }
-
-    /** Every 250ms: persistent queue (min dwell > 25ms) means congestion. */
-    public synchronized void tick(Collection<Session> sessions) {
-        congested = minDwell != Long.MAX_VALUE
-                && minDwell > SeuratConstants.CODEL_TARGET_NS;
-        minDwell = Long.MAX_VALUE;
+    /**
+     * The server tick. Every session's demand is summed over its canvases.
+     * Returns the sessions whose rung rose.
+     */
+    public List<Session> tick(Collection<Session> sessions, long nowNs) {
+        Map<Session, long[]> demand = new HashMap<>();
         for (Session session : sessions) {
-            double f = session.tickDeliveries == 0 ? 0 : (double) session.tickMarked / session.tickDeliveries;
-            session.alpha = (1 - ALPHA_GAIN) * session.alpha + f * ALPHA_GAIN;
-            session.share = f > 0 ? Math.max(SHARE_MIN, session.share * (1 - session.alpha / 2))
-                    : Math.min(SHARE_MAX, session.share + SHARE_STEP);
-            session.rung = rung(session.share);
-            session.tickDeliveries = 0;
-            session.tickMarked = 0;
+            long[] sum = new long[Allotment.TIERS];
+            for (Canvas canvas : session.canvases().values()) {
+                canvas.plan().demand().addTo(sum);
+            }
+            demand.put(session, sum);
         }
+        return tick(demand, nowNs);
     }
 
-    public boolean congested() {
-        return congested;
+    /** Allots capacity across tiers and settles session rungs. */
+    public List<Session> tick(Map<Session, long[]> demand, long nowNs) {
+        long capacity = meter.sample(nowNs);
+        long room = capacity == CapacityMeter.UNBOUNDED ? CapacityMeter.UNBOUNDED : capacity * HORIZON_S;
+        List<Session> rose = new ArrayList<>();
+        for (Map.Entry<Session, Allotment.Grant> entry : Allotment.fill(demand, room).entrySet()) {
+            if (settle(entry.getKey(), entry.getValue().tier())) {
+                rose.add(entry.getKey());
+            }
+        }
+        return rose;
+    }
+
+    /**
+     * ADR-07 rule 5. The rung drops at once; it climbs after RISE_TICKS ticks in a row
+     * above it, to the lowest tier granted in them. Returns true when it rose.
+     */
+    static boolean settle(Session s, int granted) {
+        if (granted < s.rung) {
+            s.rung = granted;
+            s.rise = 0;
+            return false;
+        }
+        if (granted == s.rung) {
+            s.rise = 0;
+            return false;
+        }
+        s.riseTo = s.rise == 0 ? granted : Math.min(s.riseTo, granted);
+        s.rise++;
+        if (s.rise < RISE_TICKS) {
+            return false;
+        }
+        s.rung = s.riseTo;
+        s.rise = 0;
+        return true;
     }
 }

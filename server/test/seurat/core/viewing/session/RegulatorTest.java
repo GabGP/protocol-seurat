@@ -1,14 +1,17 @@
 package seurat.core.viewing.session;
 
 import java.util.List;
+import java.util.Map;
 import seurat.kit.TestKit;
 
-/** CoDel dwell signal + DCTCP AIMD response smoke. */
+/** ADR-07 tiered sharpness filling and rung hysteresis tests. */
 public final class RegulatorTest {
     public static void main(String[] args) {
-        idleKeepsShare();
-        congestionCutsShare();
-        recoveryIsSlow();
+        riseOnSecondTick();
+        settleDropsAtOnce();
+        settleClimbsToLowestGrant();
+        dipResetsRise();
+        unboundedKeepsRungThree();
         System.out.println("RegulatorTest OK");
     }
 
@@ -16,51 +19,52 @@ public final class RegulatorTest {
         return new Session(1, "p", 128, 0, null, new byte[32]);
     }
 
-    private static void idleKeepsShare() {
+    private static void riseOnSecondTick() {
         Regulator regulator = new Regulator();
-        Session session = session();
-        regulator.tick(List.of(session));
-        TestKit.check(session.share == 1.0 && !regulator.congested(), "idle share 1");
+        Session s = session();
+        s.rung = 1;
+        List<Session> rose0 = regulator.tick(Map.of(s, new long[]{1, 1, 1}), 0L);
+        TestKit.check(rose0.isEmpty(), "first tick does not rise");
+        TestKit.check(s.rung == 1, "rung still 1 after first tick");
+        List<Session> rose1 = regulator.tick(Map.of(s, new long[]{1, 1, 1}), 250_000_000L);
+        TestKit.check(rose1.contains(s) && rose1.size() == 1, "second tick rises");
+        TestKit.check(s.rung == 3, "rung climbed to 3");
     }
 
-    private static void congestionCutsShare() {
-        Regulator regulator = new Regulator();
-        Session session = session();
-        for (int i = 0; i < 40; i++) {
-            regulator.onStart(session, 50_000_000L);
-        }
-        regulator.tick(List.of(session));
-        TestKit.check(regulator.congested(), "persistent 50ms dwell congests");
-        TestKit.check(session.share == 1.0, "nothing marked yet, no cut");
-        for (int i = 0; i < 40; i++) {
-            regulator.onStart(session, 50_000_000L);
-        }
-        regulator.tick(List.of(session));
-        double cut = session.share;
-        TestKit.check(cut < 1.0, "marked tick cuts, got " + cut);
-        while (session.rung == 3) {
-            for (int i = 0; i < 40; i++) {
-                regulator.onStart(session, 50_000_000L);
-            }
-            regulator.tick(List.of(session));
-        }
-        TestKit.check(session.rung < 3, "a cut share lowers the rung");
-        cut = session.share;
-        for (int i = 0; i < 40; i++) {
-            regulator.onStart(session, 50_000_000L);
-        }
-        regulator.tick(List.of(session));
-        TestKit.check(session.share < cut, "repeated congestion cuts deeper");
+    private static void settleDropsAtOnce() {
+        Session s = session();
+        s.rung = 3;
+        boolean rose = Regulator.settle(s, 1);
+        TestKit.check(!rose, "drop returns false");
+        TestKit.check(s.rung == 1, "dropped to rung 1 at once");
     }
 
-    private static void recoveryIsSlow() {
+    private static void settleClimbsToLowestGrant() {
+        Session s = session();
+        s.rung = 0;
+        boolean rose1 = Regulator.settle(s, 3);
+        TestKit.check(!rose1, "first tick above rung does not rise");
+        boolean rose2 = Regulator.settle(s, 2);
+        TestKit.check(rose2, "second tick rises");
+        TestKit.check(s.rung == 2, "climbed to lowest of the two grants (2)");
+    }
+
+    private static void dipResetsRise() {
+        Session s = session();
+        s.rung = 1;
+        Regulator.settle(s, 3);
+        Regulator.settle(s, 1);
+        boolean rose = Regulator.settle(s, 3);
+        TestKit.check(!rose, "dip reset rise counter");
+        TestKit.check(s.rung == 1, "rung stays 1");
+    }
+
+    private static void unboundedKeepsRungThree() {
         Regulator regulator = new Regulator();
-        Session session = session();
-        session.share = 0.125;
-        for (int i = 0; i < 28; i++) {
-            regulator.tick(List.of(session));
-        }
-        TestKit.check(Math.abs(session.share - 1.0) < 1e-9, "28 additive ticks recover");
-        TestKit.check(session.rung == 3, "recovered share is rung 3");
+        Session s = session();
+        s.rung = 3;
+        List<Session> rose = regulator.tick(Map.of(s, new long[]{1, 1, 1}), 0L);
+        TestKit.check(rose.isEmpty(), "session already at rung 3 never appears in rose list");
+        TestKit.check(s.rung == 3, "session stays at rung 3");
     }
 }

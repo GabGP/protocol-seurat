@@ -69,11 +69,7 @@ public final class Liveness {
                 grants.apply(canvas, Concessions.target(grants.policy.ceiling(canvas), true, canvas.meta().strata() - 1),
                         ProtoCodes.MOT_INACTIVIDAD, false);
             }
-            MsgGaze.Gaze gaze = canvas.gaze();
-            boolean hidden = gaze != null && (gaze.flags() & MsgGaze.M_OCULTA) != 0;
-            if (!canvas.retiring && !hidden && canvas.plan().stale(session.rung)) {
-                grants.plans.replan(canvas, grants.sketch(canvas)); // spec 6.3, 8
-            }
+            replanIfStale(session, canvas);
             if (now - canvas.renewNs > SeuratConstants.RENEW_S * Units.NANOS_PER_S) {
                 canvas.renewNs = now;
                 renew(session, canvas);
@@ -87,6 +83,27 @@ public final class Liveness {
                 long order = canvas.orders().next();
                 canvas.orders().addAudit(new CanvasOrders.AuditOrder(order, done));
                 GrantController.send(session, FrameType.AUDITAR, new MsgAudit.Audit(canvas.handle(), order, done).encode());
+            }
+        }
+    }
+
+    private void replanIfStale(Session session, Canvas canvas) {
+        MsgGaze.Gaze gaze = canvas.gaze();
+        boolean hidden = gaze != null && (gaze.flags() & MsgGaze.M_OCULTA) != 0;
+        if (!canvas.retiring && !hidden && canvas.plan().stale(session.rung)) {
+            grants.plans.replan(canvas, grants.sketch(canvas)); // spec 6.3, 8
+        }
+    }
+
+    /** ADR-07 rule 5: a session whose rung rose plans its live MIRADA again at once, not at the next 1 s tick. */
+    public void climbed(Session session) {
+        for (Canvas canvas : session.canvases().values()) {
+            synchronized (canvas) {
+                try {
+                    replanIfStale(session, canvas);
+                } catch (RuntimeException ex) {
+                    Log.warn(LogTags.LIVENESS, canvas.subject() + " replan failed: " + LogUnits.cause(ex));
+                }
             }
         }
     }

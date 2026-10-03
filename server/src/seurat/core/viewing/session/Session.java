@@ -18,12 +18,11 @@ public final class Session {
     public volatile byte[] ticket;
     /** Session this one resumed; its ticket stays valid until our first RECIBO (spec 8). */
     public volatile long resumedFrom;
-    public volatile double alpha;
-    public volatile double share = 1.0;
     /** Spec 6.3 load rung the planner cuts the cone to: 3 normal, 2 no ring 2, 1 focus up to 2 bands, 0 focus one stratum coarser. */
     public volatile int rung = 3;
-    public volatile long tickDeliveries;
-    public volatile long tickMarked;
+    /** ADR-07 rule 5: consecutive ticks granted above the rung, and the lowest such grant; Regulator tick thread only. */
+    int rise;
+    int riseTo;
     public volatile double stride;
     public volatile long lastGazeNs;
     public volatile long lastEchoNs = System.nanoTime();
