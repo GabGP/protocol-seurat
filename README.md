@@ -187,7 +187,7 @@ bash scripts/check-loc.sh
 To run all client test suites and verify production build:
 ```bash
 cd client
-pnpm test          # Runs all Vitest unit and integration tests (586 tests in 107 files)
+pnpm test          # Runs all Vitest unit and integration tests (590 tests in 108 files)
 pnpm build         # Validates TypeScript types and generates production bundle
 pnpm check         # Typecheck, tests, LoC budgets and the FSD import gate in one go
 ```
@@ -197,7 +197,7 @@ With the server running, drive the real viewer in headless Chrome/Edge (Node >= 
 ```bash
 node scripts/smoke-viewer.mjs --work The_Night_Watch_-_HD   # use a large work (1.6-31 GP)
 ```
-It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional. `--pan N` drags the view N times after zooming. The run reports the bands delivered at stratum 0, which shows that every viewer gets full detail (ADR-05):
+It reads the Seurat/1 traffic on either mapping: from `localhost` the viewer uses WebTransport, and `--transport ws` hides it from the page to exercise the WebSocket fallback (`--transport wt` fails the run unless the session went over WebTransport). It opens the work, zooms in, and fails on page exceptions, `ERROR` frames, decode/CRC releases, no refinement past the first strata, or more than 2 % of deliveries refused on arrival. Set `CHROME` if the browser is not in a standard location; `--url`, `--seconds`, `--zoom` and `--shot` are optional. `--pan N` drags the view N times after zooming. The run reports the bands delivered at stratum 0, which shows that every viewer gets full detail (ADR-05):
 ```bash
 node scripts/smoke-viewer.mjs --work 093-494-000-120123412 --zoom 7 --pan 6 --seconds 40
 ```
