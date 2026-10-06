@@ -7,6 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import seurat.core.shared.config.SeuratConstants;
 import seurat.core.viewing.session.Mapping;
 import tech.kwik.core.QuicConnection;
+import tech.kwik.core.QuicConnection.QuicVersion;
 import tech.kwik.core.log.NullLogger;
 import tech.kwik.core.server.ApplicationProtocolConnection;
 import tech.kwik.core.server.ApplicationProtocolConnectionFactory;
@@ -21,6 +22,8 @@ public final class WtListener implements Closeable {
     }
 
     public static final String ALPN = "h3";
+    /** Both: Firefox starts in v1 and asks for v2, and Kwik switches to it only to drop the v2 packets if v2 is not listed. */
+    private static final List<QuicVersion> VERSIONS = List.of(QuicVersion.V1, QuicVersion.V2);
 
     private final DatagramSocket socket;
     private final ServerConnector connector;
@@ -42,6 +45,7 @@ public final class WtListener implements Closeable {
             connector = ServerConnector.builder()
                     .withSocket(socket)
                     .withKeyStore(cert.store(), SelfSignedCert.ALIAS, SelfSignedCert.PASSWORD)
+                    .withSupportedVersions(VERSIONS)
                     .withConfiguration(limits)
                     .withLogger(new NullLogger())
                     .build();

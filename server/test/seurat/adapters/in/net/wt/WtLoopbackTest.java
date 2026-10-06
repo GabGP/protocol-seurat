@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +25,7 @@ import seurat.core.shared.proto.VarInt;
 import seurat.core.viewing.session.Mapping;
 import seurat.kit.TestKit;
 import tech.kwik.core.QuicClientConnection;
+import tech.kwik.core.QuicConnection.QuicVersion;
 import tech.kwik.core.QuicStream;
 import tech.kwik.core.log.NullLogger;
 
@@ -50,7 +52,7 @@ public final class WtLoopbackTest {
 
         // 1. Refusals (one client)
         BlockingQueue<QuicStream> uni1 = new LinkedBlockingQueue<>();
-        QuicClientConnection c1 = client(port, uni1);
+        QuicClientConnection c1 = client(port, uni1, null);
         ConnectResult r404 = status(c1, authority, "/other", origin);
         TestKit.check("404".equals(r404.status()), "refusal 404 for /other");
         ConnectResult r403 = status(c1, authority, SeuratConstants.WT_PATH, "http://evil.example");
@@ -58,7 +60,7 @@ public final class WtLoopbackTest {
 
         // 2. Session (a second client)
         BlockingQueue<QuicStream> uni2 = new LinkedBlockingQueue<>();
-        QuicClientConnection c2 = client(port, uni2);
+        QuicClientConnection c2 = client(port, uni2, null);
         ConnectResult r200 = status(c2, authority, SeuratConstants.WT_PATH, origin);
         TestKit.check("200".equals(r200.status()), "session 200 for valid connect");
         long session = r200.stream().getStreamId();
@@ -179,11 +181,12 @@ public final class WtLoopbackTest {
         });
         TestKit.check(Boolean.TRUE.equals(streamEnded.get(5, TimeUnit.SECONDS)), "stream ended within 5s");
 
-        // 11. Peer close (a third client)
+        // 11. Peer close (a third client, which starts in QUIC v1 and prefers v2, as Firefox does)
         BlockingQueue<QuicStream> uni3 = new LinkedBlockingQueue<>();
-        QuicClientConnection c3 = client(port, uni3);
+        QuicClientConnection c3 = client(port, uni3, QuicVersion.V2);
         ConnectResult r3 = status(c3, authority, SeuratConstants.WT_PATH, origin);
-        TestKit.check("200".equals(r3.status()), "c3 status 200");
+        TestKit.check("200".equals(r3.status()), "c3 status 200 over QUIC v2");
+        TestKit.check(c3.getQuicVersion() == QuicVersion.V2, "c3 negotiated QUIC v2");
         long session3 = r3.stream().getStreamId();
 
         QuicStream control3 = c3.createStream(true);
@@ -213,16 +216,22 @@ public final class WtLoopbackTest {
         System.exit(0);
     }
 
-    private static QuicClientConnection client(int port, BlockingQueue<QuicStream> uniStreams) throws Exception {
-        QuicClientConnection c = QuicClientConnection.newBuilder()
+    /** preferred: the version the client asks to switch to during the handshake (null = stay in v1). */
+    private static QuicClientConnection client(int port, BlockingQueue<QuicStream> uniStreams, QuicVersion preferred)
+            throws Exception {
+        QuicClientConnection.Builder builder = QuicClientConnection.newBuilder()
                 .uri(URI.create("https://127.0.0.1:" + port))
                 .applicationProtocol("h3")
                 .noServerCertificateCheck()
                 .enableDatagramExtension()
                 .maxOpenPeerInitiatedUnidirectionalStreams(32)
                 .maxOpenPeerInitiatedBidirectionalStreams(8)
-                .logger(new NullLogger())
-                .build();
+                .connectTimeout(Duration.ofSeconds(5))
+                .logger(new NullLogger());
+        if (preferred != null) {
+            builder.preferredVersion(preferred);
+        }
+        QuicClientConnection c = builder.build();
         c.setPeerInitiatedStreamCallback(uniStreams::add);
         c.connect();
         return c;
