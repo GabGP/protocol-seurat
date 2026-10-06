@@ -41,6 +41,12 @@ the protocol, so the document's "defined but not used" table is gone.
      `127.0.0.1`). On any other page, or when the session does not open in 3 s, the viewer uses
      WebSocket, which stays complete on its own. `webtransport=false` in `seurat.conf` turns the
      UDP listener off; so does a UDP port that cannot be bound.
+   - **http and https on one TCP port.** The listener reads the first byte of each connection:
+     `0x16` is a TLS 1.3 handshake, served with the certificate generated at boot (a
+     `tls.keystore` replaces it); anything else is plain http. A viewer on another machine reaches
+     WebTransport by typing `https://`, with nothing to configure and one certificate warning: no
+     authority signs a certificate for a LAN address offline. `respaldo` is `wss` on a TLS
+     connection and `ws` otherwise.
 2. **`RASPAR` keeps `ESTRATO_BAJO` (1) and `TODO` (5).** Predicates 2 (`FUERA`), 3 (`BANDAS`) and
    4 (`LISTA`) are retired and their numbers are not reused. `bandas_max` leaves `CONCESION`, and
    `techo_estrato` and `techo_bandas` leave `ABIERTA`: a concession allows a brush when
@@ -78,15 +84,17 @@ the protocol, so the document's "defined but not used" table is gone.
   refines (to stratum 0 in the Chrome and Edge smoke runs); from the LAN address, not a secure page, the viewer uses WebSocket
   (`caps` 0x6). The server notices a closed tab in 0.3 s. `scripts/smoke-viewer.mjs` passes on both
   mappings (`--transport wt`, `--transport ws`).
-- With a keystore (`tls.keystore`) the page is served over https, a secure page from any address:
-  Chrome, Edge and Firefox, opened by LAN address through the certificate warning, use WebTransport.
+- The TCP port answers http and https alike (decision 1, *Fallback*): by LAN address, Chrome, Edge and
+  Firefox use WebSocket over http and, through the certificate warning, WebTransport over https;
+  with WebTransport hidden from an https page the viewer falls back to `wss`. `HttpsSniffTest`
+  holds both schemes on one port.
 - With the UDP port unreachable (the page served through a TCP-only proxy) the viewer opens over
   WebSocket; before the v2 fix Firefox showed the other path, the 3 s limit and then WebSocket.
 - Eight viewers zooming at once on the gigapixel works, all over WebTransport: every one showed
   the load notice and a "Server load" row (rung 0 or 1, 6 to 8 viewers) and went back to normal.
 - A rename reached a second gallery and a viewer with the work open in about 0.1 s; a delete took
   the card away in about 0.1 s and sent that viewer back to the gallery.
-- Server: 77 test classes; client: 590 tests in 108 files.
+- Server: 78 test classes; client: 590 tests in 108 files.
 
 ## Limits
 

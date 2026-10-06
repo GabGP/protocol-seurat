@@ -76,20 +76,14 @@ http://localhost:8180/
 
 The server serves the compiled Single Page Application (`client/dist/`) and serves both transport mappings on that port number: WebTransport (HTTP/3 over QUIC, UDP) on `/seurat/v1/lienzo` and WebSocket (TCP) on `/seurat/v1/lienzo-ws`. A page opened from `localhost` or over https uses WebTransport; a page opened by LAN address over plain http uses WebSocket, because browsers offer WebTransport only to secure pages (see `docs/adr-11-protocol-completion.md`). Every viewer gets full quality (stratum 0 with all 4 detail bands and no brush budget; see `docs/adr-05-no-roles.md`).
 
-### 3. HTTPS (optional)
+### 3. HTTPS (automatic)
 
-Plain `http://localhost:8180/` is all the grading needs: browsers treat `localhost` as a secure page, so the viewer already uses WebTransport there, and the QUIC connection inside it is encrypted with the server's own pinned certificate. `https://localhost:8180/` does not answer unless a keystore is configured: the TCP port speaks http or https, not both.
+The same port answers `http://` and `https://`, with nothing to configure: the server tells them apart by the first byte of each connection and, for https, presents a certificate it generates at boot (the one WebTransport already uses).
 
-To serve https, for example so a viewer on another machine also gets WebTransport, create a PKCS#12 keystore with the JDK (list the addresses viewers will type in `SAN`) next to `seurat.conf`:
-```bash
-keytool -genkeypair -alias seurat -keyalg EC -groupname secp256r1 -validity 365 -storetype PKCS12 -keystore seurat.p12 -storepass changeit -dname "CN=localhost" -ext "SAN=dns:localhost,ip:127.0.0.1,ip:192.168.0.8"
-```
-and add these two lines to `seurat.conf`:
-```
-tls.keystore=seurat.p12
-tls.password=changeit
-```
-Restart and open `https://<address>:8180/`. The certificate is self-signed, so the browser warns once (*Advanced*, then *Proceed*). From then on the port answers only https and wss, and Chrome, Edge and Firefox open the session over WebTransport from the LAN address too.
+- **On the server machine** open `http://localhost:8180/`. Browsers treat `localhost` as a secure page, so the viewer uses WebTransport with no warning.
+- **From another machine** `http://<address>:8180/` works at once over WebSocket, because browsers do not give WebTransport to a plain-http page. `https://<address>:8180/` uses WebTransport; the certificate is self-signed, so the browser warns once (*Advanced*, then *Proceed*). No public authority issues a certificate for a LAN address without internet, so that click cannot be removed.
+
+A certificate of your own replaces the generated one on the TCP port: put a PKCS#12 keystore next to `seurat.conf` and set `tls.keystore` and `tls.password`.
 
 ---
 
@@ -176,7 +170,7 @@ Server parameters can be customized in `seurat.conf`:
 | :--- | :--- | :--- |
 | `http.port` | `8180` | Port number: TCP for HTTP static files, handshake and WebSocket; UDP for WebTransport (protocol default `8080`). |
 | `webtransport` | `true` | Serve the WebTransport mapping on UDP; `false` leaves WebSocket only. |
-| `tls.keystore` | *(empty)* | PKCS#12 keystore, relative to `seurat.conf`: the TCP port serves https and wss instead of http and ws (see *HTTPS* above). |
+| `tls.keystore` | *(empty)* | PKCS#12 keystore, relative to `seurat.conf`, used for https and wss instead of the certificate generated at boot (see *HTTPS* above). |
 | `tls.password` | *(empty)* | Password of that keystore. |
 | `inbox` | `.seurat/runtime/inbox` | Directory watched for incoming image and archive intake. |
 | `works` | `.seurat/runtime/obras` | Directory containing committed multi-scale work packages. |
