@@ -2,6 +2,9 @@
 # Compiles and runs every Java test (JDK-only mains, `java -ea`), then the LoC and layer gates.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+CP_SEP=':'
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) CP_SEP=';' ;; esac
+VENDOR="server/vendor/*"
 OUT=".seurat/build/test-classes"
 mkdir -p "$OUT" "/tmp/opencode"
 FLAGS=()
@@ -10,11 +13,11 @@ if java -version 2>&1 | grep -q 'version "20\.'; then
   FLAGS=(--enable-preview --release 20)
   RUN_FLAGS=(--enable-preview)
 fi
-javac "${FLAGS[@]}" -d "$OUT" $(find server/src server/test -name '*.java')
+javac "${FLAGS[@]}" -cp "$VENDOR" -d "$OUT" $(find server/src server/test -name '*.java')
 pass=0
 fail=0
 for t in $(cd server/test && find . -name '*Test.java' | sed 's|^\./||; s|\.java$||; s|/|.|g'); do
-  if java "${RUN_FLAGS[@]}" -ea -cp "$OUT" "$t" > "/tmp/opencode/test-$t.log" 2>&1; then
+  if java "${RUN_FLAGS[@]}" -ea -cp "$OUT$CP_SEP$VENDOR" "$t" > "/tmp/opencode/test-$t.log" 2>&1; then
     echo "PASS $t"
     pass=$((pass + 1))
   else

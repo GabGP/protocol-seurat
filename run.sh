@@ -2,6 +2,9 @@
 # Seurat/1 LAN run: static viewer + Java server on one port. Offline-safe.
 set -euo pipefail
 cd "$(dirname "$0")"
+CP_SEP=':'
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) CP_SEP=';' ;; esac
+VENDOR="server/vendor/*"
 mkdir -p .seurat/runtime/{inbox,obras} .seurat/build/classes
 
 # Rebuild the viewer when a JS toolchain is available; otherwise serve the
@@ -17,7 +20,7 @@ if java -version 2>&1 | grep -q 'version "20\.'; then
   RUN_FLAGS=(--enable-preview)
 fi
 
-javac "${FLAGS[@]}" -d .seurat/build/classes $(find server/src -name '*.java')
+javac "${FLAGS[@]}" -cp "$VENDOR" -d .seurat/build/classes $(find server/src -name '*.java')
 jar -cf .seurat/build/seurat.jar -C .seurat/build/classes .
 # Ingest heap grows with image width (~2.5 GB live at 196,608 px); 6G leaves GC headroom.
 HEAP="${SEURAT_HEAP:--Xmx6G}"
@@ -26,4 +29,4 @@ LOG_FLAGS=(-Dseurat.log.tty=false)
 if [ -t 1 ]; then
   LOG_FLAGS=(-Dseurat.log.tty=true "-Dseurat.log.columns=$(tput cols 2>/dev/null || echo 80)")
 fi
-exec java "${RUN_FLAGS[@]}" $HEAP -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.seurat/runtime/ "${LOG_FLAGS[@]}" ${JAVA_OPTS:-} -cp .seurat/build/seurat.jar:.seurat/build/classes seurat.SeuratServer "$@"
+exec java "${RUN_FLAGS[@]}" $HEAP -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.seurat/runtime/ "${LOG_FLAGS[@]}" ${JAVA_OPTS:-} -cp ".seurat/build/seurat.jar$CP_SEP.seurat/build/classes$CP_SEP$VENDOR" seurat.SeuratServer "$@"

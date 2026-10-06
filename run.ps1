@@ -52,7 +52,7 @@ if ($v -match 'version "20\.') {
 }
 
 $sources = Get-ChildItem -Path "server/src" -Recurse -Filter *.java | ForEach-Object { $_.FullName }
-javac @compileFlags -d .seurat/build/classes $sources
+javac @compileFlags -cp "server/vendor/*" -d .seurat/build/classes $sources
 jar -cf .seurat/build/seurat.jar -C .seurat/build/classes .
 
 # Ingest heap grows with image width (~2.5 GB live at 196,608 px); 6G leaves GC headroom.
@@ -65,5 +65,5 @@ if (-not [Console]::IsOutputRedirected) {
     try { $cols = [Console]::WindowWidth } catch {}
     $logFlags = @("-Dseurat.log.tty=true", "-Dseurat.log.columns=$cols")
 }
-& java @runFlags $heap "-XX:+HeapDumpOnOutOfMemoryError" "-XX:HeapDumpPath=.seurat/runtime/" @logFlags @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes" seurat.SeuratServer @args
+& java @runFlags $heap "-XX:+HeapDumpOnOutOfMemoryError" "-XX:HeapDumpPath=.seurat/runtime/" @logFlags @javaOpts -cp ".seurat/build/seurat.jar;.seurat/build/classes;server/vendor/*" seurat.SeuratServer @args
 exit $LASTEXITCODE
