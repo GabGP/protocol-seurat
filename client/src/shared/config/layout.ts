@@ -13,11 +13,7 @@ export const MINIMAP_MIN_PX = 8;
 /** Thumbnail rebuilds at most this often while paint streams in (the viewport box is per frame). */
 export const MINIMAP_THUMB_MS = 250;
 
-export const SLIDER_WIDTH = 168;
-export const SLIDER_HEIGHT = 48;
-
 export const GALLERY_COLUMNS_WIDTH = 300;
-export const GALLERY_MAX_WIDTH = 1440;
 /** Density a thumbnail is fetched at: past 2× a card looks no sharper, but costs 2.25× the pixels at 3×. */
 export const PREVIEW_DPR_MAX = 2;
 /** Long and minimum side of a gallery card's noise placeholder (the seed itself draws at card size). */

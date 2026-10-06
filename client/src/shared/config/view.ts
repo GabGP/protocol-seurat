@@ -15,7 +15,6 @@ export const DEFAULT_WORK_HEIGHT = 2400;
 export const DEFAULT_VIEWPORT_WIDTH = 1920;
 export const DEFAULT_VIEWPORT_HEIGHT = 1080;
 
-export const INITIAL_FIT_FALLBACK = 0.1;
 export const MIN_ZOOM_FIT_RATIO = 0.5;
 export const DBLCLICK_ZOOM_IN = 2.5;
 export const DBLCLICK_ZOOM_OUT = 0.5;

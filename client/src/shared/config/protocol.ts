@@ -8,8 +8,6 @@ export const IMPORT_PATH = '/seurat/v1/importar';
 /** `cliente` in POST /sesion (spec 3.4.1). */
 export const CLIENT_NAME = 'visor/2.0';
 export const MAX_FRAME_BYTES = 64 * 1024;
-export const MAX_DATAGRAM_BYTES = 1200;
-export const TOKEN_BYTES = 32;
 export const TICKET_BYTES = 32;
 export const TILE = 256;
 /** A parent plane is the half-resolution tile: HALF samples a side, HALF_CELLS in all. */
@@ -18,7 +16,6 @@ export const TILE_HALF_CELLS = TILE_HALF * TILE_HALF;
 export const SEED_STRATUM = 10;
 export const BAND_COUNTS = [2048, 4096, 8192, 16384] as const;
 export const SKETCH_MIN = 7;
-export const SKETCH_DELIVERIES = 44;
 /** A type below this is mandatory: unknown is fatal ERROR 1; at or above it is skipped (spec 3.2). */
 export const MANDATORY_TYPE_LIMIT = 0x40;
 /** REGULACION peldaño of an unregulated session: the normal cone (ADR-07). */

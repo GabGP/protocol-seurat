@@ -1,3 +1,4 @@
+import { WS_SUBPROTOCOL } from '../config/protocol';
 import { GazeRate } from './gaze-rate';
 import type { CloseHandler, ControlHandler, DeliveryHandler, SeuratTransport } from './transport';
 
@@ -16,7 +17,7 @@ export class WsTransport implements SeuratTransport {
 
   constructor(
     private url: string,
-    private protocol = 'seurat.1',
+    private protocol = WS_SUBPROTOCOL,
   ) {}
 
   connect(): Promise<void> {

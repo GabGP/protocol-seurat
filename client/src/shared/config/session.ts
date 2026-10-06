@@ -1,6 +1,5 @@
 export const WT_READY_TIMEOUT_MS = 3000;
 export const GAZE_PER_S = 20;
-export const GAZE_BURST = 40;
 export const GAZE_QUIET_IDLE_MS = 300;
 /** A still, visible view repeats its MIRADA well inside the server's 60 s inactivity floor (spec 2.3). */
 export const GAZE_KEEPALIVE_MS = 30_000;
@@ -16,7 +15,6 @@ export const CHROME_MEM_MIB = 256;
 export const MAX_RETIRED_HANDLES = 16;
 /** Spec 6.1 max_en_vuelo: flows the server may have open for a session at once. */
 export const WIRE_FLOWS = 12;
-export const SCRAPE_TIMEOUT_MS = 10_000;
 /** The session-wide brush cap a client assumes before BIENVENIDA states it. */
 export const SESSION_MAX_BRUSHES = 1024;
 /** Spec 6.1: the server grants three brushes per declared MiB (up to the session ceiling). */
