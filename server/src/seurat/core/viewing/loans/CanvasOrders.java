@@ -18,7 +18,8 @@ public final class CanvasOrders {
     public record ScrapeOrder(long order, long through, long epoch, Predicate<Delivery> scrape,
             Ranges cancelled, long deadlineNs, Runnable then, MsgLoans.Scrape wire) {}
 
-    public record AuditOrder(long order, long through) {}
+    /** An AUDITAR awaiting its INVENTARIO until deadlineNs. */
+    public record AuditOrder(long order, long through, long deadlineNs) {}
 
     private long last;
     private final TreeMap<Long, ScrapeOrder> scrapes = new TreeMap<>();
@@ -48,6 +49,10 @@ public final class CanvasOrders {
 
     public List<ScrapeOrder> pendingScrapes() {
         return List.copyOf(scrapes.values());
+    }
+
+    public List<AuditOrder> pendingAudits() {
+        return List.copyOf(audits.values());
     }
 
     public void resolveThrough(long order) {

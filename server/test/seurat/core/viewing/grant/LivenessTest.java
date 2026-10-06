@@ -19,14 +19,16 @@ import seurat.kit.ConcessionRig;
 import seurat.kit.TestKit;
 
 /**
- * Liveness (spec 4.2.6-7, 6.3, 8): 3 LATIDO without ECO, RENOVAR only what is permitted, ERROR 8,
- * and the live MIRADA planned again when load recovers or a delivery is cut before its FIN.
+ * Liveness (spec 4.2.6-7, 6.3, 8): 3 LATIDO without ECO, RENOVAR only what is permitted, ERROR 8
+ * covers RASPADO and INVENTARIO, and the live MIRADA planned again when load recovers or a
+ * delivery is cut before its FIN.
  */
 public final class LivenessTest {
     public static void main(String[] args) throws Exception {
         testHeartbeatTimeout();
         testRenewalAck();
         testScrapeDeadline();
+        testAuditDeadline();
         testReplan();
         System.out.println("LivenessTest OK");
     }
@@ -124,5 +126,37 @@ public final class LivenessTest {
                 "no RASPADO in 10 s: ERROR 8 fatal");
         TestKit.check(mapping.closed, "then closed");
         MsgAudit.class.getName();
+    }
+
+    private static void testAuditDeadline() throws Exception {
+        Sessions sessions = new Sessions();
+        RecordingMapping mapping = new RecordingMapping();
+        Session s = new Session(3, "alice", 256, 0, mapping, new byte[32]);
+        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
+                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        canvas.session(s);
+        s.canvases().put(1L, canvas);
+        sessions.add(s);
+        canvas.orders().addAudit(new seurat.core.viewing.loans.CanvasOrders.AuditOrder(
+                canvas.orders().next(), 0, System.nanoTime() - 1));
+        new Liveness(new GrantController(null, null, sessions), sessions).tick();
+        Frame err = Frame.decode(ByteBuffer.wrap(mapping.control.get(0)));
+        var pe = MsgError.ProtocolError.parse(err.payload());
+        TestKit.check(err.type() == FrameType.ERROR && pe.code() == ProtoCodes.ERR_LIQUIDACION && pe.fail() == 1
+                && mapping.closed, "no INVENTARIO in 10 s: ERROR 8 fatal");
+        TestKit.check(mapping.closed, "then closed");
+
+        Sessions freshSessions = new Sessions();
+        RecordingMapping freshMapping = new RecordingMapping();
+        Session freshS = new Session(4, "bob", 256, 0, freshMapping, new byte[32]);
+        Canvas freshCanvas = new Canvas(2, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
+                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        freshCanvas.session(freshS);
+        freshS.canvases().put(2L, freshCanvas);
+        freshSessions.add(freshS);
+        freshCanvas.orders().addAudit(new seurat.core.viewing.loans.CanvasOrders.AuditOrder(
+                freshCanvas.orders().next(), 0, System.nanoTime() + 5_000_000_000L));
+        new Liveness(new GrantController(null, null, freshSessions), freshSessions).tick();
+        TestKit.check(!freshMapping.closed, "future audit deadline does not close mapping");
     }
 }

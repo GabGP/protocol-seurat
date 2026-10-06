@@ -79,7 +79,7 @@ public final class GrantControllerTest {
     private static void audit() throws Exception {
         ConcessionRig s = ConcessionRig.create();
         s.canvas.orders().next();
-        s.canvas.orders().addAudit(new CanvasOrders.AuditOrder(1, 256));
+        s.canvas.orders().addAudit(new CanvasOrders.AuditOrder(1, 256, Long.MAX_VALUE));
         s.grants.audit(s.canvas, new MsgAudit.Inventory(1, 1, 256, 256, 1000, s.canvas.book().numbersThrough(256)));
         try {
             s.grants.audit(s.canvas, new MsgAudit.Inventory(1, 1, 256, 256, 1000, Ranges.of(1)));
@@ -87,7 +87,7 @@ public final class GrantControllerTest {
         } catch (FatalProtocol fail) {
             TestKit.check(fail.code == ProtoCodes.ERR_PROTOCOLO, "an INVENTARIO answers an issued AUDITAR");
         }
-        s.canvas.orders().addAudit(new CanvasOrders.AuditOrder(2, 256));
+        s.canvas.orders().addAudit(new CanvasOrders.AuditOrder(2, 256, Long.MAX_VALUE));
         try {
             s.grants.audit(s.canvas, new MsgAudit.Inventory(1, 2, 256, 256, 1000, Ranges.of(1)));
             throw new AssertionError("expected audit fatal");

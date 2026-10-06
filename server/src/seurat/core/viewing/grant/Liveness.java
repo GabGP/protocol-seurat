@@ -20,7 +20,7 @@ import seurat.core.viewing.session.Canvas;
 import seurat.core.viewing.session.Session;
 import seurat.core.viewing.session.Sessions;
 
-/** 1 s tick (spec 4.2, 8): scrape deadlines, expiry, inactivity floor, RENOVAR, AUDITAR, heartbeat. */
+/** 1 s tick (spec 4.2, 8): scrape and audit deadlines, expiry, inactivity floor, RENOVAR, AUDITAR, heartbeat. */
 public final class Liveness {
     private final GrantController grants;
     private final Sessions sessions;
@@ -63,6 +63,11 @@ public final class Liveness {
                     throw new FatalProtocol(ProtoCodes.ERR_LIQUIDACION, FrameType.RASPADO, "LIQUIDACION_VENCIDA");
                 }
             }
+            for (CanvasOrders.AuditOrder audit : canvas.orders().pendingAudits()) {
+                if (audit.deadlineNs() < now) {
+                    throw new FatalProtocol(ProtoCodes.ERR_LIQUIDACION, FrameType.INVENTARIO, "LIQUIDACION_VENCIDA");
+                }
+            }
             canvas.book().pruneExpired(now);
             if (!canvas.floored && session.lastGazeNs > 0 && now - session.lastGazeNs > SeuratConstants.IDLE_S * Units.NANOS_PER_S) {
                 canvas.floored = true;
@@ -81,7 +86,8 @@ public final class Liveness {
                 canvas.auditNs = now;
                 canvas.auditBase = done;
                 long order = canvas.orders().next();
-                canvas.orders().addAudit(new CanvasOrders.AuditOrder(order, done));
+                canvas.orders().addAudit(new CanvasOrders.AuditOrder(order, done,
+                        now + SeuratConstants.SCRAPE_TIMEOUT_S * Units.NANOS_PER_S));
                 GrantController.send(session, FrameType.AUDITAR, new MsgAudit.Audit(canvas.handle(), order, done).encode());
             }
         }
