@@ -6,7 +6,7 @@
 //                                [--zoom 3] [--pan 0] [--shot .seurat/smoke-viewer.png]
 //                                [--max-refused-pct 2] [--max-resent-pct 25] [--size 1600x900] [--cap 362] [--dpr 1] [--scale auto|1|0.75|0.5]
 //                                [--max-tab-mib N] [--lose-context restore|giveup] [--sample S] [--breakdown 1]
-//                                [--throttle off|3g] [--settle-cap S] [--quiet S]
+//                                [--throttle off|3g] [--settle-cap S] [--quiet S] [--transport auto|ws|wt]
 //
 // --throttle 3g applies DevTools' 3G (400 kbps down/up, 2000 ms latency; scripts/smoke/throttle.mjs) before the page loads,
 // waits for the seed before the first input, settles for up to 180 s with 10 s of quiet (--settle-cap / --quiet override
@@ -33,6 +33,9 @@
 // --breakdown 1 lists what `measureUserAgentSpecificMemory` attributes the tab total to, by type and scope.
 // On Windows an `os:` line adds what Task Manager shows for the smoke's own browser: the private bytes of its renderer, GPU and
 // browser processes (what `measureUserAgentSpecificMemory` cannot see: bitmap pixels and the GPU process).
+// --transport: `auto` (default) lets the viewer choose, so a localhost run goes over WebTransport when the server serves it;
+// `ws` hides WebTransport from the page (the fallback mapping; the default with --throttle, which measures the WebSocket);
+// `wt` fails the run unless the session went over WebTransport. The Seurat/1 counts are read on either mapping.
 // Opens #/visor/<id>, zooms in at the centre, then drags the view `--pan` times, and counts the Seurat/1 traffic the page sends
 // and receives. Fails on a page exception, an ERROR frame, a decode/CRC release (SOLTAR 2/6),
 // no refinement past the first strata, or too many deliveries refused on arrival (SOLTAR 4).
@@ -44,6 +47,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { linkLog } from './smoke/link.mjs';
 import { applyThrottle, throttlePreset, timeline, waitForSeed } from './smoke/throttle.mjs';
+import { wtHook } from './smoke/wt-hook.mjs';
 
 const args = {};
 for (let i = 2; i < process.argv.length; i++) {
@@ -67,6 +71,7 @@ const sampleEvery = Number(args.sample ?? 0);
 const loseContext = args['lose-context'] !== undefined;
 const throttle = throttlePreset(args.throttle);
 const tl = timeline(throttle, args);
+const transport = args.transport ?? (throttle ? 'ws' : 'auto');
 const RECOVER_MS = 60000; // the software renderer is slow: the rebuild of every released bitmap may take a while
 const BLANK_RATIO = 0.5; // a recovered screenshot must weigh at least this share of the one before the loss
 const RECIBO = `0:${0x26}`;
@@ -142,7 +147,7 @@ const hook = `(() => {
     return w;
   };
   window.Worker.prototype = NativeWorker.prototype;
-})();`;
+${wtHook(SOLTAR, transport)}})();`;
 
 let exitCode = 1;
 // Private bytes per browser process of this run (matched by its profile dir), MiB by --type; Windows only.
@@ -392,6 +397,8 @@ try {
     exceptions.length && `page exceptions: ${exceptions.join(' | ')}`,
     consoleIssues.length && `${consoleIssues.length} console error/warning(s): ${consoleIssues.join(' | ')}`,
     s.in[ERROR] && `${s.in[ERROR]} ERROR frame(s) from the server`,
+    transport === 'wt' && !s.wt && 'the session did not open over WebTransport',
+    transport === 'ws' && linkRows.transport !== 'websocket' && `the session did not use the WebSocket fallback (${linkRows.transport})`,
     (s.soltar[RELEASE.decode] || s.soltar[RELEASE.crc] || s.synthFail) && 'decode/CRC failures (SOLTAR 2/6)',
     !throttle && strata.length < 3 && `no refinement: only strata ${strata.join(',') || 'none'} besides the seed`,
     throttle && Object.keys(s.strata).length < 2 && `no sketch: only strata ${Object.keys(s.strata).join(',') || 'none'} (seed + one sketch stratum needed)`,

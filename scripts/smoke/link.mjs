@@ -1,5 +1,6 @@
 // What the viewer smoke reports about the link: the static load (HTTP bytes, requests, encoding, DOMContentLoaded
-// and load), the WebSocket rate over the delivery period (does DevTools throttle it?), and the finest stratum over time.
+// and load), the session's rate over the delivery period (WebSocket or WebTransport; does DevTools throttle it?), and the
+// finest stratum over time.
 
 const SAMPLE_MS = 1000;
 const PEAK_WINDOW_S = 5;
@@ -49,7 +50,7 @@ export function linkLog() {
         const b = samples.find((x) => x.t >= a.t + PEAK_WINDOW_S);
         if (b) peak = Math.max(peak, (b.ws - a.ws) / (b.t - a.t));
       }
-      out.push(`ws ${kib(s.wsBytes)} received over ${active.toFixed(1)} s of delivery: avg ${(avg / 1000).toFixed(1)} kB/s · peak ${PEAK_WINDOW_S} s window ${(peak / 1000).toFixed(1)} kB/s · CDP frame events ${kib(cdpFrameBytes)}`);
+      out.push(`${s.wt ? 'wt' : 'ws'} ${kib(s.wsBytes)} received over ${active.toFixed(1)} s of delivery: avg ${(avg / 1000).toFixed(1)} kB/s · peak ${PEAK_WINDOW_S} s window ${(peak / 1000).toFixed(1)} kB/s · CDP frame events ${kib(cdpFrameBytes)}`);
       if (preset) {
         const cap = preset.downloadThroughput;
         const over = Math.max(avg, peak) > cap * THROTTLE_SLACK;
