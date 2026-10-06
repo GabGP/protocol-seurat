@@ -36,3 +36,6 @@ export const TlvTag = { RESUME: 0x01, TICKET: 0x02, RESUMED: 0x03, UNRECOVERABLE
 
 /** Numbers one Teselas set may name (ADR-09): more than any book holds, far below a DoS. Same as the server. */
 export const TESELAS_MAX_NUMBERS = 1 << 20;
+
+/** Longest display name PATCH /obras/{id} accepts; same as the server. */
+export const WORK_NAME_MAX = 120;

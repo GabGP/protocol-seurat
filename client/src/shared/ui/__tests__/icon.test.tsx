@@ -7,7 +7,7 @@ describe('Icon component (offline SVG)', () => {
     const icons = [
       'blur_on', 'arrow_forward', 'arrow_back', 'chevron_left', 'chevron_right',
       'check', 'info', 'remove', 'add', 'arrow_drop_down', 'fit_screen', 'search', 'close',
-      'more_horiz',
+      'more_horiz', 'edit', 'delete',
     ];
     for (const name of icons) {
       const html = renderToString(<Icon name={name} size={24} />);
@@ -22,4 +22,3 @@ describe('Icon component (offline SVG)', () => {
     expect(html).toContain('unknown_glyph');
   });
 });
-

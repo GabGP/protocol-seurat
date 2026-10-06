@@ -207,3 +207,34 @@
     font-size: 12px;
   }
 }
+
+.editBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+:global(.gallery-card):hover .editBtn,
+.editBtn:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .editBtn {
+    opacity: 1;
+  }
+}

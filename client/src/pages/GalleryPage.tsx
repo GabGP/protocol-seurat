@@ -1,11 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { GalleryGrid, GalleryHero } from '@/widgets/gallery';
 import { filterWorks, workTitle } from '@/entities/work';
 import { AddWorkButton } from '@/features/add-work';
+import { EditWorkDialog } from '@/features/edit-work';
 import { galleryScroll, goViewer } from '@/app/router';
 import { patchUi, useUi } from '@/app/store';
 import { useSeurat } from '@/app/providers/SeuratProvider';
 import { importSource, uploadMaster } from '@/shared/api/intake';
+import { deleteWork, renameWork } from '@/shared/api/works';
 import { paginate } from '@/shared/lib/pagination';
 import { GALLERY_PAGE_SIZE } from '@/shared/config/layout';
 import styles from './GalleryPage.module.css';
@@ -44,6 +46,10 @@ export function GalleryPage(): JSX.Element {
   }, [works]);
 
   const transfer = useMemo(() => ({ upload: uploadMaster, importSource }), []);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editing = useMemo(() => works.find((w) => w.id === editingId) ?? null, [works, editingId]);
+  const editActions = useMemo(() => ({ rename: renameWork, remove: deleteWork }), []);
 
   useLayoutEffect(() => {
     const y = galleryScroll();
@@ -84,8 +90,14 @@ export function GalleryPage(): JSX.Element {
           filter={ui.filter}
           onFilter={(f) => patchUi({ filter: f, page: 0 })}
           onOpen={(id) => goViewer(id)}
+          onEdit={(w) => setEditingId(w.id)}
         />
       </main>
+      <EditWorkDialog
+        work={editing}
+        onClose={() => setEditingId(null)}
+        actions={editActions}
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ interface Props {
   filter: Filter;
   onFilter: (f: Filter) => void;
   onOpen: (id: string) => void;
+  onEdit?: (work: Work) => void;
 }
 
 export function GalleryGrid({
@@ -31,6 +32,7 @@ export function GalleryGrid({
   filter,
   onFilter,
   onOpen,
+  onEdit,
 }: Props): JSX.Element {
   const bar = useRef<HTMLDivElement>(null);
 
@@ -90,6 +92,19 @@ export function GalleryGrid({
                   >
                     {badge}
                   </span>
+                )}
+                {onEdit && (
+                  <button
+                    type="button"
+                    className={styles.editBtn}
+                    aria-label={`Edit ${workTitle(w, offset + i)}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(w);
+                    }}
+                  >
+                    <Icon name="edit" size={ICON_XS} />
+                  </button>
                 )}
                 <Thumb work={w} />
               </div>
