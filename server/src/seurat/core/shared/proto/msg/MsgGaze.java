@@ -45,14 +45,13 @@ public final class MsgGaze {
         }
     }
 
-    public record ConcessionMessage(long handle, long epoch, int minStratum, int maxBands,
+    public record ConcessionMessage(long handle, long epoch, int minStratum,
             int reason, long maxBrushes, long maxKiB, long leaseS) {
         public byte[] encode() {
             ByteBuffer b = ByteBuffer.allocate(32);
             VarInt.put(b, handle);
             VarInt.put(b, epoch);
             Buf.u8(b, minStratum);
-            Buf.u8(b, maxBands);
             Buf.u8(b, reason);
             VarInt.put(b, maxBrushes);
             VarInt.put(b, maxKiB);
@@ -62,7 +61,7 @@ public final class MsgGaze {
 
         public static ConcessionMessage parse(byte[] p) {
             ByteBuffer b = ByteBuffer.wrap(p);
-            return new ConcessionMessage(VarInt.get(b), VarInt.get(b), Buf.u8(b), Buf.u8(b),
+            return new ConcessionMessage(VarInt.get(b), VarInt.get(b), Buf.u8(b),
                     Buf.u8(b), VarInt.get(b), VarInt.get(b), VarInt.get(b));
         }
     }

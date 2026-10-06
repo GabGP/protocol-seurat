@@ -1,6 +1,5 @@
 package seurat.core.viewing.grant;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import seurat.core.shared.proto.msg.MsgGaze;
@@ -9,7 +8,7 @@ import seurat.core.viewing.concession.Concession;
 import seurat.core.viewing.loans.Delivery;
 import seurat.core.viewing.session.Canvas;
 
-/** The RASPAR predicates that realize a reduction (spec 2.3) and the CONCESION message of a canvas. */
+/** The RASPAR predicate that realizes a reduction (spec 2.3) and the CONCESION message of a canvas. */
 public final class Reductions {
     private Reductions() {}
 
@@ -17,25 +16,17 @@ public final class Reductions {
     public record Cut(Predicate<Delivery> scrape, MsgLoans.Scrape wire) {}
 
     /** What the reduction cur -> target takes back; empty when target is not smaller anywhere. */
-    public static List<Cut> cuts(Concession cur, int[] target, long handle, long epoch) {
-        List<Cut> out = new ArrayList<>();
-        int min = target[0];
-        int bands = target[1];
-        if (min > cur.minStratum()) {
-            out.add(new Cut(lowStratum(min), MsgLoans.Scrape.lowStratum(handle, 0, epoch, 0, min)));
+    public static List<Cut> cuts(Concession cur, int target, long handle, long epoch) {
+        if (target > cur.minStratum()) {
+            return List.of(new Cut(lowStratum(target), MsgLoans.Scrape.lowStratum(handle, 0, epoch, 0, target)));
         }
-        int heldAtMin = min > cur.minStratum() ? 4 : min == cur.minStratum() ? cur.maxBands() : 0;
-        if (bands < heldAtMin) {
-            out.add(new Cut(d -> d.brush().stratum() == min && d.through() > bands,
-                    MsgLoans.Scrape.bands(handle, 0, epoch, 0, min, bands)));
-        }
-        return out;
+        return List.of();
     }
 
     public static MsgGaze.ConcessionMessage message(Canvas canvas) {
         Concession c = canvas.concession();
-        return new MsgGaze.ConcessionMessage(canvas.handle(), c.epoch(), c.minStratum(),
-                c.maxBands(), c.reason(), c.maxBrushes(), c.maxKiB(), c.leaseS());
+        return new MsgGaze.ConcessionMessage(canvas.handle(), c.epoch(), c.minStratum(), c.reason(),
+                c.maxBrushes(), c.maxKiB(), c.leaseS());
     }
 
     /** ESTRATO_BAJO: s < stratum; never the sketch since stratum <= sketchMin. */

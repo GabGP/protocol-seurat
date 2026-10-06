@@ -31,7 +31,7 @@ import seurat.kit.TestKit;
  * an out-of-plan resend; a second one on the brush alerts the operator.
  */
 public final class CanvasServiceTest {
-    private static final WorkMeta META = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2);
+    private static final WorkMeta META = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2);
 
     public static void main(String[] args) throws Exception {
         Sessions sessions = new Sessions();
@@ -41,7 +41,7 @@ public final class CanvasServiceTest {
         EaselContext ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 768, 0);
         RecordingMapping mapping = new RecordingMapping();
         Session session = new Session(1, "p", 128, 0, mapping, new byte[32]);
-        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 1, 768, 36864, 120));
         canvas.session(session);
         session.canvases().put(1L, canvas);
         LoanHandlers service = new LoanHandlers(mapping, ctx);

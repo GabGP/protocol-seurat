@@ -95,7 +95,7 @@ final class Opener {
 
     private static boolean permitted(Canvas canvas, BrushId brush, int through) {
         Concession c = canvas.concession();
-        return c.allows(brush, through) && (brush.stratum() >= SeuratConstants.SEED_STRATUM
+        return c.allows(brush) && (brush.stratum() >= SeuratConstants.SEED_STRATUM
                 || canvas.book().bands(brush.parentCapped(canvas.meta().strata() - 1)) >= through);
     }
 

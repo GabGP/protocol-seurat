@@ -55,7 +55,7 @@ public final class IngestJob implements Runnable {
             }
             long start = System.currentTimeMillis();
             Log.info(LogTags.INGEST, LogTags.work(id) + " ingest started name=\"" + name + "\" file=" + master.getFileName());
-            WorkRecord fresh = new WorkRecord(WorkMeta.of(id, name, 0, 0, Geometry.SIDE, 0,
+            WorkRecord fresh = new WorkRecord(new WorkMeta(id, name, 0, 0, Geometry.SIDE, 0,
                     ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA));
             fresh.keepMaster = keepMaster;
             catalog.register(fresh);
@@ -65,7 +65,7 @@ public final class IngestJob implements Runnable {
                 int top = topLevels(w, h);
                 Log.info(LogTags.INGEST, LogTags.work(id) + " decoding size=" + w + "x" + h + " strata=" + (top + 1));
                 WorkRecord work = catalog.get(id);
-                work.meta = WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1,
+                work.meta = new WorkMeta(id, name, w, h, Geometry.SIDE, top + 1,
                         ProtoCodes.ST_RECIBIENDO, ProtoCodes.ED_NINGUNA);
                 Progress.phase(LogTags.INGEST, LogTags.work(id), "sketching", "");
                 SketchPhase.run(id, master, ports.source(), ports.stores(), () -> store(top, w, h, 1),
@@ -111,6 +111,6 @@ public final class IngestJob implements Runnable {
             nx[stratum] = Geometry.tiles(Geometry.padTo(w, top) >> stratum);
             ny[stratum] = Geometry.tiles(Geometry.padTo(h, top) >> stratum);
         }
-        return ports.stores().create(WorkMeta.of(id, name, w, h, Geometry.SIDE, top + 1, 0, edition), nx, ny);
+        return ports.stores().create(new WorkMeta(id, name, w, h, Geometry.SIDE, top + 1, 0, edition), nx, ny);
     }
 }

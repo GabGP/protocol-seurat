@@ -41,9 +41,9 @@ public final class GazeGoldensTest {
     }
 
     private static void concession() {
-        var concessionMsg = new MsgGaze.ConcessionMessage(1, 2, 0, 2, 1, 768, 36864, 120);
+        var concessionMsg = new MsgGaze.ConcessionMessage(1, 2, 0, 1, 768, 36864, 120);
         byte[] frame = new Frame(FrameType.CONCESION, concessionMsg.encode()).encode();
-        byte[] expect = TestKit.unhex("210d01020002014300800090004078");
+        byte[] expect = TestKit.unhex("210c010200014300800090004078");
         TestKit.check(java.util.Arrays.equals(frame, expect), "CONCESION e2:\n"
                 + TestKit.hex(frame));
     }

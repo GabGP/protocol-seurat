@@ -20,17 +20,17 @@ public final class OpenGoldensTest {
     }
 
     private static void opened() {
-        var a = new MsgCatalog.WorkOpened(1, 196_608, 163_840, 11, 2, 0, 2, 192, 160);
+        var a = new MsgCatalog.WorkOpened(1, 196_608, 163_840, 11, 2, 192, 160);
         byte[] frame = new Frame(FrameType.ABIERTA, a.encode()).encode();
-        // 13 11 · handle 1 · 196608 · 163840 · 11 strata · ed 2 · ceiling 0/2 · seed 192 x 160
-        TestKit.check(TestKit.hex(frame).equals("1311" + "01" + "80030000" + "80028000" + "0b" + "02" + "0002" + "40c040a0"),
+        // 13 0f · handle 1 · 196608 · 163840 · 11 strata · ed 2 · seed 192 x 160
+        TestKit.check(TestKit.hex(frame).equals("130f" + "01" + "80030000" + "80028000" + "0b" + "02" + "40c040a0"),
                 "ABIERTA: " + TestKit.hex(frame));
     }
 
     private static void initialConcession() {
-        var c = new MsgGaze.ConcessionMessage(1, 1, 7, 4, ProtoCodes.MOT_INICIAL, 768, 36_864, 120);
+        var c = new MsgGaze.ConcessionMessage(1, 1, 7, ProtoCodes.MOT_INICIAL, 768, 36_864, 120);
         byte[] frame = new Frame(FrameType.CONCESION, c.encode()).encode();
-        TestKit.check(TestKit.hex(frame).equals("210d01010704004300800090004078"), "CONCESION: " + TestKit.hex(frame));
+        TestKit.check(TestKit.hex(frame).equals("210c010107004300800090004078"), "CONCESION: " + TestKit.hex(frame));
     }
 
     /** entrega 1 = the seed: id 10 << 56, bands [0,1), epoch 1, qY = qC = 1, edition 2, one CRC and length. */

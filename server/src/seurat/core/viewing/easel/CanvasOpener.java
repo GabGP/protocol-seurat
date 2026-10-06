@@ -36,7 +36,6 @@ final class CanvasOpener {
             return;
         }
         long handle = session.newHandle();
-        long[] ceiling = work.ceiling();
         int top = work.meta.strata() - 1;
         Canvas canvas = new Canvas(handle, request.id(), work.store, work.meta,
                 Concessions.initial(session.memMib(), ctx.sessionMax(), top));
@@ -52,7 +51,7 @@ final class CanvasOpener {
             session.canvases().put(handle, canvas);
             mapping.send(FrameType.ABIERTA, new MsgCatalog.WorkOpened(handle,
                     work.meta.width(), work.meta.height(), work.meta.strata(), work.meta.edition(),
-                    (int) ceiling[0], (int) ceiling[1], paddedW >> top, paddedH >> top).encode());
+                    paddedW >> top, paddedH >> top).encode());
             ctx.grants().open(session, canvas);
         }
     }

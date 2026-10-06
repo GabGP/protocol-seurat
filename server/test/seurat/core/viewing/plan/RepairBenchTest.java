@@ -24,8 +24,8 @@ public final class RepairBenchTest {
     private static final int FAIL_EVERY = 25;
     /** The pan of scenario B and C: one view-width-and-more to the right. */
     private static final int PAN_PX = 40000;
-    private static final WorkMeta META = new WorkMeta("slide-0421", "s", 196608, 163840, 256, 11, 3, 2, 0, 2);
-    private static final Concession FULL = new Concession(2, 0, 4, 1, 768, 36864, 120);
+    private static final WorkMeta META = new WorkMeta("slide-0421", "s", 196608, 163840, 256, 11, 3, 2);
+    private static final Concession FULL = new Concession(2, 0, 1, 768, 36864, 120);
     private static final MsgGaze.Gaze G1 = new MsgGaze.Gaze(1, 8, 65536, 49152, 69376, 51312, 1920, 1080, 0);
     private static final MsgGaze.Gaze G2 = new MsgGaze.Gaze(1, 9, G1.x0() + PAN_PX, G1.y0(),
             G1.x1() + PAN_PX, G1.y1(), G1.vw(), G1.vh(), 0);

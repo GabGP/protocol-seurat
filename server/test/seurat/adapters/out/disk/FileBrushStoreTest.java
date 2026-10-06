@@ -21,7 +21,7 @@ public final class FileBrushStoreTest {
     }
 
     static WorkMeta meta() {
-        return new WorkMeta("t", "t", 512, 512, 256, 2, 3, 2, 0, 2);
+        return new WorkMeta("t", "t", 512, 512, 256, 2, 3, 2);
     }
 
     static FileBrushStore open(Path dir) throws Exception {

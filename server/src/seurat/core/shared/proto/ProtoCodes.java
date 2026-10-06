@@ -40,10 +40,8 @@ public final class ProtoCodes {
     public static final int REG_PRESUPUESTO = 2;
     public static final int REG_COLA = 4;
 
+    /** RASPAR predicates. 2, 3 and 4 (FUERA, BANDAS, LISTA) are retired: never sent, never reused. */
     public static final int PRED_ESTRATO_BAJO = 1;
-    public static final int PRED_FUERA = 2;
-    public static final int PRED_BANDAS = 3;
-    public static final int PRED_LISTA = 4;
     public static final int PRED_TODO = 5;
 
     /** Voluntary eviction, in Horizon order (spec §5.2.3 as amended by ADR-02 and ADR-10). */

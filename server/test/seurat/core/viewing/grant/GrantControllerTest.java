@@ -25,8 +25,8 @@ public final class GrantControllerTest {
 
     private static void narrowToStratum1(ConcessionRig s) {
         Concession c = s.canvas.concession();
-        Concession next = new Concession(2, 1, 4, 2, c.maxBrushes(), c.maxKiB(), 120);
-        s.grants.narrow(s.canvas, next, Reductions.cuts(c, new int[]{1, 4}, 1, 2), null);
+        Concession next = new Concession(2, 1, 2, c.maxBrushes(), c.maxKiB(), 120);
+        s.grants.narrow(s.canvas, next, Reductions.cuts(c, 1, 1, 2), null);
     }
 
     private static void happyPath() throws Exception {
@@ -60,14 +60,14 @@ public final class GrantControllerTest {
     private static void cumulativeConfirm() throws Exception {
         ConcessionRig s = ConcessionRig.create();
         Concession c = s.canvas.concession();
-        s.canvas.setConcession(new Concession(1, 0, 4, 1, c.maxBrushes(), c.maxKiB(), 120));
+        s.canvas.setConcession(new Concession(1, 0, 1, c.maxBrushes(), c.maxKiB(), 120));
         s.canvas.book().log(new BrushId(0, 0, 0), 0, 4, 10, 1); // 257
         Concession cur = s.canvas.concession();
-        s.grants.narrow(s.canvas, new Concession(2, 0, 2, 2, c.maxBrushes(), c.maxKiB(), 120),
-                Reductions.cuts(cur, new int[]{0, 2}, 1, 2), null);
+        s.grants.narrow(s.canvas, new Concession(2, 1, 2, c.maxBrushes(), c.maxKiB(), 120),
+                Reductions.cuts(cur, 1, 1, 2), null);
         Concession mid = s.canvas.concession();
-        s.grants.narrow(s.canvas, new Concession(3, 2, 4, 2, c.maxBrushes(), c.maxKiB(), 120),
-                Reductions.cuts(mid, new int[]{2, 4}, 1, 3), null);
+        s.grants.narrow(s.canvas, new Concession(3, 2, 2, c.maxBrushes(), c.maxKiB(), 120),
+                Reductions.cuts(mid, 2, 1, 3), null);
         List<CanvasOrders.ScrapeOrder> pending = s.canvas.orders().pendingScrapes();
         TestKit.check(pending.size() == 2, "two orders pending");
         CanvasOrders.ScrapeOrder last = pending.get(1);

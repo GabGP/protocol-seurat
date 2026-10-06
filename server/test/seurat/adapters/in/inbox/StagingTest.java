@@ -105,7 +105,7 @@ public final class StagingTest {
         Catalog catalog = new Catalog(new DiskArchive(works));
         Staging s = new Staging(staging, inbox, catalog);
 
-        WorkRecord ready = new WorkRecord(WorkMeta.of("mona", "Mona", 100, 100, 256, 1, ProtoCodes.ST_LISTA, 1));
+        WorkRecord ready = new WorkRecord(new WorkMeta("mona", "Mona", 100, 100, 256, 1, ProtoCodes.ST_LISTA, 1));
         catalog.register(ready);
         boolean threw = false;
         try {
@@ -115,12 +115,12 @@ public final class StagingTest {
         }
         TestKit.check(threw, "active catalog work should be rejected with EXISTS");
 
-        WorkRecord failed = new WorkRecord(WorkMeta.of("failed", "Failed", 100, 100, 256, 1, ProtoCodes.ST_FALLIDA, 1));
+        WorkRecord failed = new WorkRecord(new WorkMeta("failed", "Failed", 100, 100, 256, 1, ProtoCodes.ST_FALLIDA, 1));
         catalog.register(failed);
         String name = s.admit("failed.png");
         TestKit.check("failed.png".equals(name), "FALLIDA work can be re-admitted");
 
-        WorkRecord retired = new WorkRecord(WorkMeta.of("retired", "Retired", 100, 100, 256, 1, ProtoCodes.ST_LISTA, 1));
+        WorkRecord retired = new WorkRecord(new WorkMeta("retired", "Retired", 100, 100, 256, 1, ProtoCodes.ST_LISTA, 1));
         catalog.register(retired);
         catalog.withdraw("retired");
         String retiredName = s.admit("retired.png");

@@ -35,7 +35,7 @@ final class WorkLifecycle {
             canvas.setStore(work.store, work.meta);
             boolean seen = canvas.gaze() != null && (canvas.gaze().flags() & MsgGaze.M_OCULTA) == 0;
             canvas.floored = !seen;
-            int[] target = Concessions.target(grants.policy.ceiling(canvas), canvas.floored, work.meta.strata() - 1);
+            int target = Concessions.target(grants.policy.ceiling(canvas), canvas.floored, work.meta.strata() - 1);
             Concession next = Concessions.next(canvas.concession(), target, ProtoCodes.MOT_POLITICA);
             List<Reductions.Cut> cuts = Reductions.cuts(canvas.concession(), target, canvas.handle(), next.epoch());
             if (cuts.isEmpty()) {

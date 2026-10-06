@@ -17,7 +17,7 @@ public final class CatalogTest {
         Catalog catalog = new Catalog(new DiskArchive(root));
         var seen = new ArrayList<MsgCatalog.WorkMessage>();
         catalog.observe(seen::add);
-        var meta = new WorkMeta("w1", "Work 1", 512, 512, 256, 2, 0, 1, 0, 2);
+        var meta = new WorkMeta("w1", "Work 1", 512, 512, 256, 2, 0, 1);
         catalog.register(new WorkRecord(meta));
         TestKit.check(seen.size() == 1 && seen.get(0).event() == ProtoCodes.OBRA_ALTA,
                 "ALTA pushed");
@@ -53,11 +53,11 @@ public final class CatalogTest {
     private static void testLoadRecovery() throws Exception {
         Path root = Files.createTempDirectory("catalog-load-test");
         Catalog catalog = new Catalog(new DiskArchive(root));
-        WorkMeta m0 = new WorkMeta("r0", "R0", 0, 0, 256, 0, ProtoCodes.ST_RECIBIENDO, 1, 0, 2);
+        WorkMeta m0 = new WorkMeta("r0", "R0", 0, 0, 256, 0, ProtoCodes.ST_RECIBIENDO, 1);
         catalog.register(new WorkRecord(m0));
-        WorkMeta m1 = new WorkMeta("w1", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1, 0, 2);
+        WorkMeta m1 = new WorkMeta("w1", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1);
         catalog.register(new WorkRecord(m1));
-        WorkMeta m1dup = new WorkMeta("w1.png", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1, 0, 2);
+        WorkMeta m1dup = new WorkMeta("w1.png", "W1", 512, 512, 256, 2, ProtoCodes.ST_LISTA, 1);
         catalog.register(new WorkRecord(m1dup));
 
         Catalog loaded = new Catalog(new DiskArchive(root));
@@ -74,7 +74,7 @@ public final class CatalogTest {
         String id = "Declaration_of_victory_after_the_Battle_of_Leipzig,_by_Krafft";
         Catalog catalog = new Catalog(new DiskArchive(root));
         WorkMeta m = new WorkMeta(id, id, 1024, 768, 256, 3,
-                ProtoCodes.ST_LISTA, 2, 0, 2);
+                ProtoCodes.ST_LISTA, 2);
         catalog.register(new WorkRecord(m));
         Path dir = root.resolve(id);
         Files.writeString(dir.resolve("quant"), "1");

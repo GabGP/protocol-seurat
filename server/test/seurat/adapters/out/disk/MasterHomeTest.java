@@ -41,7 +41,7 @@ public final class MasterHomeTest {
 
         Path cut = MasterHome.adopt(works, "cut", TestKit.masterPng(inbox, "cut.png", 512, 384));
         WorkRecord painting = new WorkRecord(new WorkMeta("cut", "cut", 512, 384, 256, 2,
-                ProtoCodes.ST_PINTANDO, ProtoCodes.ED_NINGUNA, 0, 2));
+                ProtoCodes.ST_PINTANDO, ProtoCodes.ED_NINGUNA));
         painting.keepMaster = false;
         catalog.register(painting);
         var unfinished = new DiskMasters(works).unfinished(catalog);

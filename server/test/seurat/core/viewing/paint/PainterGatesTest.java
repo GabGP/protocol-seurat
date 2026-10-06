@@ -52,7 +52,7 @@ public final class PainterGatesTest {
     /** Spec 4.1 (c) counts brushes: a full book still opens an upgrade of a held brush and refuses a new one. */
     private static void fullBookOpensUpgradeRefusesNewBrush() throws Exception {
         PainterRig rig = PainterRig.create();
-        rig.canvas.setConcession(new Concession(1, 0, 4, 1, 2, 36864, 120));
+        rig.canvas.setConcession(new Concession(1, 0, 1, 2, 36864, 120));
         rig.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
         rig.canvas.book().log(new BrushId(1, 0, 0), 0, 2, 10, 1);
         rig.canvas.book().settle(Ranges.of(1, 2));

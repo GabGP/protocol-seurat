@@ -54,7 +54,7 @@ public final class MsgCatalog {
     }
 
     public record WorkOpened(long handle, long width, long height, int strata, long edition,
-            int ceilingStratum, int ceilingBands, long seedWidth, long seedHeight) {
+            long seedWidth, long seedHeight) {
         public byte[] encode() {
             ByteBuffer b = ByteBuffer.allocate(64);
             VarInt.put(b, handle);
@@ -62,8 +62,6 @@ public final class MsgCatalog {
             VarInt.put(b, height);
             Buf.u8(b, strata);
             VarInt.put(b, edition);
-            Buf.u8(b, ceilingStratum);
-            Buf.u8(b, ceilingBands);
             VarInt.put(b, seedWidth);
             VarInt.put(b, seedHeight);
             return Arrays.copyOf(b.array(), b.position());
@@ -76,9 +74,7 @@ public final class MsgCatalog {
             long al = VarInt.get(b);
             int es = Buf.u8(b);
             long ed = VarInt.get(b);
-            int te = Buf.u8(b);
-            int tb = Buf.u8(b);
-            return new WorkOpened(h, an, al, es, ed, te, tb, VarInt.get(b), VarInt.get(b));
+            return new WorkOpened(h, an, al, es, ed, VarInt.get(b), VarInt.get(b));
         }
     }
 }

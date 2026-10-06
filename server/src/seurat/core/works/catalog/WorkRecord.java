@@ -1,10 +1,9 @@
 package seurat.core.works.catalog;
 
-import seurat.core.shared.config.SeuratConstants;
 import seurat.core.works.store.BrushStore;
 import seurat.core.works.store.WorkMeta;
 
-/** One work: meta + live store handle (no ceilings per role, ADR-05). */
+/** One work: meta + live store handle. */
 public final class WorkRecord {
     public volatile WorkMeta meta;
     public volatile BrushStore store;
@@ -13,9 +12,5 @@ public final class WorkRecord {
 
     public WorkRecord(WorkMeta meta) {
         this.meta = meta;
-    }
-
-    public long[] ceiling() {
-        return new long[]{SeuratConstants.FULL_CEILING_STRATUM, SeuratConstants.FULL_CEILING_BANDS};
     }
 }

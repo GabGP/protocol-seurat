@@ -89,7 +89,7 @@ final class SessionHandshake {
             synchronized (c) {
                 Concession con = c.concession();
                 mapping.send(FrameType.CONCESION, new MsgGaze.ConcessionMessage(h, con.epoch(),
-                        con.minStratum(), con.maxBands(), con.reason(), con.maxBrushes(), con.maxKiB(),
+                        con.minStratum(), con.reason(), con.maxBrushes(), con.maxKiB(),
                         con.leaseS()).encode());
                 for (MsgLoans.Scrape s : resumed.reissued().getOrDefault(h, List.of())) {
                     mapping.send(FrameType.RASPAR, s.encode());

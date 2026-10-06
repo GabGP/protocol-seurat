@@ -155,7 +155,7 @@ public final class HttpSurfaceTest {
         var evilOrigin = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/img1.png",
                 Map.of("origin", "http://evil.example"), new byte[]{1, 2, 3}, "h"));
         TestKit.check(evilOrigin.code() == 403, "PUT with foreign origin answers 403");
-        catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 4)));
+        catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2)));
         var evilPatch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/img1",
                 Map.of("origin", "http://evil.example"), "New name".getBytes(), "h"));
         TestKit.check(evilPatch.code() == 403 && catalog.get("img1").meta.name().equals("img1"),

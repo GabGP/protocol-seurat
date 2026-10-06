@@ -14,10 +14,9 @@ final class WorkPolicy {
         this.catalog = catalog;
     }
 
-    /** Ceiling of the canvas on its work; a withdrawn work grants only the sketch. */
-    long[] ceiling(Canvas canvas) {
-        WorkRecord work = catalog.get(canvas.workId());
-        return work == null ? new long[]{SeuratConstants.SKETCH_MIN, 4} : work.ceiling();
+    /** Finest stratum the canvas may hold on its work: all of it, or only the sketch once withdrawn. */
+    int ceiling(Canvas canvas) {
+        return catalog.get(canvas.workId()) == null ? SeuratConstants.SKETCH_MIN : 0;
     }
 
     boolean lista(Canvas canvas) {

@@ -40,7 +40,7 @@ public final class ConcessionRig {
     private ConcessionRig(int state) throws Exception {
         var root = Files.createTempDirectory("grants-test");
         catalog = new Catalog(new DiskArchive(root.resolve("obras")));
-        var meta = new WorkMeta("w", "w", 512, 384, 256, 2, state, 2, 0, 2);
+        var meta = new WorkMeta("w", "w", 512, 384, 256, 2, state, 2);
         work = new WorkRecord(meta);
         var store = new TestKit.FixedStore(meta);
         for (int bx = 0; bx < 2; bx++) {
@@ -54,7 +54,7 @@ public final class ConcessionRig {
         grants = new GrantController(catalog, painter, sessions);
         session = new Session(1, "p", 256, 3, mapping, new byte[32]);
         sessions.add(session);
-        canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 2, 1, 768, 36864, 120));
+        canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 1, 768, 36864, 120));
         canvas.session(session);
         session.canvases().put(1L, canvas);
         for (long n = 1; n <= LOGGED_LOANS; n++) {

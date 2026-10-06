@@ -47,8 +47,8 @@ public final class LivenessTest {
     private static void testRenewalAck() throws Exception {
         var s = ConcessionRig.create();
         s.canvas.book().log(new BrushId(0, 0, 0), 0, 2, 100, 1); // 257, stratum 0
-        s.grants.narrow(s.canvas, new Concession(2, 1, 4, 2, 768, 36864, 120),
-                Reductions.cuts(s.canvas.concession(), new int[]{1, 4}, 1, 2), null);
+        s.grants.narrow(s.canvas, new Concession(2, 1, 2, 768, 36864, 120),
+                Reductions.cuts(s.canvas.concession(), 1, 1, 2), null);
         s.mapping.control.clear();
         s.canvas.renewNs = System.nanoTime() - 65_000_000_000L;
         new Liveness(s.grants, s.sessions).tick();
@@ -112,8 +112,8 @@ public final class LivenessTest {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
         Session s = new Session(3, "alice", 256, 0, mapping, new byte[32]);
-        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
-                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2),
+                new Concession(1, 0, 1, 768, 36864, 120));
         canvas.session(s);
         s.canvases().put(1L, canvas);
         sessions.add(s);
@@ -132,8 +132,8 @@ public final class LivenessTest {
         Sessions sessions = new Sessions();
         RecordingMapping mapping = new RecordingMapping();
         Session s = new Session(3, "alice", 256, 0, mapping, new byte[32]);
-        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
-                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2),
+                new Concession(1, 0, 1, 768, 36864, 120));
         canvas.session(s);
         s.canvases().put(1L, canvas);
         sessions.add(s);
@@ -149,8 +149,8 @@ public final class LivenessTest {
         Sessions freshSessions = new Sessions();
         RecordingMapping freshMapping = new RecordingMapping();
         Session freshS = new Session(4, "bob", 256, 0, freshMapping, new byte[32]);
-        Canvas freshCanvas = new Canvas(2, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
-                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas freshCanvas = new Canvas(2, "w", null, new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2),
+                new Concession(1, 0, 1, 768, 36864, 120));
         freshCanvas.session(freshS);
         freshS.canvases().put(2L, freshCanvas);
         freshSessions.add(freshS);

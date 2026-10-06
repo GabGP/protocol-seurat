@@ -63,12 +63,12 @@ public final class Painter implements Runnable {
 
     /** Reduction (spec 4.2.2), canvas lock held: queue out, in-flight RESET. Returns the cancelled numbers. */
     public Ranges purge(Canvas canvas, Concession next) {
-        Predicate<Pending> forbidden = p -> !next.allows(p.entry().brush(), p.entry().through())
+        Predicate<Pending> forbidden = p -> !next.allows(p.entry().brush())
                 || p.edition() != canvas.meta().edition();
         for (Pending p : queue.removeIf(canvas, forbidden)) {
             PlanEvents.resolved(canvas, p.generation());
         }
-        return inFlight.cancel(canvas, d -> !next.allows(d.brush(), d.through()));
+        return inFlight.cancel(canvas, d -> !next.allows(d.brush()));
     }
 
     /** Withdrawal (spec 7.4): nothing more is opened and every flow in flight is cut. */

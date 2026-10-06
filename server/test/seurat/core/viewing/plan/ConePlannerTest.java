@@ -43,10 +43,10 @@ public final class ConePlannerTest {
 
     private static void golden() {
         var gaze = new MsgGaze.Gaze(1, 8, 65536, 49152, 69376, 51312, 1920, 1080, 0);
-        var concession = new Concession(2, 0, 2, 1, 768, 36864, 120);
+        var concession = new Concession(2, 0, 1, 768, 36864, 120);
         Map<BrushId, Integer> held = sketchBook();
         var meta = new seurat.core.works.store.WorkMeta("slide-0421", "s", WIDTH, HEIGHT, 256, 11,
-                3, 2, 0, 2);
+                3, 2);
         var out = ConePlanner.plan(gaze, concession, p -> held.getOrDefault(p, 0),
                 meta, 3, 0);
         TestKit.check(out.throttle() == 0, "no regulation");
@@ -92,7 +92,7 @@ public final class ConePlannerTest {
     }
 
     private static void sketch() {
-        var meta = new seurat.core.works.store.WorkMeta("w", "w", 512, 384, 256, 2, 3, 2, 0, 2);
+        var meta = new seurat.core.works.store.WorkMeta("w", "w", 512, 384, 256, 2, 3, 2);
         Map<BrushId, Integer> held = new HashMap<>();
         var entries = ConeTiling.sketch(meta, 0, p -> held.getOrDefault(p, 0));
         TestKit.check(entries.size() == 1 + 4, "seed + four s0 brushes, got "

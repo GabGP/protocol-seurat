@@ -17,8 +17,8 @@ import seurat.core.works.store.WorkMeta;
  * own LoanBook, and the queue the Painter keeps for it. Plans come from the real ConePlanner.
  */
 final class RegulationViewer {
-    static final WorkMeta META = new WorkMeta("slide-0421", "s", 196608, 163840, 256, 11, 3, 2, 0, 2);
-    static final Concession FULL = new Concession(2, 0, 4, 1, 768, 36864, 120);
+    static final WorkMeta META = new WorkMeta("slide-0421", "s", 196608, 163840, 256, 11, 3, 2);
+    static final Concession FULL = new Concession(2, 0, 1, 768, 36864, 120);
     /** Size model, not a measurement: band b of a brush weighs BAND_BYTES[b] (band coefficient counts). */
     static final int[] BAND_BYTES = {2048, 4096, 8192, 16384};
     /** Source pixels of the view: 3840 x 2160 shown on 1920 x 1080 (ideal stratum 1). */

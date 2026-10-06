@@ -31,7 +31,7 @@ import seurat.kit.TestKit;
 
 /** SALUDO (spec 3.4.1) and REANUDAR (spec 3.4.4, 8): token, caps, claims, idempotency. */
 public final class SessionHandshakeTest {
-    private static final WorkMeta META = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2);
+    private static final WorkMeta META = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2);
 
     public static void main(String[] args) throws Exception {
         testNormalHello();
@@ -58,7 +58,7 @@ public final class SessionHandshakeTest {
     private static byte[] grave(Sessions sessions, long id) {
         byte[] ticket = sessions.newTicket();
         Session old = new Session(id, "alice", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
-        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 1, 768, 36864, 120));
         canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
         canvas.session(old);
         old.canvases().put(1L, canvas);
@@ -138,7 +138,7 @@ public final class SessionHandshakeTest {
         EaselContext ctx = ctx(sessions, true);
         byte[] ticket = grave(sessions, 500);
         Session old = new Session(501, "alice", 256, ProtoCodes.CAP_REANUDAR, new RecordingMapping(), ticket);
-        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, META, new Concession(1, 0, 1, 768, 36864, 120));
         canvas.book().log(new BrushId(1, 0, 0), 0, 2, 100, 1);
         canvas.session(old);
         old.canvases().put(1L, canvas);

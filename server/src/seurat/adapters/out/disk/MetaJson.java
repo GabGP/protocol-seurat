@@ -26,7 +26,7 @@ public final class MetaJson {
 
     public static WorkMeta read(String id, String json) {
         Map<String, String> m = parse(json);
-        return WorkMeta.of(m.getOrDefault("id", id), m.getOrDefault("name", id),
+        return new WorkMeta(m.getOrDefault("id", id), m.getOrDefault("name", id),
                 Integer.parseInt(m.getOrDefault("width", "0")),
                 Integer.parseInt(m.getOrDefault("height", "0")),
                 Integer.parseInt(m.getOrDefault("side", Integer.toString(Geometry.SIDE))),

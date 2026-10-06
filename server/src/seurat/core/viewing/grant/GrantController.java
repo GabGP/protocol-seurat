@@ -39,9 +39,9 @@ public final class GrantController {
     /** ABRIR follow-up (spec 3.4.1): initial concession (floor: sketch only) + sketch plan. */
     public void open(Session session, Canvas canvas) {
         synchronized (canvas) {
-            int[] target = Concessions.target(policy.ceiling(canvas), true, canvas.meta().strata() - 1);
+            int target = Concessions.target(policy.ceiling(canvas), true, canvas.meta().strata() - 1);
             Concession c = canvas.concession();
-            canvas.setConcession(new Concession(c.epoch(), target[0], target[1], c.reason(),
+            canvas.setConcession(new Concession(c.epoch(), target, c.reason(),
                     c.maxBrushes(), c.maxKiB(), c.leaseS()));
             send(session, FrameType.CONCESION, Reductions.message(canvas).encode());
             plans.issue(canvas, 0, sketch(canvas), 0);
@@ -74,10 +74,10 @@ public final class GrantController {
     }
 
     /** Moves to target: a reduction scrapes; widening needs demand (a MIRADA, spec 2.3). */
-    public void apply(Canvas canvas, int[] target, int motive, boolean widen) {
+    public void apply(Canvas canvas, int target, int motive, boolean widen) {
         synchronized (canvas) {
             Concession cur = canvas.concession();
-            if (target[0] == cur.minStratum() && target[1] == cur.maxBands()) {
+            if (target == cur.minStratum()) {
                 return;
             }
             Concession next = Concessions.next(cur, target, motive);
@@ -101,7 +101,7 @@ public final class GrantController {
             send(session, FrameType.CONCESION, Reductions.message(canvas).encode());
             scrapes.issue(canvas, n, next.epoch(), cancelled, cuts, then);
             Log.info(LogTags.CONCESSION, canvas.subject() + " concession narrowed motive=" + ProtoCodes.motiveName(next.reason())
-                    + " epoch=" + next.epoch() + " minStratum=" + next.minStratum() + " maxBands=" + next.maxBands());
+                    + " epoch=" + next.epoch() + " minStratum=" + next.minStratum());
         }
     }
 

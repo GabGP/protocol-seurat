@@ -5,9 +5,6 @@ public final class SeuratConstants {
     private SeuratConstants() {}
 
     public static final int HTTP_PORT = 8080;
-    /** Every viewer gets full quality: stratum 0 with all bands (ADR-05). */
-    public static final int FULL_CEILING_STRATUM = 0;
-    public static final int FULL_CEILING_BANDS = 4;
     public static final long LEASE_S = 120;
     /** delta's floor: delta = max(1 s, 2 RTT) (spec 8). */
     public static final long SKEW_MS = 1000;

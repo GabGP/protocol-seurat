@@ -12,43 +12,28 @@ public final class MsgLoans {
     private MsgLoans() {}
 
     public record Scrape(long handle, long order, long epoch, long through, int predicate,
-            long p1, long p2, long p3, long p4, Ranges list) {
+            int stratum) {
         public static Scrape lowStratum(long h, long o, long e, long through, int stratum) {
-            return new Scrape(h, o, e, through, ProtoCodes.PRED_ESTRATO_BAJO, stratum, 0, 0, 0, null);
-        }
-
-        public static Scrape bands(long h, long o, long e, long through, int stratum, int maxBands) {
-            return new Scrape(h, o, e, through, ProtoCodes.PRED_BANDAS, stratum, maxBands, 0, 0, null);
+            return new Scrape(h, o, e, through, ProtoCodes.PRED_ESTRATO_BAJO, stratum);
         }
 
         public static Scrape all(long h, long o, long e, long through) {
-            return new Scrape(h, o, e, through, ProtoCodes.PRED_TODO, 0, 0, 0, 0, null);
+            return new Scrape(h, o, e, through, ProtoCodes.PRED_TODO, 0);
         }
 
         public Scrape at(long order, long through) {
-            return new Scrape(handle, order, epoch, through, predicate, p1, p2, p3, p4,
-                    list);
+            return new Scrape(handle, order, epoch, through, predicate, stratum);
         }
 
         public byte[] encode() {
-            ByteBuffer b = ByteBuffer.allocate(96 + (list == null ? 0 : list.encode().length));
+            ByteBuffer b = ByteBuffer.allocate(48);
             VarInt.put(b, handle);
             VarInt.put(b, order);
             VarInt.put(b, epoch);
             VarInt.put(b, through);
             Buf.u8(b, predicate);
             if (predicate == ProtoCodes.PRED_ESTRATO_BAJO) {
-                Buf.u8(b, (int) p1);
-            } else if (predicate == ProtoCodes.PRED_BANDAS) {
-                Buf.u8(b, (int) p1);
-                Buf.u8(b, (int) p2);
-            } else if (predicate == ProtoCodes.PRED_FUERA) {
-                VarInt.put(b, p1);
-                VarInt.put(b, p2);
-                VarInt.put(b, p3);
-                VarInt.put(b, p4);
-            } else if (predicate == ProtoCodes.PRED_LISTA) {
-                b.put(list.encode());
+                Buf.u8(b, stratum);
             }
             return Arrays.copyOf(b.array(), b.position());
         }

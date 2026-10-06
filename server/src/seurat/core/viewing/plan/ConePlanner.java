@@ -40,9 +40,6 @@ public final class ConePlanner {
                 Math.max(idealStratum, concession.minStratum()));
         focusStratum = Math.max(0, focusStratum);
         int focusBands = focusStratum == idealStratum ? bands : FULL_BANDS;
-        if (focusStratum == concession.minStratum()) {
-            focusBands = Math.min(focusBands, concession.maxBands());
-        }
         int flags = 0;
         boolean ring2 = true;
         int ring1Bands = RING1_BANDS;
@@ -58,9 +55,6 @@ public final class ConePlanner {
         if (rung < 1) {
             focusStratum = Math.min(top - 1 < 0 ? 0 : top - 1, focusStratum + 1);
             focusBands = FULL_BANDS;
-            if (focusStratum == concession.minStratum()) {
-                focusBands = Math.min(focusBands, concession.maxBands());
-            }
         }
         if (queueMs >= SeuratConstants.QUEUE_AMBER_MS) {
             // Amber and red (spec 6.1): new focus entries capped to 2 bands; the Painter halves

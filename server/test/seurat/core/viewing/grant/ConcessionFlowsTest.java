@@ -28,7 +28,7 @@ public final class ConcessionFlowsTest {
     /** BOCETO / PINTANDO: a MIRADA does not lift the floor until LISTA. */
     private static void gazeKeepsFloorWhilePainting() throws Exception {
         var s = ConcessionRig.create(ProtoCodes.ST_PINTANDO);
-        s.canvas.setConcession(new seurat.core.viewing.concession.Concession(1, 0, 4, 0, 768, 36864, 120));
+        s.canvas.setConcession(new seurat.core.viewing.concession.Concession(1, 0, 0, 768, 36864, 120));
         s.grants.open(s.session, s.canvas);
         int floor = s.canvas.concession().minStratum();
         s.grants.gaze(s.session, s.canvas, gaze(1, 0));
@@ -44,13 +44,13 @@ public final class ConcessionFlowsTest {
     /** LISTA: a new CONCESION (epoch + 1) and the sketch owed again in ed2 (same ids, new deliveries). */
     private static void editionSwapReissuesConcession() throws Exception {
         var s = ConcessionRig.create(ProtoCodes.ST_BOCETO);
-        var ed1 = new WorkMeta("w", "w", 512, 384, 256, 2, ProtoCodes.ST_BOCETO, 1, 0, 2);
+        var ed1 = new WorkMeta("w", "w", 512, 384, 256, 2, ProtoCodes.ST_BOCETO, 1);
         s.canvas.setStore(s.work.store, ed1);
         s.canvas.book().log(new BrushId(10, 0, 0), 0, 1, 10, 1);
         s.grants.gaze(s.session, s.canvas, gaze(5, 0));
         long epoch = s.canvas.concession().epoch();
         s.mapping.control.clear();
-        s.work.meta = new WorkMeta("w", "w", 512, 384, 256, 2, ProtoCodes.ST_LISTA, 2, 0, 2);
+        s.work.meta = new WorkMeta("w", "w", 512, 384, 256, 2, ProtoCodes.ST_LISTA, 2);
         s.grants.substitute(s.canvas, s.work);
         TestKit.check(s.canvas.concession().epoch() == epoch + 1, "epoch + 1");
         TestKit.check(s.first(FrameType.CONCESION) != null, "CONCESION sent even with a live gaze");

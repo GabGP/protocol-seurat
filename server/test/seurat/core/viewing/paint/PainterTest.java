@@ -110,7 +110,7 @@ public final class PainterTest {
         rig.painter.enqueue(rig.canvas, List.of(
                 new PlanEntry(new BrushId(0, 0, 0), 0, 2, 1),
                 new PlanEntry(new BrushId(2, 0, 0), 0, 2, 1)), rig.canvas.plan().start(0, 2));
-        Concession narrow = new Concession(2, 2, 4, 1, 768, 36864, 120);
+        Concession narrow = new Concession(2, 2, 1, 768, 36864, 120);
         var cancelled = rig.painter.purge(rig.canvas, narrow);
         TestKit.check(cancelled.isEmpty(), "queue purged cleanly");
     }

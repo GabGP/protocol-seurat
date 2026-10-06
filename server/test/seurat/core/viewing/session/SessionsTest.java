@@ -48,8 +48,8 @@ public final class SessionsTest {
     private static void renewedAtDisconnect() {
         Sessions sessions = new Sessions();
         Session session = new Session(4, "p", 128, 0, null, new byte[32]);
-        Canvas canvas = new Canvas(1, "w", null, new seurat.core.works.store.WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2),
-                new Concession(1, 0, 4, 1, 768, 36864, 120));
+        Canvas canvas = new Canvas(1, "w", null, new seurat.core.works.store.WorkMeta("w", "w", 512, 512, 256, 2, 3, 2),
+                new Concession(1, 0, 1, 768, 36864, 120));
         session.canvases().put(1L, canvas);
         long renewed = canvas.book().log(new seurat.core.shared.codec.BrushId(0, 0, 0), 0, 2, 100, 1).number();
         long plain = canvas.book().log(new seurat.core.shared.codec.BrushId(0, 1, 0), 0, 2, 100, 1).number();

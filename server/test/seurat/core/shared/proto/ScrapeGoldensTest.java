@@ -21,9 +21,9 @@ public final class ScrapeGoldensTest {
     }
 
     private static void concessionE3() {
-        var concessionMsg = new MsgGaze.ConcessionMessage(1, 3, 1, 4, 2, 768, 36864, 120);
+        var concessionMsg = new MsgGaze.ConcessionMessage(1, 3, 1, 2, 768, 36864, 120);
         byte[] frame = new Frame(FrameType.CONCESION, concessionMsg.encode()).encode();
-        byte[] expect = TestKit.unhex("210d01030104024300800090004078");
+        byte[] expect = TestKit.unhex("210c010301024300800090004078");
         TestKit.check(Arrays.equals(frame, expect), "CONCESION e3:\n" + TestKit.hex(frame));
     }
 

@@ -33,7 +33,7 @@ public final class PainterRig {
 
     private PainterRig() throws Exception {
         var root = Files.createTempDirectory("painter-test");
-        var meta = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2, 0, 2);
+        var meta = new WorkMeta("w", "w", 512, 512, 256, 2, 3, 2);
         store = new TestKit.FixedStore(meta);
         store.put(new BrushId(1, 0, 0), new byte[]{10}, new byte[]{11}, new byte[]{12}, new byte[]{13});
         store.put(new BrushId(1, 1, 0), new byte[]{20}, new byte[]{21}, new byte[]{22}, new byte[]{23});
@@ -41,7 +41,7 @@ public final class PainterRig {
         var sessions = new Sessions();
         session = new Session(1, "p", 256, 3, mapping, new byte[32]);
         sessions.add(session);
-        canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 4, 1, 768, 36864, 120));
+        canvas = new Canvas(1, "w", store, meta, new Concession(1, 0, 1, 768, 36864, 120));
         canvas.session(session);
         session.canvases().put(1L, canvas);
     }

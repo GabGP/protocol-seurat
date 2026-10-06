@@ -123,7 +123,7 @@ public final class Liveness {
         }
         Predicate<Delivery> pending = scraping;
         Ranges ranges = canvas.book().select(d -> !canvas.retiring
-                && canvas.concession().allows(d.brush(), d.through()) && !pending.test(d));
+                && canvas.concession().allows(d.brush()) && !pending.test(d));
         if (ranges.isEmpty()) {
             return;
         }
