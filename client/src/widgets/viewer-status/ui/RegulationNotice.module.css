@@ -1,0 +1,30 @@
+.notice {
+  position: absolute;
+  top: 136px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px 0 12px;
+  border-radius: 18px;
+  background: var(--pill);
+  color: var(--pill-ink);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .notice {
+    top: calc(max(60px, calc(env(safe-area-inset-top) + 52px)) + 40px);
+    height: 30px;
+    font-size: 12px;
+    padding: 0 12px 0 10px;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

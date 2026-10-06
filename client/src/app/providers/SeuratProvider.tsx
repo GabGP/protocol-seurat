@@ -4,7 +4,7 @@ import type { DeliverySink } from '@/entities/delivery';
 import type { ImageTelemetry } from '@/entities/telemetry';
 import type { Work } from '@/entities/work';
 import type { GazeSender } from '@/features/send-gaze';
-import type { Concession, PlanMsg, ProtocolError, Welcome, WorkOpened } from '@/shared/proto/messages';
+import type { Concession, PlanMsg, ProtocolError, Regulation, Welcome, WorkOpened } from '@/shared/proto/messages';
 import { frameBatch } from '@/shared/lib/frame-batch';
 import { createRuntime, type Runtime } from './seurat/runtime';
 import { showPreviews } from './seurat/preview-cards';
@@ -21,6 +21,8 @@ export interface SeuratState {
   concession: Concession | null;
   plan: PlanMsg | null;
   lastError: ProtocolError | null;
+  /** The server is cutting this session (REGULACION); null when it is not. */
+  regulation: Regulation | null;
   paintTick: number;
   client: SessionClient | null;
   sink: DeliverySink | null;
@@ -50,10 +52,11 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
   const [concession, setConcession] = useState<Concession | null>(null);
   const [plan, setPlan] = useState<PlanMsg | null>(null);
   const [lastError, setLastError] = useState<ProtocolError | null>(null);
+  const [regulation, setRegulation] = useState<Regulation | null>(null);
   const [paintTick, setPaintTick] = useState(0);
   const rtRef = useRef<Runtime | null>(null);
   rtRef.current ??= createRuntime(
-    { setStatus, setSession, setWorks, setWelcome, setWorkOpened, setConcession, setPlan, setLastError },
+    { setStatus, setSession, setWorks, setWelcome, setWorkOpened, setConcession, setPlan, setLastError, setRegulation },
     frameBatch(() => setPaintTick((t) => t + 1)),
   );
   const rt = rtRef.current;
@@ -75,11 +78,11 @@ export function SeuratProvider({ children }: { children: ReactNode }): JSX.Eleme
 
   const value = useMemo<SeuratState>(
     () => ({
-      status, session, works, welcome, opened, concession, plan, lastError, paintTick,
+      status, session, works, welcome, opened, concession, plan, lastError, regulation, paintTick,
       client: rt.client, sink: rt.sink, telemetry: rt.telemetry, gazeService: rt.gaze,
       retryConnect, closeWork: () => closeWork(rt), showPreviews: (ids) => showPreviews(rt, ids),
     }),
-    [status, session, works, welcome, opened, concession, plan, lastError, paintTick],
+    [status, session, works, welcome, opened, concession, plan, lastError, regulation, paintTick],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

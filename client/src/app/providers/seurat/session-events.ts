@@ -20,9 +20,13 @@ export function createEvents(rt: Runtime, reconnect: Reconnect): SessionEvents {
   return {
     ...bookEvents(rt),
     ...deliveryEvents(rt),
-    onRegulation: (g) => { rt.regulation = g.budgetKibS === 0 && g.rung === RUNG_NORMAL ? null : g; },
+    onRegulation: (g) => {
+      rt.regulation = g.budgetKibS === 0 && g.rung === RUNG_NORMAL ? null : g;
+      if (rt.alive) rt.ui.setRegulation(rt.regulation);
+    },
     onWelcome: (b) => {
       rt.regulation = null;
+      if (rt.alive) rt.ui.setRegulation(null);
       reconnect.welcomed();
       const kept = rt.resuming !== null && b.resumed.includes(rt.resuming) && rt.sink?.handle === rt.resuming;
       rt.resuming = null;

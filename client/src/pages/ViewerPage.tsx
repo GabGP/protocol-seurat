@@ -7,6 +7,7 @@ import { ViewerTopBar } from '@/widgets/viewer-top-bar';
 import { LiveStatusPill } from '@/widgets/viewer-status';
 import { grantOf } from '@/features/cap-brushes';
 import { buildPresets } from '@/features/zoom-view';
+import { serverLoadLabel } from '@/entities/session';
 import { sameReadout, sameViewRect, type ChromeApi, type PixelReadout, type ViewRect } from '@/entities/viewport';
 import { useSeurat } from '@/app/providers/SeuratProvider';
 import { useUi } from '@/app/store';
@@ -47,8 +48,8 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
   );
   const workTag = seurat.works[idx]?.tag;
   const rows = useMemo(
-    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, workTag),
-    [dims, mp, iw, ih, fitPct, seurat.status, workTag],
+    () => buildViewerInfoRows(dims, mp, iw, ih, fitPct, seurat.status, serverLoadLabel(seurat.regulation), workTag),
+    [dims, mp, iw, ih, fitPct, seurat.status, seurat.regulation, workTag],
   );
 
   const ctl = useViewerControls({ ui, seurat, api, view, go, back });
@@ -99,7 +100,16 @@ export function ViewerPage({ id }: { id: string }): JSX.Element {
         onToggleTelemetry={ctl.toggleTelemetry}
         onToggleSettings={ctl.toggleSettings}
       />
-      <ViewerNotices inDots={inDots} s={view?.s ?? 1} loading={loading} title={title} dims={dims} err={err} onRetry={retry} />
+      <ViewerNotices
+        inDots={inDots}
+        s={view?.s ?? 1}
+        loading={loading}
+        title={title}
+        dims={dims}
+        err={err}
+        regulation={seurat.regulation}
+        onRetry={retry}
+      />
       <LiveStatusPill feed={feeds.readout} />
       <ViewerToolbar
         pctLabel={fmtPct(pct)}

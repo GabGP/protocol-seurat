@@ -18,6 +18,7 @@ export interface Ui {
   setConcession(c: Concession | null): void;
   setPlan(p: PlanMsg | null): void;
   setLastError(e: ProtocolError | null): void;
+  setRegulation(g: Regulation | null): void;
 }
 
 /** Everything the session modules share; the provider owns one and reads it back into its context. */
@@ -38,7 +39,7 @@ export interface Runtime {
   resuming: number | null;
   /** Unsubscribe of the open sink's brush-cap listener (Settings > Max brushes applies live). */
   offBrushCap: (() => void) | null;
-  /** The last REGULACION (ADR-07); null while unregulated. ADR-08 caps RECIBO.libre with its budget. */
+  /** The last REGULACION (ADR-07); null while unregulated. Informational: the viewer shows it. */
   regulation: Regulation | null;
   bumpPaint: ReturnType<typeof frameBatch>;
 }

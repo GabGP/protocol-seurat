@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { LoadError, SlowScriptCard, SlowScriptNotice, StatusPill } from '../index';
+import { LoadError, RegulationNotice, SlowScriptCard, SlowScriptNotice, StatusPill } from '../index';
 
 describe('StatusPill component', () => {
   it('renders guidance hint when view or px is null', () => {
@@ -37,3 +37,16 @@ describe('SlowScriptNotice', () => {
   });
 });
 
+describe('RegulationNotice', () => {
+  it('renders nothing while the session is not regulated', () => {
+    expect(renderToString(<RegulationNotice regulation={null} />)).toBe('');
+  });
+
+  it('tells the viewer the server is busy', () => {
+    const html = renderToString(
+      <RegulationNotice regulation={{ rung: 1, budgetKibS: 2048, capacityKibS: 0, sessions: 16 }} />,
+    );
+    expect(html).toContain('Server busy');
+    expect(html).toContain('role="status"');
+  });
+});
