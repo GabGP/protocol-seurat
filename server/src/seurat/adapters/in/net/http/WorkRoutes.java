@@ -8,11 +8,12 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 import seurat.adapters.in.inbox.IntakeRefused;
 import seurat.core.shared.config.SeuratConfig;
+import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.works.catalog.Catalog;
 
-/** PUT and DELETE /seurat/v1/obras/{id} (spec 3.1, ADR-04, ADR-05): open to any viewer from the same origin. */
+/** PUT, PATCH and DELETE /seurat/v1/obras/{id} (spec 3.1, ADR-04, ADR-05): open to any viewer from the same origin. */
 final class WorkRoutes {
     private static final String PREFIX = "/seurat/v1/obras/";
     private final Catalog catalog;
@@ -56,15 +57,31 @@ final class WorkRoutes {
                 return IntakeGate.refused(ex);
             }
         }
+        if (req.method().equals("PATCH") && tail.isEmpty()) {
+            if (!IntakeGate.sameOrigin(req, config)) {
+                return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"origin\"}");
+            }
+            String name = new String(req.body() != null ? req.body() : new byte[0], StandardCharsets.UTF_8).strip();
+            if (name.isEmpty() || name.length() > SeuratConstants.WORK_NAME_MAX
+                    || name.chars().anyMatch(Character::isISOControl)) {
+                return HttpSurface.json(HttpConstants.BAD_REQUEST, "{\"error\":\"nombre\"}");
+            }
+            if (!catalog.rename(URLDecoder.decode(id, StandardCharsets.UTF_8), name)) {
+                return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
+            }
+            Log.info(LogTags.INGEST, LogTags.work(id) + " renamed");
+            return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
+        }
         if (req.method().equals("DELETE") && tail.isEmpty()) {
             if (!IntakeGate.sameOrigin(req, config)) {
                 return HttpSurface.json(HttpConstants.FORBIDDEN, "{\"error\":\"origin\"}");
             }
-            if (id.isEmpty() || id.contains("..") || id.contains("\\")) {
+            String decodedId = URLDecoder.decode(id, StandardCharsets.UTF_8);
+            if (decodedId.isEmpty() || decodedId.contains("..") || decodedId.contains("\\")) {
                 return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);
             }
-            Log.info(LogTags.INGEST, LogTags.work(id) + " withdrawn");
-            onWithdraw.accept(id);
+            Log.info(LogTags.INGEST, LogTags.work(decodedId) + " withdrawn");
+            onWithdraw.accept(decodedId);
             return HttpSurface.json(HttpConstants.OK, "{\"ok\":true}");
         }
         return HttpSurface.json(HttpConstants.NOT_FOUND, HttpConstants.NOT_FOUND_BODY);

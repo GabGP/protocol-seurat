@@ -28,6 +28,8 @@ public final class SeuratConstants {
     public static final int HTTP_LINE_MAX = 8 * Units.BYTES_PER_KIB;
     /** Most headers accepted on one HTTP request. */
     public static final int HTTP_HEADERS_MAX = 100;
+    /** Longest display name a PATCH may give a work, in characters. */
+    public static final int WORK_NAME_MAX = 120;
     /** How long a connection may stay silent before its SALUDO arrives (seconds). */
     public static final long HANDSHAKE_S = 10;
     /** Control frames (ping, pong, close) carry at most this many payload bytes (RFC 6455 5.5). */

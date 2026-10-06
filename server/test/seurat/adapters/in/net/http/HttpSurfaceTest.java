@@ -156,6 +156,23 @@ public final class HttpSurfaceTest {
                 Map.of("origin", "http://evil.example"), new byte[]{1, 2, 3}, "h"));
         TestKit.check(evilOrigin.code() == 403, "PUT with foreign origin answers 403");
         catalog.register(new WorkRecord(new WorkMeta("img1", "img1", 512, 512, 256, 2, 3, 2, 0, 4)));
+        var evilPatch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/img1",
+                Map.of("origin", "http://evil.example"), "New name".getBytes(), "h"));
+        TestKit.check(evilPatch.code() == 403 && catalog.get("img1").meta.name().equals("img1"),
+                "PATCH with foreign origin answers 403 and name unchanged");
+        var emptyPatch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/img1",
+                Map.of(), new byte[0], "h"));
+        TestKit.check(emptyPatch.code() == 400, "PATCH with empty body answers 400");
+        var longPatch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/img1",
+                Map.of(), "a".repeat(121).getBytes(), "h"));
+        TestKit.check(longPatch.code() == 400, "PATCH with 121-char body answers 400");
+        var unknownPatch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/unknown",
+                Map.of(), "New name".getBytes(), "h"));
+        TestKit.check(unknownPatch.code() == 404, "PATCH unknown id answers 404");
+        var patch = http.route(new HttpSurface.Request("PATCH", "/seurat/v1/obras/img1",
+                Map.of(), "New name".getBytes(), "h"));
+        TestKit.check(patch.code() == 200 && catalog.get("img1").meta.name().equals("New name"),
+                "PATCH answers 200 and renames to New name");
         var evilDelete = http.route(new HttpSurface.Request("DELETE", "/seurat/v1/obras/img1",
                 Map.of("origin", "http://evil.example"), new byte[0], "h"));
         TestKit.check(evilDelete.code() == 403 && withdrawn.isEmpty(),

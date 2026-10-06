@@ -53,10 +53,12 @@ public final class Catalog {
         WorkRecord work = records.get(id);
         if (work != null) {
             work.store = store;
-            work.meta = work.meta.with(state, edition);
-            try {
-                archive.save(work);
-            } catch (IOException ignored) {
+            synchronized (work) {
+                work.meta = work.meta.with(state, edition);
+                try {
+                    archive.save(work);
+                } catch (IOException ignored) {
+                }
             }
             if (state != ProtoCodes.ST_LISTA) { // LISTA is announced by OBRA(EDICION), see list()
                 events.emit(work, ProtoCodes.OBRA_ESTADO, progress.of(id));
@@ -71,15 +73,34 @@ public final class Catalog {
         }
     }
 
+    /** PATCH: a new display name. The id and the files stay; announced as OBRA(ESTADO). */
+    public boolean rename(String id, String name) {
+        WorkRecord work = records.get(id);
+        if (work == null) {
+            return false;
+        }
+        synchronized (work) {
+            work.meta = work.meta.named(name);
+            try {
+                archive.save(work);
+            } catch (IOException ignored) {
+            }
+        }
+        events.emit(work, ProtoCodes.OBRA_ESTADO, progress.shown(work));
+        return true;
+    }
+
     /** DELETE (spec 7.4): RETIRADA persisted (a restart must not bring it back), then OBRA(BAJA). */
     public void withdraw(String id) {
         WorkRecord work = records.remove(id);
         progress.reset(id);
         if (work != null) {
-            work.meta = work.meta.with(ProtoCodes.ST_RETIRADA, work.meta.edition());
-            try {
-                archive.save(work);
-            } catch (IOException ignored) {
+            synchronized (work) {
+                work.meta = work.meta.with(ProtoCodes.ST_RETIRADA, work.meta.edition());
+                try {
+                    archive.save(work);
+                } catch (IOException ignored) {
+                }
             }
             events.emit(work, ProtoCodes.OBRA_BAJA, 0);
         }

@@ -20,4 +20,10 @@ public record WorkMeta(String id, String name, int width, int height, int side,
         return new WorkMeta(id, name, width, height, side, strata, nextState, nextEdition,
                 ceilingStratum, ceilingBands);
     }
+
+    /** The same work under another display name. */
+    public WorkMeta named(String nextName) {
+        return new WorkMeta(id, nextName, width, height, side, strata, state, edition,
+                ceilingStratum, ceilingBands);
+    }
 }

@@ -32,11 +32,19 @@ public final class CatalogTest {
         catalog.list("w1");
         TestKit.check(seen.size() == 4 && seen.get(3).event() == ProtoCodes.OBRA_EDICION,
                 "EDICION pushed");
+        TestKit.check(!catalog.rename("missing", "x"), "rename missing returns false");
+        TestKit.check(seen.size() == 4, "rename missing pushes nothing");
+        TestKit.check(catalog.rename("w1", "Renamed"), "rename w1 returns true");
+        TestKit.check(seen.size() == 5 && seen.get(4).event() == ProtoCodes.OBRA_ESTADO
+                && seen.get(4).name().equals("Renamed"), "rename pushes OBRA_ESTADO with Renamed");
+        TestKit.check(catalog.get("w1").meta.name().equals("Renamed"), "catalog meta has Renamed");
+        TestKit.check(Files.readString(root.resolve("w1/meta.json")).contains("Renamed"),
+                "meta.json on disk contains Renamed");
         catalog.withdraw("w1");
-        TestKit.check(seen.size() == 5 && seen.get(4).event() == ProtoCodes.OBRA_BAJA
+        TestKit.check(seen.size() == 6 && seen.get(5).event() == ProtoCodes.OBRA_BAJA
                 && catalog.get("w1") == null, "BAJA pushed + removed");
         catalog.progress("missing", 1);
-        TestKit.check(seen.size() == 5, "unknown id silent");
+        TestKit.check(seen.size() == 6, "unknown id silent");
         testLoadRecovery();
         testCommaIdRecovery();
         System.out.println("CatalogTest OK");
