@@ -8,6 +8,8 @@ export interface SessionResponse {
   lado: number;
   /** True when the browser runs on the server machine. */
   local?: boolean;
+  /** SHA-256 (hex) of the certificate of the WebTransport listener; the viewer pins it. */
+  huella?: string;
 }
 
 /** Spec 3.1: POST /sesion to obtain a single-use token and transport endpoints. */

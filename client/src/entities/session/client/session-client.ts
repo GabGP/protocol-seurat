@@ -56,7 +56,7 @@ export class SessionClient extends Outbound {
     const ses = await authenticate(this.memMib);
     this.events.onSessionInfo?.(sessionInfoOf(ses));
     const token = hexToBytes(ses.token);
-    const t = await connectTransport(ses.lienzo, ses.respaldo, (x) => this.wire(x), (s) => this.events.onStatus(s));
+    const t = await connectTransport(ses.lienzo, ses.respaldo, ses.huella, (x) => this.wire(x), (s) => this.events.onStatus(s));
     this.transport = t;
     const claim = resume && claims && claims.length > 0
       ? { previousSession: resume.sessionId, ticket: resume.ticket, claims }

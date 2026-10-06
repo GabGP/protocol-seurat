@@ -19,11 +19,12 @@ export async function authenticate(memMib: number): Promise<SessionResponse> {
 export async function connectTransport(
   url: string,
   fallbackUrl: string,
+  certHash: string | undefined,
   wire: (t: SeuratTransport) => void,
   onStatus: (s: string) => void,
 ): Promise<SeuratTransport> {
   if (url.startsWith(SECURE_SCHEME) && WtTransport.supported()) {
-    const wt = new WtTransport(url);
+    const wt = new WtTransport(url, certHash);
     try {
       await wt.connect();
       wire(wt);

@@ -1,9 +1,9 @@
 import { WT_READY_TIMEOUT_MS } from '../config/constants';
+import { hexToBytes } from '../lib/hex';
 import { withTimeout } from '../lib/with-timeout';
-import { viDecode } from '../proto/varint';
+import { GazeRate } from './gaze-rate';
 import type { CloseHandler, ControlHandler, DeliveryHandler, SeuratTransport } from './transport';
-
-const WtFrameSplit = { viDecode };
+import { drainFrames } from './wt-frames';
 
 interface WtStream {
   readable: ReadableStream<Uint8Array>;
@@ -12,9 +12,10 @@ interface WtStream {
 
 interface WtInstance {
   ready: Promise<void>;
+  closed: Promise<unknown>;
   datagrams: { writable: WritableStream<Uint8Array> } | null;
   createBidirectionalStream(): Promise<WtStream>;
-  incomingUnidirectionalStreams: ReadableStream<WtStream> | { getReader(): ReadableStreamDefaultReader<WtStream> };
+  incomingUnidirectionalStreams: ReadableStream<ReadableStream<Uint8Array>>;
   close(): void;
 }
 
@@ -34,8 +35,10 @@ export class WtTransport implements SeuratTransport {
   private ctrlWriter: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private dgWriter: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private closed = false;
+  private notified = false;
+  private gaze = new GazeRate();
 
-  constructor(private url: string) {}
+  constructor(private url: string, private certHash?: string) {}
 
   static supported(): boolean {
     return typeof window !== 'undefined' && typeof window.WebTransport === 'function';
@@ -43,18 +46,28 @@ export class WtTransport implements SeuratTransport {
 
   async connect(signal?: AbortSignal): Promise<void> {
     if (!WtTransport.supported() || !window.WebTransport) throw new Error('wt: unsupported');
-    const wt = new window.WebTransport(this.url);
+    const opts = this.certHash
+      ? { serverCertificateHashes: [{ algorithm: 'sha-256', value: hexToBytes(this.certHash) }] }
+      : undefined;
+    const wt = new window.WebTransport(this.url, opts);
     await withTimeout(wt.ready, WT_READY_TIMEOUT_MS, 'wt: ready timeout');
     if (signal?.aborted) {
       wt.close();
       throw new Error('wt: aborted');
     }
     this.wt = wt;
+    wt.closed.then(() => this.lost('wt closed'), () => this.lost('wt closed'));
     const bidi = await wt.createBidirectionalStream();
     this.pumpControl(bidi.readable);
     this.ctrlWriter = bidi.writable.getWriter();
     if (wt.datagrams) this.dgWriter = wt.datagrams.writable.getWriter();
     this.pumpDeliveries(wt.incomingUnidirectionalStreams);
+  }
+
+  private lost(reason: string): void {
+    if (this.closed || this.notified) return;
+    this.notified = true;
+    this.onClose?.(reason);
   }
 
   private async pumpControl(readable: ReadableStream<Uint8Array>): Promise<void> {
@@ -63,46 +76,30 @@ export class WtTransport implements SeuratTransport {
     try {
       for (;;) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          this.lost('wt control ended');
+          break;
+        }
         const next = new Uint8Array(buf.length + value.length);
         next.set(buf, 0);
         next.set(value, buf.length);
-        buf = next;
-        buf = this.emitFrames(buf);
+        buf = drainFrames(next, (frame) => this.onControl?.(frame));
       }
     } catch {
-      if (!this.closed) this.onClose?.('wt control lost');
+      this.lost('wt control lost');
     }
   }
 
-  private emitFrames(buf: Uint8Array<ArrayBuffer>): Uint8Array<ArrayBuffer> {
-    let pos = 0;
-    for (;;) {
-      if (pos >= buf.length) break;
-      const { viDecode } = WtFrameSplit;
-      try {
-        const t = viDecode(buf, pos);
-        const l = viDecode(buf, t.next);
-        if (l.next + l.value > buf.length) break;
-        this.onControl?.(buf.slice(pos, l.next + l.value));
-        pos = l.next + l.value;
-      } catch {
-        break;
-      }
-    }
-    return buf.slice(pos);
-  }
-
-  private async pumpDeliveries(src: ReadableStream<WtStream> | { getReader(): ReadableStreamDefaultReader<WtStream> }): Promise<void> {
+  private async pumpDeliveries(src: ReadableStream<ReadableStream<Uint8Array>>): Promise<void> {
     const reader = src.getReader();
     try {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        this.pumpDelivery(value.readable);
+        this.pumpDelivery(value);
       }
     } catch {
-      if (!this.closed) this.onClose?.('wt deliveries lost');
+      this.lost('wt deliveries lost');
     }
   }
 
@@ -130,18 +127,23 @@ export class WtTransport implements SeuratTransport {
   }
 
   sendControl(frame: Uint8Array): void {
-    this.ctrlWriter?.write(frame).catch(() => this.onClose?.('wt control write failed'));
+    this.ctrlWriter?.write(frame).catch(() => this.lost('wt control write failed'));
   }
 
   sendGazeDatagram(payload: Uint8Array): void {
+    if (!this.gaze.allow(performance.now())) return;
     this.dgWriter?.write(payload).catch(() => undefined);
   }
 
   close(): void {
     this.closed = true;
-    this.ctrlWriter?.releaseLock();
-    this.dgWriter?.releaseLock();
-    this.wt?.close();
+    try {
+      this.ctrlWriter?.releaseLock();
+      this.dgWriter?.releaseLock();
+      this.wt?.close();
+    } catch {
+      // stream that already failed throws on release
+    }
     this.wt = null;
   }
 }

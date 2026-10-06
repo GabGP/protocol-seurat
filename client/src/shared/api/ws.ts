@@ -1,4 +1,4 @@
-import { GAZE_PER_S, MS_PER_S } from '../config/constants';
+import { GazeRate } from './gaze-rate';
 import type { CloseHandler, ControlHandler, DeliveryHandler, SeuratTransport } from './transport';
 
 const CONTROL_CHANNEL = 0;
@@ -12,7 +12,7 @@ export class WsTransport implements SeuratTransport {
   onDelivery: DeliveryHandler | null = null;
   onClose: CloseHandler | null = null;
   private ws: WebSocket | null = null;
-  private gazeTimes: number[] = [];
+  private gaze = new GazeRate();
 
   constructor(
     private url: string,
@@ -55,10 +55,7 @@ export class WsTransport implements SeuratTransport {
   }
 
   sendGazeDatagram(payload: Uint8Array): void {
-    const now = performance.now();
-    this.gazeTimes = this.gazeTimes.filter((t) => now - t < MS_PER_S);
-    if (this.gazeTimes.length >= GAZE_PER_S) return;
-    this.gazeTimes.push(now);
+    if (!this.gaze.allow(performance.now())) return;
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     const out = new Uint8Array(payload.length + 1);
