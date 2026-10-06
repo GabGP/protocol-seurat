@@ -27,8 +27,8 @@ export const RUNG_NORMAL = 3;
 export const ReleaseReason = {
   EVICTED: 1, DECODE_FAILED: 2, EXPIRED: 3, BUDGET: 4, CRC: 6, REPLACED: 7,
 } as const;
-/** RASPAR predicado (spec 3.3). */
-export const ScrapePredicate = { LOW_STRATUM: 1, OUTSIDE: 2, BANDS: 3, LIST: 4, ALL: 5 } as const;
+/** RASPAR predicado. 2, 3 and 4 (FUERA, BANDAS, LISTA) are retired: never sent, never reused. */
+export const ScrapePredicate = { LOW_STRATUM: 1, ALL: 5 } as const;
 /** ERROR codes the client reads or sends (spec 3.5). */
 export const ErrorCode = { PROTOCOL: 1, NO_SUCH_WORK: 4, RESUME_REJECTED: 12 } as const;
 /** TLV tags (spec 3.5, ADR-06): SALUDO 0x01 REANUDAR, BIENVENIDA 0x02 FICHA and 0x03 REANUDADAS, PLAN 0x04 IRRECUPERABLES. */

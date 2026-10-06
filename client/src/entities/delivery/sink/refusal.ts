@@ -8,8 +8,8 @@ import type { SinkState } from './state';
 function grantFault(s: SinkState, rec: DeliveryRecord): [string, string] | null {
   const g = s.grant;
   if (g === null) return null;
-  if (rec.stratum < g.minStratum || (rec.stratum === g.minStratum && rec.through > g.maxBands)) {
-    return ['concession', `the concession allows stratum ${g.minStratum} with ${g.maxBands} bands at best, a server fault`];
+  if (rec.stratum < g.minStratum) {
+    return ['concession', `the concession allows stratum ${g.minStratum} at best, a server fault`];
   }
   const last = s.lastScrape;
   if (last !== null && rec.delivery > last.through && rec.epoch < last.epoch) {

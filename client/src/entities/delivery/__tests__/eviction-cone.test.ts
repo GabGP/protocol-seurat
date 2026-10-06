@@ -78,18 +78,16 @@ describe('eviction keeps the current cone (spec 5.2.3: outside the cone first)',
 
 describe('focusBands (ConePlanner focus target)', () => {
   it('is full on a stratum boundary and drops a band per quarter stratum toward the next', () => {
-    expect(focusBands(0, 0, null)).toBe(4);
-    expect(focusBands(-1, 0, null)).toBe(4);
-    expect(focusBands(2.3, 2, null)).toBe(3);
-    expect(focusBands(2.8, 2, null)).toBe(1);
+    expect(focusBands(0, 0)).toBe(4);
+    expect(focusBands(-1, 0)).toBe(4);
+    expect(focusBands(2.3, 2)).toBe(3);
+    expect(focusBands(2.8, 2)).toBe(1);
   });
 
-  it('a focus clamped by min_estrato wants every band, capped by max_bandas there', () => {
-    const grant = { epoch: 1, minStratum: 3, maxBands: 2 };
-    expect(focusBands(1.6, 3, grant)).toBe(2);
-    expect(focusBands(1.6, 3, { ...grant, maxBands: 4 })).toBe(4);
-    expect(focusBands(3.1, 3, grant)).toBe(2);
-    expect(focusBands(4.1, 4, grant)).toBe(4);
+  it('a focus clamped by min_estrato wants every band', () => {
+    expect(focusBands(1.6, 3)).toBe(4);
+    expect(focusBands(3.1, 3)).toBe(4);
+    expect(focusBands(4.1, 4)).toBe(4);
   });
 });
 

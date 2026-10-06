@@ -110,12 +110,12 @@ describe('SessionClient', () => {
     expect(workOk).toBe(true);
 
     t.onControl?.(encodeFrame(T.ABIERTA, openedCore({
-      handle: 1, width: 1000, height: 1000, strata: 10, edition: 1, ceilingStratum: 0, ceilingBands: 4, seedWidth: 192, seedHeight: 160,
+      handle: 1, width: 1000, height: 1000, strata: 10, edition: 1, seedWidth: 192, seedHeight: 160,
     })));
     expect(openedOk).toBe(true);
 
     t.onControl?.(encodeFrame(T.CONCESION, concessionCore({
-      handle: 1, epoch: 1, minStratum: 7, maxBands: 4, reason: 0, maxBrushes: 768, maxKiB: 36864, leaseS: 120,
+      handle: 1, epoch: 1, minStratum: 7, reason: 0, maxBrushes: 768, maxKiB: 36864, leaseS: 120,
     })));
     expect(concessionOk).toBe(true);
 

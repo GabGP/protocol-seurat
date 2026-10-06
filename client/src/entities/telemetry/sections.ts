@@ -35,7 +35,7 @@ function image({ now, image: img, concession }: TelemetryInput): TelemetrySectio
       { k: 'Received', v: img ? `${fmtBytes(img.meter.total)} · ${img.deliveries} brushes` : PENDING },
       { k: 'Average rate', v: img ? fmtRate(img.meter.total / secs) : PENDING },
       { k: 'First brush after', v: img?.firstDeliveryMs == null ? PENDING : fmtMs(img.firstDeliveryMs) },
-      { k: 'Finest allowed', v: concession ? `Level ${concession.minStratum} · ${concession.maxBands} bands` : PENDING },
+      { k: 'Finest allowed', v: concession ? `Level ${concession.minStratum}` : PENDING },
     ],
   };
 }

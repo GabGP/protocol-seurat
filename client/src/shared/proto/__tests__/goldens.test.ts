@@ -122,8 +122,8 @@ describe('spec 3.4 goldens', () => {
   });
   it('CONCESION sketch exact bytes', () => {
     const frame = VECTORS.concessionSketch();
-    expect(hex(frame)).toBe('210d01010704004300800090004078');
-    expect(concessionDecode(frame.slice(2))).toMatchObject({ epoch: 1, minStratum: 7, maxBands: 4 });
+    expect(hex(frame)).toBe('210c010107004300800090004078');
+    expect(concessionDecode(frame.slice(2))).toMatchObject({ epoch: 1, minStratum: 7 });
   });
   it('PLAN INICIO first 45 expectedCount 212 exact', () => {
     const frame = VECTORS.planInicio();

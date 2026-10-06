@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { concat, viEncode } from '@/shared/proto/varint';
-import { teselasEncode } from '@/shared/proto/teselas';
 import { makeBrushId } from '@/shared/proto/brush';
 import { makeDeliveryBytes } from '@/shared/proto/testing/brush-bytes';
 import { fakeClient } from '../testing/fake-port';
@@ -94,17 +92,13 @@ describe('DeliverySink', () => {
     sink.dispose();
   });
 
-  it('matchesScrape evaluates all 5 protocol predicates', () => {
+  it('matchesScrape evaluates the two protocol predicates', () => {
     const client = fakeClient();
     const sink = makeSink({ client });
 
     const recE1 = {
       delivery: 5, brushId: makeBrushId(1, 0, 0), stratum: 1,
       from: 0, through: 2, bytes: 1024, epoch: 1, edition: 1, expires: 5000, rgba: null,
-    };
-    const recE8 = {
-      delivery: 6, brushId: makeBrushId(8, 0, 0), stratum: 8,
-      from: 0, through: 4, bytes: 2048, epoch: 1, edition: 1, expires: 5000, rgba: null,
     };
 
     // Predicate 5: ALL
@@ -114,23 +108,8 @@ describe('DeliverySink', () => {
     expect(sink.matchesScrape(recE1, 1, new Uint8Array([2]))).toBe(true);
     expect(sink.matchesScrape(recE1, 1, new Uint8Array([1]))).toBe(false);
 
-    // Predicate 3: BANDAS (drop if stratum === e && upper > maxBands)
-    expect(sink.matchesScrape(recE1, 3, new Uint8Array([1, 1]))).toBe(true);
-    expect(sink.matchesScrape(recE1, 3, new Uint8Array([1, 3]))).toBe(false);
-    expect(sink.matchesScrape(recE8, 3, new Uint8Array([1, 1]))).toBe(false);
-
-    // Predicate 4: LISTA
-    const listParams = teselasEncode([5, 10]);
-    expect(sink.matchesScrape(recE1, 4, listParams)).toBe(true);
-    expect(sink.matchesScrape(recE8, 4, listParams)).toBe(false);
-
-    // Predicate 2: FUERA (rect intersection for s < 7)
-    // recE1 is at s=1, bx=0, by=0 -> rect is [0, 0, 512, 512]
-    const outsideRect = concat(viEncode(1000), viEncode(1000), viEncode(2000), viEncode(2000));
-    const insideRect = concat(viEncode(100), viEncode(100), viEncode(400), viEncode(400));
-    expect(sink.matchesScrape(recE1, 2, outsideRect)).toBe(true); // outside, so drop
-    expect(sink.matchesScrape(recE1, 2, insideRect)).toBe(false); // intersects, so keep
-    expect(sink.matchesScrape(recE8, 2, outsideRect)).toBe(false); // s=8 >= 7, never dropped by FUERA
+    // Retired predicate 2 matches nothing
+    expect(sink.matchesScrape(recE1, 2, new Uint8Array(0))).toBe(false);
 
     sink.dispose();
   });

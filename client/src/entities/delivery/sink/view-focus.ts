@@ -23,7 +23,7 @@ export function setView(s: SinkState, x0: number, y0: number, x1: number, y1: nu
   warmShown(s, nowS);
   s.view = { x0, y0, x1, y1, focus };
   setViewport(vw, vh); // auto cap follows the backing store; a change relieves through onBrushCap
-  s.focusBands = focusBands(ideal, focus, s.grant);
+  s.focusBands = focusBands(ideal, focus);
   s.cones.look(s.view, seq);
   s.viewSince = nowS;
   s.gaze.observe(nowS, (x0 + x1) / 2, (y0 + y1) / 2, ideal, Math.hypot(x1 - x0, y1 - y0) / 2);

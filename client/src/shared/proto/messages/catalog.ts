@@ -28,12 +28,12 @@ export function openDecode(payload: Uint8Array): string {
 
 export interface WorkOpened {
   handle: number; width: number; height: number; strata: number; edition: number;
-  ceilingStratum: number; ceilingBands: number; seedWidth: number; seedHeight: number;
+  seedWidth: number; seedHeight: number;
 }
 export function openedCore(a: WorkOpened): Uint8Array {
   return concat(
     viEncode(a.handle), viEncode(a.width), viEncode(a.height), [a.strata],
-    viEncode(a.edition), [a.ceilingStratum, a.ceilingBands],
+    viEncode(a.edition),
     viEncode(a.seedWidth), viEncode(a.seedHeight),
   );
 }
@@ -41,6 +41,6 @@ export function openedDecode(payload: Uint8Array): WorkOpened {
   const r = new Reader(payload);
   return {
     handle: r.vi(), width: r.vi(), height: r.vi(), strata: r.u8(), edition: r.vi(),
-    ceilingStratum: r.u8(), ceilingBands: r.u8(), seedWidth: r.vi(), seedHeight: r.vi(),
+    seedWidth: r.vi(), seedHeight: r.vi(),
   };
 }

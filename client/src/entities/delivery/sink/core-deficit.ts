@@ -1,20 +1,18 @@
 import { BAND_COUNTS, SEED_STRATUM, TILE } from '@/shared/config/constants';
 import { clamp } from '@/shared/lib/clamp';
 import { makeBrushId } from '@/shared/proto/brush';
-import type { Grant } from './port';
 import type { SinkState } from './state';
 
 const FULL_BANDS = BAND_COUNTS.length;
 
 /**
  * The bands the server wants at the focus stratum (ConePlanner): fewer as the zoom nears the next
- * stratum, never more than max_bandas at min_estrato. The focus' ancestors want them all.
+ * stratum. The focus' ancestors want them all.
  */
-export function focusBands(ideal: number, focus: number, grant: Grant | null): number {
+export function focusBands(ideal: number, focus: number): number {
   const idealStratum = clamp(Math.floor(ideal), 0, SEED_STRATUM);
   const phi = ideal <= 0 || idealStratum === SEED_STRATUM ? 0 : ideal - idealStratum;
-  const bands = focus === idealStratum ? FULL_BANDS - Math.floor(FULL_BANDS * phi) : FULL_BANDS;
-  return grant && focus === grant.minStratum ? Math.min(bands, grant.maxBands) : bands;
+  return focus === idealStratum ? FULL_BANDS - Math.floor(FULL_BANDS * phi) : FULL_BANDS;
 }
 
 /**

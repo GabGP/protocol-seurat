@@ -68,7 +68,7 @@ export const settle = (): Promise<void> => new Promise((r) => setTimeout(r, SETT
 
 /** A 300 × 4 seed under a work of 11 strata: stratum 9 has 3 × 1 brushes under it, stratum 8 has 5 × 1. */
 export const opened = (handle: number, seedWidth = 300, seedHeight = 4, strata = 11): WorkOpened => ({
-  handle, width: 76_800, height: 1024, strata, edition: 1, ceilingStratum: 10, ceilingBands: 4, seedWidth, seedHeight,
+  handle, width: 76_800, height: 1024, strata, edition: 1, seedWidth, seedHeight,
 });
 
 export function recorder(workers = inlineWorkers) {

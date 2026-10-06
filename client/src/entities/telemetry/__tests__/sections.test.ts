@@ -32,7 +32,7 @@ describe('telemetry sections', () => {
       eviction: { evicted: 8, evictedBytes: 64_000, refetched: 2, refetchedBytes: 16_000, medianRefetchMs: 1500 },
     },
     gpuBytes: 2_000_000, declaredMemMiB: 64,
-    concession: { handle: 7, epoch: 1, minStratum: 0, maxBands: 4, reason: 0, maxBrushes: 768, maxKiB: 36_864, leaseS: 120 },
+    concession: { handle: 7, epoch: 1, minStratum: 0, reason: 0, maxBrushes: 768, maxKiB: 36_864, leaseS: 120 },
   });
 
   it('breaks memory into parts that add up to the total, against the declared mem_mib', () => {
@@ -76,7 +76,7 @@ describe('telemetry sections', () => {
     expect(l['Peak (10 s)']).toBe(fmtRate(link.peak(2000)));
     const i = rows('This image', sections);
     expect(i['Received']).toBe(`${fmtBytes(49_000)} · 2 brushes`);
-    expect(i['Finest allowed']).toBe('Level 0 · 4 bands');
+    expect(i['Finest allowed']).toBe('Level 0');
   });
 
   it('tracks the current plan and why it was throttled', () => {

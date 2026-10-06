@@ -23,19 +23,19 @@ export function gazeDecode(payload: Uint8Array): Gaze {
 }
 
 export interface Concession {
-  handle: number; epoch: number; minStratum: number; maxBands: number; reason: number;
+  handle: number; epoch: number; minStratum: number; reason: number;
   maxBrushes: number; maxKiB: number; leaseS: number;
 }
 export function concessionCore(c: Concession): Uint8Array {
   return concat(
-    viEncode(c.handle), viEncode(c.epoch), [c.minStratum, c.maxBands, c.reason],
+    viEncode(c.handle), viEncode(c.epoch), [c.minStratum, c.reason],
     viEncode(c.maxBrushes), viEncode(c.maxKiB), viEncode(c.leaseS),
   );
 }
 export function concessionDecode(payload: Uint8Array): Concession {
   const r = new Reader(payload);
   return {
-    handle: r.vi(), epoch: r.vi(), minStratum: r.u8(), maxBands: r.u8(), reason: r.u8(),
+    handle: r.vi(), epoch: r.vi(), minStratum: r.u8(), reason: r.u8(),
     maxBrushes: r.vi(), maxKiB: r.vi(), leaseS: r.vi(),
   };
 }

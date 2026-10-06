@@ -12,7 +12,6 @@ export interface DeliveryPort {
 export interface Grant {
   epoch: number;
   minStratum: number;
-  maxBands: number;
 }
 
 /** A RASPAR applied to what is held, whose RASPADO waits until every number <= through is settled. */

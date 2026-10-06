@@ -15,15 +15,6 @@ export function scrapeDecode(payload: Uint8Array): Scrape {
 export function scrapeParamsLowStratum(stratum: number): Uint8Array {
   return Uint8Array.from([stratum]);
 }
-export function scrapeParamsOutside(x0: number, y0: number, x1: number, y1: number): Uint8Array {
-  return concat(viEncode(x0), viEncode(y0), viEncode(x1), viEncode(y1));
-}
-export function scrapeParamsBands(stratum: number, maxBands: number): Uint8Array {
-  return Uint8Array.from([stratum, maxBands]);
-}
-export function scrapeParamsList(ranges: number[]): Uint8Array {
-  return teselasEncode(ranges);
-}
 
 export interface Scraped {
   handle: number; order: number; epoch: number; through: number;

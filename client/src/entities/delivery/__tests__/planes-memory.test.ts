@@ -72,7 +72,7 @@ afterEach(() => {
 
 describe('planes are kept only where a child can come', () => {
   it('a brush at min_estrato keeps none, a coarser one keeps its planes', async () => {
-    sink.concede({ epoch: 1, minStratum: 9, maxBands: 4 });
+    sink.concede({ epoch: 1, minStratum: 9 });
     ingest(1, SEED);
     await land(lastSent());
     ingest(2, MID);

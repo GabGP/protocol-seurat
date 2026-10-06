@@ -54,7 +54,7 @@ export const VECTORS = {
   },
   concessionSketch(): Uint8Array {
     return encodeFrame(T.CONCESION, concessionCore({
-      handle: 1, epoch: 1, minStratum: 7, maxBands: 4, reason: 0,
+      handle: 1, epoch: 1, minStratum: 7, reason: 0,
       maxBrushes: 768, maxKiB: 36864, leaseS: 120,
     }));
   },

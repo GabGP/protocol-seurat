@@ -14,7 +14,7 @@ export function bookEvents(rt: Runtime): BookEvents {
     onConcession: (c) => {
       if (rt.sink && rt.sink.handle !== c.handle) return;
       rt.concession = c;
-      rt.sink?.concede({ epoch: c.epoch, minStratum: c.minStratum, maxBands: c.maxBands });
+      rt.sink?.concede({ epoch: c.epoch, minStratum: c.minStratum });
       if (rt.alive) rt.ui.setConcession(c);
     },
     onPlan: (p) => {

@@ -46,14 +46,14 @@ describe('checks on arrival (spec 5.4)', () => {
     const client = fakeClient();
     const s = sink(client);
     const internal = (s as unknown as { s: { arrivals: { note: (b: number, t: number) => void }; rtt: { arrived: (t: number) => void } } }).s;
-    s.concede({ epoch: 1, minStratum: 7, maxBands: 4 });
+    s.concede({ epoch: 1, minStratum: 7 });
     const noteSpy = vi.spyOn(internal.arrivals, 'note');
     const rttSpy = vi.spyOn(internal.rtt, 'arrived');
     ingest(s, delivery(1, 10, 2));
     expect(s.book.byDelivery.has(1)).toBe(false);
     expect(noteSpy).toHaveBeenCalledTimes(1);
     expect(rttSpy).toHaveBeenCalledTimes(1);
-    s.concede({ epoch: 2, minStratum: 7, maxBands: 4 });
+    s.concede({ epoch: 2, minStratum: 7 });
     expect(s.book.byDelivery.has(1)).toBe(true);
     expect(noteSpy).toHaveBeenCalledTimes(1);
     expect(rttSpy).toHaveBeenCalledTimes(1);
@@ -63,7 +63,7 @@ describe('checks on arrival (spec 5.4)', () => {
   it('drops and releases what the concession does not allow', () => {
     const client = fakeClient();
     const s = sink(client);
-    s.concede({ epoch: 1, minStratum: 7, maxBands: 4 });
+    s.concede({ epoch: 1, minStratum: 7 });
     ingest(s, delivery(1, 10));
     ingest(s, delivery(2, 1));
     expect(s.book.byDelivery.has(2)).toBe(false);
@@ -74,7 +74,7 @@ describe('checks on arrival (spec 5.4)', () => {
   it('drops an orphan whose parent is neither held nor on its way', () => {
     const client = fakeClient();
     const s = sink(client);
-    s.concede({ epoch: 1, minStratum: 0, maxBands: 4 });
+    s.concede({ epoch: 1, minStratum: 0 });
     ingest(s, delivery(1, 10));
     ingest(s, delivery(2, 8));
     expect(s.book.byDelivery.has(2)).toBe(false);

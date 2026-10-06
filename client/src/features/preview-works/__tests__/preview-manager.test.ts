@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearWorkPreviews, getWorkPreview, notePreviewWidth } from '@/entities/work';
-import { MFLAGS_STILL, scrapeParamsList, scrapeParamsLowStratum } from '@/shared/proto/messages';
+import { MFLAGS_STILL, scrapeParamsLowStratum } from '@/shared/proto/messages';
 import {
   LEASE_S, PREVIEW_CREDIT, PREVIEW_GAZE_KEEPALIVE_MS, PREVIEW_OPENS, PREVIEW_OPEN_TIMEOUT_MS,
 } from '@/shared/config/constants';
@@ -115,18 +115,13 @@ describe('PreviewManager', () => {
     manager.onAudit({ handle: 101, order: 1, through: 3 });
     expect(log.inventory).toEqual([[1, 2, 3]]);
 
-    manager.onScrape({ handle: 101, order: 2, epoch: 1, through: 9, predicate: 4, params: scrapeParamsList([3]) });
-    expect(log.scraped).toEqual([{ count: 2, kept: [1, 2, 4] }]);
-    await settle();
-    expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 }); // brush 3 predicted from the seed
-
-    manager.onScrape({ handle: 101, order: 3, epoch: 1, through: 9, predicate: 1, params: scrapeParamsLowStratum(10) });
-    expect(log.scraped[1]).toEqual({ count: 2, kept: [1] });
+    manager.onScrape({ handle: 101, order: 2, epoch: 1, through: 9, predicate: 1, params: scrapeParamsLowStratum(10) });
+    expect(log.scraped[0]).toEqual({ count: 4, kept: [1] });
     await settle();
     expect(getWorkPreview('work-a')).toMatchObject({ width: 300, height: 4 });
 
-    manager.onScrape({ handle: 101, order: 4, epoch: 1, through: 9, predicate: 5, params: new Uint8Array() });
-    expect(log.scraped[2]).toEqual({ count: 1, kept: [] });
+    manager.onScrape({ handle: 101, order: 3, epoch: 1, through: 9, predicate: 5, params: new Uint8Array() });
+    expect(log.scraped[1]).toEqual({ count: 1, kept: [] });
     expect(getWorkPreview('work-a')).toBeUndefined();
     manager.dispose();
   });
