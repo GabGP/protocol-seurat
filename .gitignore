@@ -23,6 +23,9 @@ node_modules/
 client/node_modules/
 .pnpm-store/
 
+# TLS keystores (README, HTTPS)
+*.p12
+
 # OS / editors
 .DS_Store
 Thumbs.db

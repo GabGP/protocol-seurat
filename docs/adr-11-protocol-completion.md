@@ -78,6 +78,8 @@ the protocol, so the document's "defined but not used" table is gone.
   refines (to stratum 0 in the Chrome and Edge smoke runs); from the LAN address, not a secure page, the viewer uses WebSocket
   (`caps` 0x6). The server notices a closed tab in 0.3 s. `scripts/smoke-viewer.mjs` passes on both
   mappings (`--transport wt`, `--transport ws`).
+- With a keystore (`tls.keystore`) the page is served over https, a secure page from any address:
+  Chrome, Edge and Firefox, opened by LAN address through the certificate warning, use WebTransport.
 - With the UDP port unreachable (the page served through a TCP-only proxy) the viewer opens over
   WebSocket; before the v2 fix Firefox showed the other path, the 3 s limit and then WebSocket.
 - Eight viewers zooming at once on the gigapixel works, all over WebTransport: every one showed
