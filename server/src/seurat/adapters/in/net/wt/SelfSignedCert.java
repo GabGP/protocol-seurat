@@ -21,8 +21,9 @@ import java.util.HexFormat;
 import seurat.core.shared.config.SeuratConstants;
 
 /**
- * The certificate of the WebTransport listener: ECDSA P-256, self-signed, 13 days. The viewer pins
- * its SHA-256 (serverCertificateHashes), so no authority has to sign it and nothing is installed.
+ * The certificate of the WebTransport listener and https on the TCP port: ECDSA P-256, self-signed,
+ * 13 days. The viewer pins its SHA-256 (serverCertificateHashes), so no authority has to sign it
+ * and nothing is installed.
  */
 public record SelfSignedCert(KeyStore store, X509Certificate certificate) {
     public static final String ALIAS = "seurat-wt";

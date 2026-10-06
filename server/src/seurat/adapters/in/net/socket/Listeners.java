@@ -1,5 +1,6 @@
 package seurat.adapters.in.net.socket;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -10,32 +11,50 @@ import java.nio.file.Files;
 import java.security.KeyStore;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
 import seurat.adapters.in.net.http.HttpConstants;
 import seurat.adapters.in.net.http.HttpSurface;
 import seurat.core.shared.config.SeuratConfig;
 import static seurat.adapters.in.net.http.HttpConstants.CRLF;
 
-/** The TCP listener (TLS 1.3 from a PKCS#12 keystore when configured, pure JDK) and the raw HTTP answers on it. */
+/** The TCP listener (plain socket with TLS layered on demand, pure JDK) and the raw HTTP answers on it. */
 final class Listeners {
+    /** First byte of a TLS record (0x16: Handshake). */
+    static final int TLS_HANDSHAKE = 0x16;
+    private static final String TLS_PROTOCOL = "TLSv1.3";
+
     private Listeners() {}
 
-    static ServerSocket open(SeuratConfig config) throws Exception {
-        if (!config.tls()) {
-            return new ServerSocket(config.httpPort);
-        }
-        char[] password = config.tlsPassword.toCharArray();
-        KeyStore store = KeyStore.getInstance("PKCS12");
-        try (InputStream in = Files.newInputStream(config.tlsKeystore)) {
-            store.load(in, password);
+    static ServerSocket open(SeuratConfig config) throws IOException {
+        return new ServerSocket(config.httpPort);
+    }
+
+    static SSLContext tls(SeuratConfig config, KeyStore fallback, char[] fallbackPassword) throws Exception {
+        KeyStore store;
+        char[] password;
+        if (config.tls()) {
+            password = config.tlsPassword.toCharArray();
+            store = KeyStore.getInstance("PKCS12");
+            try (InputStream in = Files.newInputStream(config.tlsKeystore)) {
+                store.load(in, password);
+            }
+        } else {
+            store = fallback;
+            password = fallbackPassword;
         }
         KeyManagerFactory keys = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         keys.init(store, password);
-        SSLContext tls = SSLContext.getInstance("TLSv1.3");
+        SSLContext tls = SSLContext.getInstance(TLS_PROTOCOL);
         tls.init(keys.getKeyManagers(), null, null);
-        SSLServerSocket server = (SSLServerSocket) tls.getServerSocketFactory().createServerSocket(config.httpPort);
-        server.setEnabledProtocols(new String[]{"TLSv1.3"});
-        return server;
+        return tls;
+    }
+
+    static SSLSocket secure(SSLContext tls, Socket socket, int firstByte) throws IOException {
+        SSLSocket secure = (SSLSocket) tls.getSocketFactory().createSocket(
+                socket, new ByteArrayInputStream(new byte[]{(byte) firstByte}), true);
+        secure.setUseClientMode(false);
+        secure.setEnabledProtocols(new String[]{TLS_PROTOCOL});
+        return secure;
     }
 
     /** Writes one HTTP response and ends the connection (Connection: close, no-store unless set). */

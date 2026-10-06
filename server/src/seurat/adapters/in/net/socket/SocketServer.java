@@ -3,10 +3,14 @@ package seurat.adapters.in.net.socket;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.KeyStore;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
 import seurat.adapters.in.net.http.HttpSurface;
 import seurat.adapters.in.net.ws.WsHandshake;
 import seurat.adapters.in.net.ws.WsMapping;
@@ -18,13 +22,16 @@ import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
 
 /**
- * One TCP port: HTTP routes plus the seurat.1 WebSocket mapping (TLS when a keystore
- * is configured). No state is created before a valid SALUDO.
+ * One TCP port: HTTP and HTTPS told apart by the first byte, plus the seurat.1 WebSocket
+ * mapping (ws and wss). No state is created before a valid SALUDO.
  */
 public final class SocketServer implements Closeable {
     private final SeuratConfig config;
     private final HttpSurface http;
     private final WsUpgrader upgrader;
+    private final KeyStore certificate;
+    private final char[] password;
+    private SSLContext tls;
     private volatile ServerSocket bound;
     private volatile boolean closed;
 
@@ -32,16 +39,21 @@ public final class SocketServer implements Closeable {
         void accept(WsMapping mapping, BlockingQueue<byte[]> control);
     }
 
-    public SocketServer(SeuratConfig config, HttpSurface http, WsAcceptor acceptor) {
+    public SocketServer(SeuratConfig config, HttpSurface http, WsAcceptor acceptor,
+            KeyStore certificate, char[] password) {
         this.config = config;
         this.http = http;
         this.upgrader = new WsUpgrader(config, acceptor);
+        this.certificate = certificate;
+        this.password = password;
     }
 
     public void start() throws Exception {
+        tls = Listeners.tls(config, certificate, password);
         try (ServerSocket server = Listeners.open(config)) {
             bound = server;
-            Log.info(LogTags.NET, "listening port=" + config.httpPort + " tls=" + config.tls());
+            Log.info(LogTags.NET, "listening port=" + config.httpPort + " http+https certificate="
+                    + (config.tls() ? "configured" : "self-signed"));
             while (!closed) {
                 Socket socket;
                 try {
@@ -75,7 +87,20 @@ public final class SocketServer implements Closeable {
     }
 
     private void handle(Socket socket, String remote) throws Exception {
-        InputStream in = socket.getInputStream();
+        PushbackInputStream rawIn = new PushbackInputStream(socket.getInputStream(), 1);
+        int first = rawIn.read();
+        if (first == -1) {
+            socket.close();
+            return;
+        }
+        InputStream in;
+        if (first == Listeners.TLS_HANDSHAKE) {
+            socket = Listeners.secure(tls, socket, first);
+            in = socket.getInputStream();
+        } else {
+            rawIn.unread(first);
+            in = rawIn;
+        }
         HttpRequestReader head = HttpRequestReader.read(in);
         if (head == null) {
             socket.close();
@@ -97,9 +122,10 @@ public final class SocketServer implements Closeable {
         boolean streamed = HttpSurface.streamed(parts[0], parts[1]);
         boolean local = socket.getInetAddress().isLoopbackAddress()
                 || socket.getInetAddress().equals(socket.getLocalAddress());
+        boolean secure = socket instanceof SSLSocket;
         var request = new HttpSurface.Request(parts[0], parts[1], headers,
                 streamed ? new byte[0] : in.readNBytes((int) Math.min(length, SeuratConstants.FRAME_MAX)),
-                host, streamed ? in : null, length, local);
+                host, streamed ? in : null, length, local, secure);
         long t0 = System.nanoTime();
         var response = http.route(request);
         Log.info(LogTags.HTTP, "remote=" + remote + " " + parts[0] + " " + parts[1] + " code=" + response.code()

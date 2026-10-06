@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -22,6 +23,7 @@ import seurat.adapters.in.net.http.IntakePorts;
 import seurat.adapters.in.net.ws.WsFraming;
 import seurat.adapters.in.net.ws.WsHandshake;
 import seurat.adapters.in.net.ws.WsMapping;
+import seurat.adapters.in.net.wt.SelfSignedCert;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.shared.proto.Frame;
@@ -63,10 +65,11 @@ final class WsClient {
         HttpSurface http = new HttpSurface(web, sessions, catalog, config,
                 intakePorts, id -> {});
         var ctx = new EaselContext(sessions, catalog, grants, new GazeGate(grants), 1024, 0);
+        var cert = SelfSignedCert.generate(Instant.now());
         var server = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);
             Thread.ofVirtual().start(new Easel(mapping, control, ctx));
-        });
+        }, cert.store(), SelfSignedCert.PASSWORD);
         Thread.ofPlatform().daemon().start(() -> {
             try {
                 server.start();

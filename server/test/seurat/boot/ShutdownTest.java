@@ -3,6 +3,7 @@ package seurat.boot;
 import java.io.Closeable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,6 +14,7 @@ import seurat.adapters.in.inbox.InboxWatcher;
 import seurat.adapters.in.inbox.MasterIntake;
 import seurat.adapters.in.net.socket.RecordingMapping;
 import seurat.adapters.in.net.socket.SocketServer;
+import seurat.adapters.in.net.wt.SelfSignedCert;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Metrics;
@@ -84,7 +86,9 @@ public final class ShutdownTest {
     private static void listenerStops() throws Exception {
         Path root = Files.createTempDirectory("shutdown-listener");
         Files.writeString(root.resolve("seurat.conf"), "http.port=0\n");
-        SocketServer server = new SocketServer(SeuratConfig.load(root.resolve("seurat.conf")), null, (m, c) -> {});
+        var cert = SelfSignedCert.generate(Instant.now());
+        SocketServer server = new SocketServer(SeuratConfig.load(root.resolve("seurat.conf")), null, (m, c) -> {},
+                cert.store(), SelfSignedCert.PASSWORD);
         Thread serving = new Thread(() -> {
             try {
                 server.start();

@@ -30,14 +30,19 @@ public final class HttpSurface {
      * same machine as the server.
      */
     public record Request(String method, String path, Map<String, String> headers,
-            byte[] body, String host, InputStream stream, long length, boolean local) {
+            byte[] body, String host, InputStream stream, long length, boolean local, boolean secure) {
         public Request(String method, String path, Map<String, String> headers, byte[] body, String host) {
-            this(method, path, headers, body, host, null, body.length, false);
+            this(method, path, headers, body, host, null, body.length, false, false);
         }
 
         public Request(String method, String path, Map<String, String> headers,
                 byte[] body, String host, InputStream stream, long length) {
-            this(method, path, headers, body, host, stream, length, false);
+            this(method, path, headers, body, host, stream, length, false, false);
+        }
+
+        public Request(String method, String path, Map<String, String> headers,
+                byte[] body, String host, InputStream stream, long length, boolean local) {
+            this(method, path, headers, body, host, stream, length, local, false);
         }
     }
 

@@ -51,7 +51,7 @@ final class SessionRoute {
         String token = sessions.issueToken(principal, memMib, SeuratConstants.TOKEN_TTL_S * Units.MS_PER_S);
         Log.info(LogTags.SESSION, "token issued principal=" + principal);
         String host = req.host();
-        String ws = (config.tls() ? "wss://" : "ws://") + host + SeuratConstants.WT_PATH + "-ws";
+        String ws = (req.secure() ? "wss://" : "ws://") + host + SeuratConstants.WT_PATH + "-ws";
         String lienzo = pin.isEmpty() ? ws : "https://" + host + SeuratConstants.WT_PATH;
         String huella = pin.isEmpty() ? "" : ",\"huella\":\"" + pin + "\"";
         String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + lienzo + "\"" + huella

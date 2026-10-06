@@ -93,11 +93,12 @@ public final class SeuratServer {
         ScheduledExecutorService clock = Timers.start(regulator, sessions, liveness, reaper, gazes);
         EaselContext ctx = new EaselContext(sessions, catalog, grants, gazes, config.sessionMaxBrushes,
                 config.rateBytesPerSec);
+        SelfSignedCert cert = SelfSignedCert.generate(Instant.now());
         SocketServer listener = new SocketServer(config, http, (WsMapping mapping, BlockingQueue<byte[]> control) -> {
             Thread.ofVirtual().start(mapping::pump);
             Thread.ofVirtual().start(new Easel(mapping, control, ctx));
-        });
-        Closeable quic = openWebTransport(config, http, ctx);
+        }, cert.store(), SelfSignedCert.PASSWORD);
+        Closeable quic = openWebTransport(config, http, ctx, cert);
         new Shutdown(() -> {
             listener.close();
             quic.close();
@@ -106,12 +107,12 @@ public final class SeuratServer {
     }
 
     /** The WebTransport mapping on UDP; without it every viewer uses the WebSocket mapping (spec 5.1). */
-    private static Closeable openWebTransport(SeuratConfig config, HttpSurface http, EaselContext ctx) {
+    private static Closeable openWebTransport(SeuratConfig config, HttpSurface http, EaselContext ctx,
+            SelfSignedCert cert) {
         if (!config.webtransport) {
             return () -> {};
         }
         try {
-            SelfSignedCert cert = SelfSignedCert.generate(Instant.now());
             WtListener wt = WtListener.open(config.httpPort, cert, config.origins,
                     (mapping, control) -> Thread.ofVirtual().start(new Easel(mapping, control, ctx)));
             http.announceWebTransport(cert.sha256Hex());
