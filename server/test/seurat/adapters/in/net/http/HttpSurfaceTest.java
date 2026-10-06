@@ -27,6 +27,10 @@ public final class HttpSurfaceTest {
         Path conf = root.resolve("seurat.conf");
         Files.writeString(conf, "http.port=18080\n");
         SeuratConfig config = SeuratConfig.load(conf);
+        TestKit.check(config.webtransport, "webtransport defaults to true");
+        Path confFalse = root.resolve("seurat-false.conf");
+        Files.writeString(confFalse, "webtransport=false\n");
+        TestKit.check(!SeuratConfig.load(confFalse).webtransport, "webtransport=false gives false");
         Sessions sessions = new Sessions();
         Catalog catalog = new Catalog(new DiskArchive(root.resolve("obras")));
         Staging staging = new Staging(config.staging, config.inbox, catalog);
@@ -138,6 +142,17 @@ public final class HttpSurfaceTest {
         var reusedIssued = sessions.consumeToken(reusedToken);
         TestKit.check(reusedIssued != null && reusedIssued.principal().equals("viewer-" + anonId),
                 "with a well-formed cookie the principal is reused");
+
+        String testPin = "ab".repeat(32);
+        http.announceWebTransport(testPin);
+        var wtResp = http.route(new HttpSurface.Request("POST", "/seurat/v1/sesion",
+                Map.of(), "{\"memMiB\":256}".getBytes(), "example.edu:8080"));
+        String wtCreated = new String(wtResp.body());
+        TestKit.check(wtResp.code() == 201
+                && wtCreated.contains("\"lienzo\":\"https://example.edu:8080/seurat/v1/lienzo\"")
+                && wtCreated.contains("\"huella\":\"" + testPin + "\"")
+                && wtCreated.contains("\"respaldo\":\"ws://example.edu:8080/seurat/v1/lienzo-ws\""),
+                "POST /sesion with WebTransport announces huella and https lienzo");
 
         var denied = http.route(new HttpSurface.Request("PUT", "/seurat/v1/obras/x",
                 Map.of(), new byte[]{1, 2, 3}, "h"));

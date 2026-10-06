@@ -13,10 +13,11 @@ import seurat.core.viewing.session.Sessions;
 
 /**
  * POST /seurat/v1/sesion (spec 3.1 with ADR-05): no authentication; issues a single-use
- * 32 B token that expires in 120 s, plus the mapping URLs (only the WebSocket one is served,
- * so `lienzo` names it too and the viewer goes straight to it, spec 8 "UDP bloqueado"), and
- * `local` (the viewer uses it to show the path-import tab per ADR-04; informational only, the server
- * re-checks on every intake call). The cookie names the principal so SALUDO REANUDAR can check it.
+ * 32 B token that expires in 120 s, plus the mapping URLs: when WebTransport is up, `lienzo`
+ * names the https/QUIC URL and `huella` carries the certificate SHA-256 so the viewer pins
+ * the listener's self-signed certificate (serverCertificateHashes, nothing installed); otherwise
+ * `lienzo` names the WebSocket URL. In both cases `respaldo` names WebSocket (spec 8 "UDP bloqueado").
+ * Also reports `local` (ADR-04). The cookie names the principal so SALUDO REANUDAR can check it.
  * No other state is created.
  */
 final class SessionRoute {
@@ -26,10 +27,16 @@ final class SessionRoute {
     private final Sessions sessions;
     private final SeuratConfig config;
     private final SecureRandom random = new SecureRandom();
+    /** SHA-256 (hex) of the WebTransport certificate once that listener is up; empty = WebSocket only. */
+    private volatile String pin = "";
 
     SessionRoute(Sessions sessions, SeuratConfig config) {
         this.sessions = sessions;
         this.config = config;
+    }
+
+    void webtransport(String certificateSha256) {
+        pin = certificateSha256;
     }
 
     HttpSurface.Response issue(HttpSurface.Request req) {
@@ -44,9 +51,11 @@ final class SessionRoute {
         String token = sessions.issueToken(principal, memMib, SeuratConstants.TOKEN_TTL_S * Units.MS_PER_S);
         Log.info(LogTags.SESSION, "token issued principal=" + principal);
         String host = req.host();
-        String ws = (config.tls() ? "wss://" : "ws://") + host + "/seurat/v1/lienzo-ws";
-        String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + ws
-                + "\",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE
+        String ws = (config.tls() ? "wss://" : "ws://") + host + SeuratConstants.WT_PATH + "-ws";
+        String lienzo = pin.isEmpty() ? ws : "https://" + host + SeuratConstants.WT_PATH;
+        String huella = pin.isEmpty() ? "" : ",\"huella\":\"" + pin + "\"";
+        String json = "{\"token\":\"" + token + "\",\"lienzo\":\"" + lienzo + "\"" + huella
+                + ",\"respaldo\":\"" + ws + "\",\"versiones\":[1],\"lado\":" + SeuratConstants.BRUSH_SIDE
                 + ",\"local\":" + req.local() + "}";
         Map<String, String> headers = fresh
                 ? Map.of("Set-Cookie", ANON_COOKIE + "=" + anon + "; Path=/; HttpOnly; SameSite=Strict")

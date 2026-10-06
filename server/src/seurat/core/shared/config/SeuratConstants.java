@@ -94,5 +94,19 @@ public final class SeuratConstants {
     public static final long PROGRESS_ETA_MIN_MS = 1_000;
     /** A work, file or zip name in a log line is cut to ("...") or padded to this many characters. */
     public static final int LOG_NAME_WIDTH = 32;
+    /** A pinned WebTransport certificate must live at most 14 days (W3C WebTransport): 13 leaves a margin. */
+    public static final int WT_CERT_DAYS = 13;
+    /** The certificate starts this long before boot, so a viewer whose clock runs slow still accepts it. */
+    public static final long WT_CERT_BACKDATE_S = 3600;
+    /** QUIC idle timeout of the WebTransport mapping (spec 5.1): the heartbeat (15 s) keeps a live session inside it. */
+    public static final int WT_IDLE_S = 30;
+    /** Streams a viewer may open: HTTP/3 control and QPACK (3), the CONNECT, the Seurat control stream, and margin. */
+    public static final int WT_PEER_STREAMS = 16;
+    /** The WebTransport session path (spec 3.1); the WebSocket fallback is the same path plus "-ws". */
+    public static final String WT_PATH = "/seurat/v1/lienzo";
+    /** Largest HEADERS frame of a WebTransport CONNECT the server reads. */
+    public static final int WT_HEADERS_MAX = 16 * Units.BYTES_PER_KIB;
+    /** What a closing WebTransport session waits so its last control frame leaves before CONNECTION_CLOSE. */
+    public static final long WT_CLOSE_GRACE_MS = 200;
 }
 

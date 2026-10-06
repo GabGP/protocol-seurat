@@ -1,6 +1,8 @@
 package seurat;
 
+import java.io.Closeable;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -15,6 +17,8 @@ import seurat.adapters.in.net.http.HttpSurface;
 import seurat.adapters.in.net.http.IntakePorts;
 import seurat.adapters.in.net.socket.SocketServer;
 import seurat.adapters.in.net.ws.WsMapping;
+import seurat.adapters.in.net.wt.SelfSignedCert;
+import seurat.adapters.in.net.wt.WtListener;
 import seurat.adapters.out.decode.Decoders;
 import seurat.adapters.out.disk.DiskArchive;
 import seurat.adapters.out.disk.DiskMasters;
@@ -27,6 +31,7 @@ import seurat.core.shared.config.SeuratConfig;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogLevel;
 import seurat.core.shared.observe.LogTags;
+import seurat.core.shared.observe.LogUnits;
 import seurat.core.shared.observe.Metrics;
 import seurat.core.viewing.easel.Easel;
 import seurat.core.viewing.easel.EaselContext;
@@ -92,8 +97,31 @@ public final class SeuratServer {
             Thread.ofVirtual().start(mapping::pump);
             Thread.ofVirtual().start(new Easel(mapping, control, ctx));
         });
-        new Shutdown(listener, intake, sessions, clock, ingest, painter, painterThread).arm();
+        Closeable quic = openWebTransport(config, http, ctx);
+        new Shutdown(() -> {
+            listener.close();
+            quic.close();
+        }, intake, sessions, clock, ingest, painter, painterThread).arm();
         listener.start();
+    }
+
+    /** The WebTransport mapping on UDP; without it every viewer uses the WebSocket mapping (spec 5.1). */
+    private static Closeable openWebTransport(SeuratConfig config, HttpSurface http, EaselContext ctx) {
+        if (!config.webtransport) {
+            return () -> {};
+        }
+        try {
+            SelfSignedCert cert = SelfSignedCert.generate(Instant.now());
+            WtListener wt = WtListener.open(config.httpPort, cert, config.origins,
+                    (mapping, control) -> Thread.ofVirtual().start(new Easel(mapping, control, ctx)));
+            http.announceWebTransport(cert.sha256Hex());
+            Log.info(LogTags.NET, "listening webtransport udp=" + config.httpPort
+                    + " certificate=" + cert.certificate().getNotAfter().toInstant());
+            return wt;
+        } catch (Exception ex) {
+            Log.warn(LogTags.NET, "webtransport off, websocket only: " + LogUnits.cause(ex));
+            return () -> {};
+        }
     }
 
     private static void forEachCanvas(Sessions sessions, String id, java.util.function.Consumer<Canvas> action) {

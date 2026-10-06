@@ -33,6 +33,8 @@ seurat.core.viewing.easel 13
 seurat.adapters.in.inbox 13
 seurat.adapters.in.net.http 14
 seurat.adapters.in.net.ws 14
+seurat.adapters.in.net.h3 14
+seurat.adapters.in.net.wt 15
 seurat.adapters.in.net.socket 15
 seurat.adapters.out.decode.raster 13
 seurat.adapters.out.disk 13

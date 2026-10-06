@@ -12,6 +12,7 @@ import seurat.core.shared.config.SeuratConstants;
 import seurat.core.shared.observe.Log;
 import seurat.core.shared.observe.LogTags;
 import seurat.core.shared.observe.LogUnits;
+import seurat.core.shared.proto.Frame;
 import seurat.core.viewing.session.Mapping;
 
 /** WebSocket mapping (spec 3.1): reader into the input queue, WsOutbound as the only writer. */
@@ -47,7 +48,7 @@ public final class WsMapping implements Mapping {
                     continue;
                 }
                 byte[] frame = WsChannels.inbound(m);
-                control.put(frame == null ? WsChannels.MALFORMED : frame);
+                control.put(frame == null ? Frame.malformed() : frame);
                 if (frame == null) {
                     break; // the Easel answers ERROR 1 fatal and closes with 1002
                 }

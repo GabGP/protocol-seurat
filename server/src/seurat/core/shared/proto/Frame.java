@@ -37,4 +37,9 @@ public record Frame(long type, byte[] payload) {
     public static boolean mandatory(long type) {
         return type < 0x40;
     }
+
+    /** What a mapping queues for a torn or oversized frame (a 2-byte varint cut short): the Easel's parser turns it into fatal ERROR 1. */
+    public static byte[] malformed() {
+        return new byte[]{0x40};
+    }
 }

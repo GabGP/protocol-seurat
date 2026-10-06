@@ -28,6 +28,8 @@ public final class SeuratConfig {
     public final boolean keepMaster;
     /** Extra Origins accepted on the WS upgrade besides the server's own (spec 9.2, CSWSH). */
     public final List<String> origins;
+    /** Whether the WebTransport mapping (QUIC, the same port number on UDP) is served besides WebSocket. */
+    public final boolean webtransport;
 
     private SeuratConfig(Map<String, String> props, Path base) throws IOException {
         httpPort = intOf(props, "http.port", SeuratConstants.HTTP_PORT);
@@ -43,6 +45,7 @@ public final class SeuratConfig {
         keepMaster = Boolean.parseBoolean(props.getOrDefault("ingest.keep_master", "true"));
         origins = List.of(props.getOrDefault("ws.origins", "").split("\\s*,\\s*")).stream()
                 .filter(o -> !o.isBlank()).toList();
+        webtransport = Boolean.parseBoolean(props.getOrDefault("webtransport", "true"));
     }
 
     public boolean tls() {

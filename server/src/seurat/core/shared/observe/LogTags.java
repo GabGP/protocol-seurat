@@ -15,6 +15,7 @@ public final class LogTags {
     public static final String SERVER = "server";
     public static final String SESSION = "session";
     public static final String WS = "ws";
+    public static final String WT = "wt";
 
     private LogTags() {}
 

@@ -65,6 +65,11 @@ public final class HttpSurface {
         this.routes = new WorkRoutes(catalog, config, intake, onWithdraw);
     }
 
+    /** The WebTransport listener is up: POST /sesion announces it with its certificate hash. */
+    public void announceWebTransport(String certificateSha256) {
+        session.webtransport(certificateSha256);
+    }
+
     /** PUT /seurat/v1/obras/{id} streams to inbox/ instead of being buffered in memory. */
     public static boolean streamed(String method, String path) {
         return method.equals("PUT") && WorkRoutes.isMasterUpload(path);

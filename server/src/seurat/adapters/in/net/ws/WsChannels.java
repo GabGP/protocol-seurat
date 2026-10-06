@@ -1,11 +1,7 @@
 package seurat.adapters.in.net.ws;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
-import seurat.core.shared.config.SeuratConstants;
-import seurat.core.shared.proto.Frame;
-import seurat.core.shared.proto.FrameType;
-import seurat.core.shared.proto.VarInt;
+import seurat.core.shared.proto.Datagrams;
 
 /**
  * The WS mapping's message layout (spec 3.1): u8 channel + content.
@@ -17,8 +13,6 @@ final class WsChannels {
     static final int CONTROL = 0;
     static final int DELIVERY = 1;
     static final int GAZE = 2;
-    /** A torn frame (a 2-byte varint cut short): the Easel's parser turns it into fatal ERROR 1. */
-    static final byte[] MALFORMED = {0x40};
 
     static byte[] wrap(int channel, byte[] content) {
         byte[] msg = new byte[content.length + 1];
@@ -36,16 +30,9 @@ final class WsChannels {
         if (d[0] == CONTROL) {
             return Arrays.copyOfRange(d, 1, d.length);
         }
-        if (d[0] != GAZE || d.length - 1 > SeuratConstants.DATAGRAM_MAX) {
+        if (d[0] != GAZE) {
             return null;
         }
-        try {
-            ByteBuffer b = ByteBuffer.wrap(d, 1, d.length - 1);
-            long type = VarInt.get(b); // datagram form: vi tipo · payload, the message delimits it
-            return type != FrameType.MIRADA ? null
-                    : new Frame(type, Arrays.copyOfRange(d, b.position(), d.length)).encode();
-        } catch (RuntimeException ex) {
-            return null;
-        }
+        return Datagrams.gazeFrame(d, 1);
     }
 }
