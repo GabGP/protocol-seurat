@@ -64,7 +64,7 @@ bash run.sh
 
 This script automatically:
 1. Rebuilds the frontend client if a Node toolchain is present (or serves pre-built assets in `client/dist/`).
-2. Compiles the Java backend using standard `javac` (zero external Maven/Gradle downloads).
+2. Compiles the Java backend using standard `javac` (zero external Maven/Gradle downloads; the QUIC jars are vendored in `server/vendor/`).
 3. Boots the asynchronous server on the configured port (default `8180` in `seurat.conf`).
 
 ### 2. Open the Viewer
@@ -74,7 +74,7 @@ Open your browser and navigate to:
 http://localhost:8180/
 ```
 
-The server serves the compiled Single Page Application (`client/dist/`) and manages WebSocket connections on `/seurat/v1/lienzo-ws`. Every viewer gets full quality (stratum 0 with all 4 detail bands and no brush budget; see `docs/adr-05-no-roles.md`).
+The server serves the compiled Single Page Application (`client/dist/`) and serves both transport mappings on that port number: WebTransport (HTTP/3 over QUIC, UDP) on `/seurat/v1/lienzo` and WebSocket (TCP) on `/seurat/v1/lienzo-ws`. A page opened from `localhost` or over https uses WebTransport; a page opened by LAN address over plain http uses WebSocket, because browsers offer WebTransport only to secure pages (see `docs/adr-11-protocol-completion.md`). Every viewer gets full quality (stratum 0 with all 4 detail bands and no brush budget; see `docs/adr-05-no-roles.md`).
 
 ---
 
@@ -121,7 +121,14 @@ curl -X POST \
   http://localhost:8180/seurat/v1/importar
 ```
 
-To withdraw and delete a work (open to any viewer, Origin check only; see `docs/adr-05-no-roles.md`):
+To rename a work (the display name only; the id and the files stay), or from the gallery with the edit button on its card:
+```bash
+curl -X PATCH -H "Content-Type: text/plain" \
+  -d "Mona Lisa" \
+  http://localhost:8180/seurat/v1/obras/mona-lisa
+```
+
+To withdraw and delete a work (open to any viewer, Origin check only; see `docs/adr-05-no-roles.md`), also available from the same edit dialog:
 ```bash
 curl -X DELETE \
   http://localhost:8180/seurat/v1/obras/mona-lisa
@@ -152,7 +159,8 @@ Server parameters can be customized in `seurat.conf`:
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
-| `http.port` | `8180` | Port for HTTP static files, handshake, and WebSocket traffic (protocol default `8080`). |
+| `http.port` | `8180` | Port number: TCP for HTTP static files, handshake and WebSocket; UDP for WebTransport (protocol default `8080`). |
+| `webtransport` | `true` | Serve the WebTransport mapping on UDP; `false` leaves WebSocket only. |
 | `inbox` | `.seurat/runtime/inbox` | Directory watched for incoming image and archive intake. |
 | `works` | `.seurat/runtime/obras` | Directory containing committed multi-scale work packages. |
 | `session.max_brushes`| `1024` | Maximum concurrent active brush grants per session. |
@@ -179,7 +187,7 @@ bash scripts/check-loc.sh
 To run all client test suites and verify production build:
 ```bash
 cd client
-pnpm test          # Runs all Vitest unit and integration tests (262 tests in 52 files)
+pnpm test          # Runs all Vitest unit and integration tests (586 tests in 107 files)
 pnpm build         # Validates TypeScript types and generates production bundle
 pnpm check         # Typecheck, tests, LoC budgets and the FSD import gate in one go
 ```
