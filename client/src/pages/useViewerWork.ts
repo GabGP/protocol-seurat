@@ -3,7 +3,7 @@ import type { SeuratState } from '@/app/providers/SeuratProvider';
 import type { ViewSync } from '@/widgets/viewer-canvas';
 import { goGallery, goViewer } from '@/app/router';
 import { patchUi } from '@/app/store';
-import { stepIndex } from '@/features/navigate-work';
+import { stepIndex, withdrawalWatch } from '@/features/navigate-work';
 import { isOpenable, workDims, workMp, workTitle } from '@/entities/work';
 import { DEFAULT_WORK_WIDTH, DEFAULT_WORK_HEIGHT, DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT } from '@/shared/config/view';
 import { deviceViewport } from '@/shared/lib/device-viewport';
@@ -22,6 +22,13 @@ export function useViewerWork(id: string, seurat: SeuratState) {
   const title = work ? workTitle(work, idx) : 'Plate 01';
   const dims = work ? workDims(work) : '';
   const mp = work ? workMp(work) : '';
+
+  // The open work left the catalog (OBRA BAJA: another viewer withdrew it): nothing to show here any more.
+  const listed = seurat.works.some((w) => w.id === id);
+  const withdrawn = useRef(withdrawalWatch());
+  useEffect(() => {
+    if (withdrawn.current(listed)) goGallery();
+  }, [listed]);
 
   useEffect(() => {
     gazeInit.current = false;

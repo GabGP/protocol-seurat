@@ -3,7 +3,7 @@ import { parseOpenHash } from '@/features/open-work';
 import { filterWorks, fixtureWorks, sortWorks } from '@/entities/work';
 import { isOpenable, type Work } from '@/entities/work';
 import { buildPresets } from '@/features/zoom-view';
-import { counterLabel, stepIndex } from '@/features/navigate-work';
+import { counterLabel, stepIndex, withdrawalWatch } from '@/features/navigate-work';
 import { fmtPct, logFrac, logUnfrac } from '@/shared/lib/zoom';
 import { clamp } from '@/shared/lib/clamp';
 
@@ -62,6 +62,14 @@ describe('Work filtering & fixtures', () => {
 });
 
 describe('Navigation helpers', () => {
+  it('a work is withdrawn only after it was listed and then left the catalog', () => {
+    const withdrawn = withdrawalWatch();
+    expect(withdrawn(false)).toBe(false); // the catalog has not arrived yet
+    expect(withdrawn(true)).toBe(false);
+    expect(withdrawn(true)).toBe(false);
+    expect(withdrawn(false)).toBe(true); // OBRA BAJA
+  });
+
   it('stepIndex handles wraparound in both directions', () => {
     expect(stepIndex(0, 1, 12)).toBe(1);
     expect(stepIndex(11, 1, 12)).toBe(0);
