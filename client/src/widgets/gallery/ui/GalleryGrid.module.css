@@ -210,13 +210,13 @@
 
 .editBtn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 12px;
+  right: 12px;
   z-index: 2;
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 50%;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,16 +225,37 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 150ms ease;
+  transform: scale(0.6);
+  transition:
+    opacity 150ms ease,
+    transform 420ms cubic-bezier(.34,1.56,.64,1),
+    border-radius 250ms cubic-bezier(.34,1.56,.64,1),
+    background 200ms;
 }
 
+/* The card's corner rounds to --radius-card-hover: the button moves in with it, so the corner never cuts it. */
 :global(.gallery-card):hover .editBtn,
 .editBtn:focus-visible {
   opacity: 1;
+  transform: translate(-8px, 8px);
+}
+
+.editBtn:hover {
+  background: var(--chip-on-bg);
+}
+
+.editBtn:active {
+  border-radius: 10px;
+}
+
+/* Pressing the button is not pressing the card. */
+:global(.gallery-card):has(.editBtn:active) :global(.gallery-card-thumb) {
+  transform: none;
 }
 
 @media (hover: none) {
   .editBtn {
     opacity: 1;
+    transform: none;
   }
 }
