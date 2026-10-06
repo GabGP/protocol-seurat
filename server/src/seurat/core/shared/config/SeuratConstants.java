@@ -47,8 +47,6 @@ public final class SeuratConstants {
     public static final int GAZE_ABUSE_S = 5;
     /** Coalesced MIRADA are released by this tick as the bucket refills. */
     public static final long GAZE_TICK_MS = 50;
-    public static final int RECEIPT_EVERY_MS = 100;
-    public static final int RECEIPT_EVERY_N = 8;
     /** Input queue per session, in frames (spec 9.2): a full queue stops reading the socket. */
     public static final int INPUT_QUEUE_FRAMES = 256;
     /** Cap on one plan's entries (the cone is proportional to the focus, never near this). */
